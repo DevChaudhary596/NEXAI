@@ -23,13 +23,27 @@ def test_healthz(client):
 
 
 def test_detection_roundtrip(client):
+    """Storage tanks are ~<30m at Sentinel-2's 10m/px - real CV (as of M2's
+    physics-constraint work, app/services/detector.py) always blocks this
+    class before inference runs, so `count > 0` is no longer a valid
+    assertion for this target. This now checks that the block reaches the
+    API correctly end-to-end instead - routing still resolves the query and
+    the response is still well-formed, it's the detection count itself that
+    the physics gate zeroes out.
+
+    TODO(M1/M6): the seeded demo/coastal/urban/farmland scenes are synthetic
+    256x256 placeholders with no real detectable content - once a real
+    fixture scene exists, add a companion positive-path test using a
+    SENTINEL2_RELIABLE_CLASSES target (e.g. 'ship', 'bridge') that actually
+    asserts count > 0 through the full API, not just at the CVService layer.
+    """
     r = client.post("/api/v1/query", json={
         "prompt": "How many storage tanks are here?", "scene_id": "demo", "roi": ROI})
     assert r.status_code == 200
     body = QueryResponse.model_validate(r.json())  # response must satisfy its own schema
     assert body.routing.tool_call.action.value == "detection"
     assert body.routing.tool_call.target == "storage_tank"
-    assert body.geojson.count > 0
+    assert body.geojson.count == 0, "storage tank is physics-blocked - a nonzero count means the gate broke"
     assert body.stats["count"] == body.geojson.count
 
 
