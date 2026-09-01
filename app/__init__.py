@@ -1,1 +1,1 @@
-# SatQuery-AI Backend Application
+# SatQuery-AI Backend
