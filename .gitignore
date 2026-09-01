@@ -48,3 +48,11 @@ Thumbs.db
 *.tiff
 !data/sample_scenes/.gitkeep
 !data/sample_scenes/README.md
+
+# Downloaded/converted model weights - regenerate via scripts/README_LORA.md,
+# never commit (multi-GB, and Kaggle/Hub is the source of truth for these).
+backend/models/
+
+# Synthetic smoke-test tiles from prepare_dataset.py --synthetic - regenerate
+# on demand, not real satellite data.
+backend/data/images/
