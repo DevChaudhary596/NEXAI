@@ -18,8 +18,8 @@ from app.services.cv_impl import CVService
 from app.orchestrator import Orchestrator
 
 SAMPLE_IMAGE = "data/real_satellite_airport.jpg"
-RELIABLE_SAMPLE_IMAGE = "datasets/dota8/images/val/P1470__1024__3296___1648.jpg"
-GEOTIFF_IMAGE = "data/test_georeferenced_basketball.tif"
+RELIABLE_SAMPLE_IMAGE = "data/test_baseball_diamond.jpg"
+GEOTIFF_IMAGE = "data/test_georeferenced_baseball.tif"
 
 
 def test_m6_cpu_only_execution():
@@ -59,8 +59,8 @@ def test_m6_harness_detect_and_segment_contract():
 def test_m6_geotiff_affine_conversion():
     """Verify pixel-to-geographic coordinate conversion when georeferencing exists."""
     service = CVService()
-    # "basketball court" is now empirically marked as reliable so it won't be blocked.
-    fc = service.detect(GEOTIFF_IMAGE, "basketball court", None, 0.1)
+    # "baseball diamond" is in the reliable list based on physics estimates.
+    fc = service.detect(GEOTIFF_IMAGE, "baseball diamond", None, 0.1)
     assert len(fc.features) > 0
 
     first_geom = fc.features[0].geometry
@@ -87,7 +87,7 @@ def test_m6_orchestrator_integration():
     # Positive Test: A reliable class that IS in the image
     res_positive = orch.process_detection_task(
         scene_path=RELIABLE_SAMPLE_IMAGE,
-        target="basketball court",
+        target="baseball diamond",
         bbox=None,
         confidence=0.1
     )
@@ -96,7 +96,7 @@ def test_m6_orchestrator_integration():
 
     seg_res = orch.process_segmentation_task(
         scene_path=RELIABLE_SAMPLE_IMAGE,
-        target="basketball court",
+        target="baseball diamond",
         bbox=None
     )
     assert isinstance(seg_res, FeatureCollection)

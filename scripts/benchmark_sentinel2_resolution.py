@@ -2,10 +2,13 @@ import os
 import glob
 import csv
 import cv2
-import numpy as np
+import argparse
+import sys
 
 # Adjust imports to your project structure
 from app.services.detector import RealOBBDetector, DOTA_CLASSES
+
+MIN_GT_INSTANCES = 50  # Statistical significance threshold
 
 def parse_yolo_obb_label(label_path, img_w, img_h):
     """Parse YOLO OBB format: class_id x1 y1 x2 y2 x3 y3 x4 y4 (relative). Returns absolute AABB for easy matching."""
@@ -48,13 +51,30 @@ def compute_iou(box1, box2):
     return iou
 
 def main():
-    dataset_dir = "datasets/dota8" # Default to local tiny dataset if present
+    parser = argparse.ArgumentParser(
+        description="Benchmark Sentinel-2 physics constraints on a YOLO-OBB dataset.",
+        epilog="""
+Note: To run this script correctly, you need the official DOTAv1 dataset in YOLO-OBB format.
+You can acquire it by running the ultralytics downloader:
+  from ultralytics.utils.downloads import download
+  download('https://github.com/ultralytics/yolov5/releases/download/v1.0/DOTAv1.zip') # Or via Roboflow
+  
+Do NOT rely on toy datasets (e.g. 'dota8') for policy changes as they lack statistical significance.
+"""
+    )
+    parser.add_argument('--dataset-dir', type=str, required=True, help='Path to the dataset directory containing images/val and labels/val')
+    parser.add_argument('--output-csv', type=str, default='benchmark_results.csv', help='Output CSV file path')
+    
+    args = parser.parse_args()
+    
+    dataset_dir = args.dataset_dir
     img_dir = os.path.join(dataset_dir, "images", "val")
     lbl_dir = os.path.join(dataset_dir, "labels", "val")
     
     if not os.path.exists(img_dir):
-        print(f"Dataset not found at {img_dir}. Please point this to a valid YOLO-OBB dataset.")
-        return
+        print(f"Error: Dataset not found at {img_dir}.")
+        print("Please point --dataset-dir to a valid YOLO-OBB dataset containing images/val and labels/val.")
+        sys.exit(1)
 
     # Assuming DOTA original GSD is ~1m, resize by 1/10 to simulate 10m GSD.
     GSD_SCALE_FACTOR = 0.1 
@@ -88,7 +108,7 @@ def main():
         # 2. Get Ground Truth
         filename = os.path.basename(img_path)
         lbl_path = os.path.join(lbl_dir, os.path.splitext(filename)[0] + ".txt")
-        gt_boxes = parse_yolo_obb_label(lbl_path, orig_w, orig_h) # YOLO labels are relative, apply to orig size to get GT in orig scale
+        gt_boxes = parse_yolo_obb_label(lbl_path, orig_w, orig_h)
         
         # Convert GT boxes to simulated scale
         sim_gt_boxes = []
@@ -131,24 +151,25 @@ def main():
             matched = False
             for d in det_boxes:
                 if d["class_id"] == gt["class_id"]:
-                    if compute_iou(gt["bbox"], d["bbox"]) > 0.05: # Very lenient IOU since downsampled 10x boxes can shift
+                    if compute_iou(gt["bbox"], d["bbox"]) > 0.05: 
                         matched = True
                         break
             if matched:
                 class_stats[gt["class_id"]]["hits"] += 1
 
     # Output to CSV
-    csv_path = "benchmark_results.csv"
+    csv_path = args.output_csv
     with open(csv_path, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(["Class ID", "Class Name", "Total GT Instances", "Hits (Simulated 10m)", "Hit Rate (%)"])
+        writer.writerow(["Class ID", "Class Name", "Total GT Instances", "Hits (Simulated 10m)", "Hit Rate (%)", "Status"])
         
         for cls_id, stats in class_stats.items():
             total = stats["total_gt"]
             hits = stats["hits"]
             rate = (hits / total * 100) if total > 0 else 0.0
-            writer.writerow([cls_id, stats["name"], total, hits, f"{rate:.2f}"])
-            print(f"Class: {stats['name']:>18} | GT: {total:>3} | Hits: {hits:>3} | Rate: {rate:>5.1f}%")
+            status = "Statistically Insignificant" if total < MIN_GT_INSTANCES else "Verified"
+            writer.writerow([cls_id, stats["name"], total, hits, f"{rate:.2f}", status])
+            print(f"Class: {stats['name']:>18} | GT: {total:>5} | Hits: {hits:>5} | Rate: {rate:>5.1f}% | Status: {status}")
             
     print(f"\nResults saved to {csv_path}")
 
