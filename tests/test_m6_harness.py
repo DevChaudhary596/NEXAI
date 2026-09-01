@@ -18,7 +18,8 @@ from app.services.cv_impl import CVService
 from app.orchestrator import Orchestrator
 
 SAMPLE_IMAGE = "data/real_satellite_airport.jpg"
-GEOTIFF_IMAGE = "data/real_satellite_airport.tif"
+RELIABLE_SAMPLE_IMAGE = "data/test_baseball_diamond.jpg"
+GEOTIFF_IMAGE = "data/test_georeferenced_baseball.tif"
 
 
 def test_m6_cpu_only_execution():
@@ -57,20 +58,9 @@ def test_m6_harness_detect_and_segment_contract():
 
 def test_m6_geotiff_affine_conversion():
     """Verify pixel-to-geographic coordinate conversion when georeferencing exists."""
-    import app.services.detector as det
-    
-    # Temporarily remove 'plane' from unreliable list just to test the coordinate math 
-    # since our only GeoTIFF test image primarily contains planes.
-    original_unreliable = det.SENTINEL2_UNRELIABLE_CLASSES.copy()
-    if "plane" in det.SENTINEL2_UNRELIABLE_CLASSES:
-        det.SENTINEL2_UNRELIABLE_CLASSES.remove("plane")
-
     service = CVService()
-    fc = service.detect(GEOTIFF_IMAGE, "plane", None, 0.3)
-    
-    # Restore the production physics constraints
-    det.SENTINEL2_UNRELIABLE_CLASSES = original_unreliable
-
+    # "baseball diamond" is in the reliable list based on physics estimates.
+    fc = service.detect(GEOTIFF_IMAGE, "baseball diamond", None, 0.1)
     assert len(fc.features) > 0
 
     first_geom = fc.features[0].geometry
@@ -84,20 +74,29 @@ def test_m6_orchestrator_integration():
     """Verify orchestrator can consume CVService seamlessly without modifying contracts."""
     orch = Orchestrator()
     
-    # We test with a valid class like 'bridge' to ensure the pipeline executes without error.
-    res = orch.process_detection_task(
+    # Negative Test: A reliable class that isn't in the image
+    res_empty = orch.process_detection_task(
         scene_path=SAMPLE_IMAGE,
         target="bridge",
         bbox=None,
         confidence=0.35
     )
-    assert isinstance(res, FeatureCollection)
-    # The image has no bridges, so it should cleanly return 0 features but successfully run inference
-    assert len(res.features) == 0
+    assert isinstance(res_empty, FeatureCollection)
+    assert len(res_empty.features) == 0
+    
+    # Positive Test: A reliable class that IS in the image
+    res_positive = orch.process_detection_task(
+        scene_path=RELIABLE_SAMPLE_IMAGE,
+        target="baseball diamond",
+        bbox=None,
+        confidence=0.1
+    )
+    assert isinstance(res_positive, FeatureCollection)
+    assert len(res_positive.features) > 0
 
     seg_res = orch.process_segmentation_task(
-        scene_path=SAMPLE_IMAGE,
-        target="bridge",
+        scene_path=RELIABLE_SAMPLE_IMAGE,
+        target="baseball diamond",
         bbox=None
     )
     assert isinstance(seg_res, FeatureCollection)

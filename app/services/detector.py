@@ -62,28 +62,27 @@ MACRO_CATEGORIES: Dict[str, List[str]] = {
 
 # Sentinel-2 10m/px Resolution Feasibility Mapping
 # Objects smaller than 30m (approx 3 pixels) are not reliably detectable.
+# [WARNING]: These are purely theoretical physics estimates. 
+# They MUST be empirically verified against a statistically significant (n>=50) DOTA validation set.
 SENTINEL2_RELIABLE_CLASSES = {
-    "ship",                 # Large ships (cargo, tankers 100-400m)
-    "harbor",               # Harbors, docks
-    "bridge",               # Bridges
-    "baseball diamond",     # Large fields
-    "ground track field",   # Large fields
-    "soccer ball field",    # Large fields
-    "airport",              # Airports/runways (Conceptual)
-    "solar farm",           # Solar farms (Conceptual)
-    "warehouse"             # Large industrial buildings (Conceptual)
+    "ship",                 # [Unverified: Physics Estimate] Large ships (cargo, tankers 100-400m)
+    "harbor",               # [Unverified: Physics Estimate] Harbors, docks
+    "bridge",               # [Unverified: Physics Estimate] Bridges
+    "baseball diamond",     # [Unverified: Physics Estimate] Large fields
+    "ground track field",   # [Unverified: Physics Estimate] Large fields
+    "soccer ball field"     # [Unverified: Physics Estimate] Large fields
 }
 
 SENTINEL2_UNRELIABLE_CLASSES = {
-    "plane",                # Planes (60-80m = 6-8 pixels, weak)
-    "helicopter",
-    "storage tank",         # Small storage tanks
-    "small vehicle",        # Cars
-    "large vehicle",        # Trucks
-    "tennis court",         # < 30m
-    "basketball court",     # < 30m
-    "swimming pool",        # < 30m
-    "house"                 # Individual houses
+    "plane",                # [Unverified: Physics Estimate] Planes (60-80m = 6-8 pixels, weak)
+    "helicopter",           # [Unverified: Physics Estimate] < 30m
+    "storage tank",         # [Unverified: Physics Estimate] Small storage tanks
+    "small vehicle",        # [Unverified: Physics Estimate] Cars
+    "large vehicle",        # [Unverified: Physics Estimate] Trucks
+    "tennis court",         # [Unverified: Physics Estimate] < 30m
+    "basketball court",     # [Unverified: Physics Estimate] < 30m
+    "swimming pool",        # [Unverified: Physics Estimate] < 30m
+    "roundabout"            # [Unverified: Physics Estimate] ~20-50m
 }
 
 
