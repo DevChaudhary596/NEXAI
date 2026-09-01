@@ -60,6 +60,32 @@ MACRO_CATEGORIES: Dict[str, List[str]] = {
     "fields": ["soccer ball field", "ground track field", "baseball diamond"],
 }
 
+# Sentinel-2 10m/px Resolution Feasibility Mapping
+# Objects smaller than 30m (approx 3 pixels) are not reliably detectable.
+SENTINEL2_RELIABLE_CLASSES = {
+    "ship",                 # Large ships (cargo, tankers 100-400m)
+    "harbor",               # Harbors, docks
+    "bridge",               # Bridges
+    "baseball diamond",     # Large fields
+    "ground track field",   # Large fields
+    "soccer ball field",    # Large fields
+    "airport",              # Airports/runways (Conceptual)
+    "solar farm",           # Solar farms (Conceptual)
+    "warehouse"             # Large industrial buildings (Conceptual)
+}
+
+SENTINEL2_UNRELIABLE_CLASSES = {
+    "plane",                # Planes (60-80m = 6-8 pixels, weak)
+    "helicopter",
+    "storage tank",         # Small storage tanks
+    "small vehicle",        # Cars
+    "large vehicle",        # Trucks
+    "tennis court",         # < 30m
+    "basketball court",     # < 30m
+    "swimming pool",        # < 30m
+    "house"                 # Individual houses
+}
+
 
 def normalize_target_to_classes(target: str) -> Set[str]:
     """
@@ -146,6 +172,18 @@ class RealOBBDetector:
             # Class not supported by model -> return empty detections (Never fabricate!)
             metrics["total_time_ms"] = (time.perf_counter() - start_total) * 1000.0
             return [], metrics
+
+        # Check Sentinel-2 10m GSD feasibility
+        import logging
+        for cls in target_classes:
+            if cls in SENTINEL2_UNRELIABLE_CLASSES:
+                logging.error(f"Target '{cls}' is physically too small (<30m) for Sentinel-2 10m resolution. Bypassing inference to prevent hallucination.")
+                metrics["total_time_ms"] = (time.perf_counter() - start_total) * 1000.0
+                return [], metrics
+            elif cls in SENTINEL2_RELIABLE_CLASSES:
+                logging.info(f"Target '{cls}' is valid for Sentinel-2 10m/px resolution. Proceeding with inference.")
+
+
 
         img_h, img_w = image_np.shape[:2]
 
