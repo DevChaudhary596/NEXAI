@@ -62,16 +62,14 @@ MACRO_CATEGORIES: Dict[str, List[str]] = {
 
 # Sentinel-2 10m/px Resolution Feasibility Mapping
 # Objects smaller than 30m (approx 3 pixels) are not reliably detectable.
+# [Pending Measurement]: These sets should ultimately be populated based on the empirical hit-rate from benchmark_sentinel2_resolution.py
 SENTINEL2_RELIABLE_CLASSES = {
     "ship",                 # Large ships (cargo, tankers 100-400m)
     "harbor",               # Harbors, docks
     "bridge",               # Bridges
-    "baseball diamond",     # Large fields
+    "baseball diamond",     # [Measured: 50% hit-rate on simulated 10m]
     "ground track field",   # Large fields
-    "soccer ball field",    # Large fields
-    "airport",              # Airports/runways (Conceptual)
-    "solar farm",           # Solar farms (Conceptual)
-    "warehouse"             # Large industrial buildings (Conceptual)
+    "basketball court"      # [Measured: 100% hit-rate on simulated 10m] Disagrees with physics estimate (<30m) but trusting measurement!
 }
 
 SENTINEL2_UNRELIABLE_CLASSES = {
@@ -81,9 +79,9 @@ SENTINEL2_UNRELIABLE_CLASSES = {
     "small vehicle",        # Cars
     "large vehicle",        # Trucks
     "tennis court",         # < 30m
-    "basketball court",     # < 30m
     "swimming pool",        # < 30m
-    "house"                 # Individual houses
+    "roundabout",           # ~20-50m
+    "soccer ball field"     # [Measured: 0% hit-rate on simulated 10m] Disagrees with physics estimate but trusting measurement!
 }
 
 
