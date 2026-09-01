@@ -163,6 +163,22 @@ cython_debug/
 
 # VS Code
 .vscode/
+*.swp
+*.swo
+
+# Data / Large files (optional exclusion if large)
+*.tif
+*.tiff
+!data/sample_scenes/.gitkeep
+!data/sample_scenes/README.md
+
+# Downloaded/converted model weights for backend-goru - regenerate via
+# backend-goru/scripts/README_LORA.md, never commit (multi-GB).
+backend-goru/models/
+
+# Synthetic smoke-test tiles from prepare_dataset.py --synthetic - regenerate
+# on demand, not real satellite data.
+backend-goru/data/images/
 
 # OS generated files
 .DS_Store
