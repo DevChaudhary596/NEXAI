@@ -1,0 +1,1 @@
+# Apple Silicon specific pins (64 pins)
