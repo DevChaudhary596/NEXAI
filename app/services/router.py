@@ -170,8 +170,8 @@ def route_by_rules(prompt: str) -> RoutingDecision | None:
     """Deterministic pass. Returns None when it is not confident."""
     text = prompt.lower().strip()
 
-    # 0. Explicit index acronyms ("ndvi", "ndwi", "ndbi") with or without thresholds -> Spectral
-    if re.search(r"\b(ndvi|ndwi|ndbi)\b", text):
+    # 0. Explicit index acronyms ("ndvi", "ndwi", "ndbi") or explicit threshold with spectral keywords -> Spectral
+    if re.search(r"\b(ndvi|ndwi|ndbi)\b", text) or (_extract_threshold(text)[0] is not None and _detect_index(text) is not None):
         index = _detect_index(text)
         if index is not None:
             threshold, operator = _extract_threshold(text)
