@@ -3,12 +3,12 @@ from typing import Dict, Any, Optional
 import numpy as np
 import rasterio
 
-from satquery.raster.ingestion import extract_metadata
-from satquery.indices.calculator import calculate_ndvi, calculate_ndwi, calculate_ndbi
-from satquery.raster.masking import threshold
-from satquery.raster.visualization import create_index_overlay, save_overlay_metadata
-from satquery.vector.polygonizer import polygonize_mask
-from satquery.change_detection.detector import detect_change
+from app.services.gis_engine.raster.ingestion import extract_metadata
+from app.services.gis_engine.indices.calculator import calculate_ndvi, calculate_ndwi, calculate_ndbi
+from app.services.gis_engine.raster.masking import threshold
+from app.services.gis_engine.raster.visualization import create_index_overlay, save_overlay_metadata
+from app.services.gis_engine.vector.polygonizer import polygonize_mask
+from app.services.gis_engine.change_detection.detector import detect_change
 
 class RasterGISService:
     """
