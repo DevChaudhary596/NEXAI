@@ -1,0 +1,15 @@
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+data/raw/*
+data/processed/*
+outputs/overlays/*
+outputs/geojson/*
+outputs/reports/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!outputs/overlays/.gitkeep
+!outputs/geojson/.gitkeep
+!outputs/reports/.gitkeep

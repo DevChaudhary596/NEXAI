@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "satquery"
+version = "0.1.0"
+description = "Raster & GIS Processing Engine for SatQuery AI"
+authors = [
+    {name = "SIH 2026 Team"}
+]
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "rasterio>=1.3.0",
+    "geopandas>=0.14.0",
+    "shapely>=2.0.0",
+    "numpy>=1.24.0",
+    "scipy>=1.10.0",
+    "pyproj>=3.5.0",
+    "Pillow>=10.0.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["satquery*"]

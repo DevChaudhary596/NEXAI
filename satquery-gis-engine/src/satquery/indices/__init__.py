@@ -1,0 +1,3 @@
+"""
+Indices module initialization.
+"""
