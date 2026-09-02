@@ -180,11 +180,7 @@ class GISServiceAdapter:
     def spectral(self, scene_path, index: SpectralIndex, threshold: float, operator, bbox):
         if not Path(scene_path).exists():
             return MockGISService().spectral(scene_path, index, threshold, operator, bbox)
-        try:
-            arr, transform, _crs = self._compute_index(scene_path, index, bbox)
-        except Exception as exc:
-            log.warning("spectral compute failed (%s); falling back to mock", exc)
-            return MockGISService().spectral(scene_path, index, threshold, operator, bbox)
+        arr, transform, _crs = self._compute_index(scene_path, index, bbox)
 
         import numpy as np
         mask = self._threshold(arr, threshold, _op_to_str(operator))
