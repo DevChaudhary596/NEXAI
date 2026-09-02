@@ -14,7 +14,11 @@ from PIL import Image
 from app.models.geojson import BBox, Feature, FeatureCollection, Geometry
 from app.services.cv_engine.detector import RealOBBDetector
 from app.services.cv_engine.segmenter import RealSegmenter
-from app.services.cv_engine.geo import get_image_georeference, build_geojson_polygon
+from app.services.cv_engine.geo import (
+    get_image_georeference,
+    build_geojson_polygon,
+    geo_bbox_to_pixel,
+)
 
 try:
     import rasterio
@@ -126,14 +130,21 @@ class CVService:
 
         # Handle optional bbox
         if bbox is not None:
-            if not isinstance(bbox, BBox):
-                bbox = BBox(bbox)
+            if transform is not None:
+                crop_min_x, crop_min_y, crop_max_x, crop_max_y = geo_bbox_to_pixel(bbox, transform)
+            else:
+                if not isinstance(bbox, BBox):
+                    bbox = BBox(bbox)
+                crop_min_x = int(round(bbox.xmin))
+                crop_min_y = int(round(bbox.ymin))
+                crop_max_x = int(round(bbox.xmax))
+                crop_max_y = int(round(bbox.ymax))
 
             # Clamp coordinates to image dimensions
-            crop_min_x = max(0, int(round(bbox.xmin)))
-            crop_min_y = max(0, int(round(bbox.ymin)))
-            crop_max_x = min(img_w, int(round(bbox.xmax)))
-            crop_max_y = min(img_h, int(round(bbox.ymax)))
+            crop_min_x = max(0, crop_min_x)
+            crop_min_y = max(0, crop_min_y)
+            crop_max_x = min(img_w, crop_max_x)
+            crop_max_y = min(img_h, crop_max_y)
 
             if crop_max_x <= crop_min_x or crop_max_y <= crop_min_y:
                 # Invalid crop region
@@ -200,13 +211,20 @@ class CVService:
 
         # Handle optional bbox
         if bbox is not None:
-            if not isinstance(bbox, BBox):
-                bbox = BBox(bbox)
+            if transform is not None:
+                crop_min_x, crop_min_y, crop_max_x, crop_max_y = geo_bbox_to_pixel(bbox, transform)
+            else:
+                if not isinstance(bbox, BBox):
+                    bbox = BBox(bbox)
+                crop_min_x = int(round(bbox.xmin))
+                crop_min_y = int(round(bbox.ymin))
+                crop_max_x = int(round(bbox.xmax))
+                crop_max_y = int(round(bbox.ymax))
 
-            crop_min_x = max(0, int(round(bbox.xmin)))
-            crop_min_y = max(0, int(round(bbox.ymin)))
-            crop_max_x = min(img_w, int(round(bbox.xmax)))
-            crop_max_y = min(img_h, int(round(bbox.ymax)))
+            crop_min_x = max(0, crop_min_x)
+            crop_min_y = max(0, crop_min_y)
+            crop_max_x = min(img_w, crop_max_x)
+            crop_max_y = min(img_h, crop_max_y)
 
             if crop_max_x <= crop_min_x or crop_max_y <= crop_min_y:
                 return FeatureCollection(features=[])
