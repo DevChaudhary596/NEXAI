@@ -143,13 +143,19 @@ class CVService:
             offset_x = crop_min_x
             offset_y = crop_min_y
 
+        # Check if scene is explicitly high-resolution aerial/drone imagery
+        scene_name = str(scene_path).lower()
+        is_aerial = "aerial" in scene_name or "drone" in scene_name or "dota" in scene_name
+        is_s2 = not is_aerial
+
         # Run real CPU detection
         detections, metrics = self.detector.detect_image(
             image_np=image_np,
             target=target,
             confidence_threshold=confidence,
             tile_size=640,
-            overlap_ratio=0.2
+            overlap_ratio=0.15,
+            is_sentinel2=is_s2,
         )
         self.last_benchmark_metrics = metrics
 
