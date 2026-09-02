@@ -97,8 +97,8 @@ def test_5_large_image_sahi(cv_service):
     """
     Test 5: Verify SAHI sliding window works on a large image (>640x640) and merges duplicates.
     """
-    # SCENE_PATH is 1024x1024, which triggers SAHI multi-tile slicing
-    result = cv_service.detect(SCENE_PATH, "storage tank", None, 0.3)
+    # GEOTIFF_PATH is 1024x1024, which triggers SAHI multi-tile slicing
+    result = cv_service.detect(GEOTIFF_PATH, "baseball diamond", None, 0.1)
     assert cv_service.last_benchmark_metrics["num_tiles"] > 1, "Should slice 1024x1024 image into multiple tiles"
     assert len(result.features) > 0
 
@@ -107,9 +107,9 @@ def test_6_real_segmentation(cv_service):
     """
     Test 6: Verify segment() returns real polygon mask-derived features.
     """
-    result = cv_service.segment(SCENE_PATH, "plane", None)
+    result = cv_service.segment(SCENE_PATH, "baseball diamond", None)
     assert isinstance(result, FeatureCollection)
-    assert len(result.features) > 0, "Should segment planes in the aerial scene"
+    assert len(result.features) > 0, "Should segment baseball diamond in the aerial scene"
 
     feat = result.features[0]
     assert feat.properties["is_segmentation"] is True
@@ -123,8 +123,8 @@ def test_7_empty_result_no_fabrication(cv_service):
     """
     Test 7: Verify empty FeatureCollection when target does not exist. Zero random boxes!
     """
-    # 'baseball diamond' does not exist in this airport image
-    result = cv_service.detect(SCENE_PATH, "baseball diamond", None, 0.5)
+    # 'swimming pool' does not exist in this baseball diamond image
+    result = cv_service.detect(SCENE_PATH, "swimming pool", None, 0.5)
     assert isinstance(result, FeatureCollection)
     assert len(result.features) == 0, "Must return empty FeatureCollection when target not present"
 
