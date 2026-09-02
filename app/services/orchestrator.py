@@ -19,6 +19,7 @@ from app.core.schemas import (
 from app.services.cv import get_cv
 from app.services.gis import get_gis
 from app.services.router import IntentRouter
+from app.services.storage import get_storage
 from app.services.vlm import get_vlm, vram_scope
 
 log = logging.getLogger(__name__)
@@ -29,16 +30,25 @@ class SceneNotFound(Exception):
 
 
 def resolve_scene(scene_id: str) -> Path:
-    """M5 owns upload naming; this mirrors it. Missing files are tolerated in
-    mock mode so the other five can develop without real GeoTIFFs."""
+    """Delegates to M5's storage layout (scenes/{id}/scene.tif from a real
+    upload, falling back to the flat scenes/{id}.tif convention tests and
+    fixtures use) - see app/services/storage.py's docstring: "no one touches
+    the filesystem directly." Missing files are tolerated only in mock mode
+    so M2-M6 can develop without real GeoTIFFs.
+
+    Duplicating this path logic locally (the flat-only form this used to be)
+    silently 404'd every real query after a real /upload, since storage.py
+    actually saves nested (scenes/{id}/scene.tif) - real backends never hit
+    that path, so the bug only showed up once a non-mock tool tried to open
+    the file.
+    """
     s = get_settings()
-    path = Path(s.data_dir) / "scenes" / f"{scene_id}.tif"
-    # Any real backend needs a real raster; only mock tolerates a missing file
-    # so M2-M6 can develop without GeoTIFFs. Checking `== "local"` here used to
-    # let the mlx backend answer about a scene that was never uploaded.
-    if not path.exists() and s.vlm_backend != "mock":
-        raise SceneNotFound(scene_id)
-    return path
+    try:
+        return get_storage().resolve_scene(scene_id)
+    except FileNotFoundError:
+        if s.vlm_backend != "mock":
+            raise SceneNotFound(scene_id)
+        return Path(s.scenes_dir) / f"{scene_id}.tif"
 
 
 def _get_scene_or_roi_crop(scene: Path, roi: Any) -> Path | None:
