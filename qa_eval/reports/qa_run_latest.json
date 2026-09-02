@@ -1,0 +1,124 @@
+{
+  "timestamp": "2026-09-02 21:46:38",
+  "mode": "router",
+  "total_queries": 5,
+  "passed_queries": 5,
+  "failed_queries": 0,
+  "pass_rate_pct": 100.0,
+  "avg_latency_ms": 6.12,
+  "max_latency_ms": 7.48,
+  "peak_rss_mb": 297.66,
+  "hardware_budget_passed": true,
+  "results": [
+    {
+      "query_id": "Q-001",
+      "prompt": "How many airplanes are parked on the apron at Delhi Airport?",
+      "category": "counting",
+      "complexity": "simple",
+      "target_scene": "data/benchmark_scenes/urban/urban_01_delhi_airport_runway.tif",
+      "expected_router_path": "detection",
+      "actual_router_path": "detection",
+      "latency_ms": 6.16,
+      "memory_rss_mb": 297.61,
+      "passed": true,
+      "status": "PASS",
+      "details": {
+        "confidence": 0.95,
+        "rationale": "count/find verb + object 'plane'",
+        "tool_call": {
+          "action": "detection",
+          "target": "plane",
+          "confidence": 0.25
+        }
+      }
+    },
+    {
+      "query_id": "Q-002",
+      "prompt": "Detect all aircraft parked along the terminal runway.",
+      "category": "detection",
+      "complexity": "simple",
+      "target_scene": "data/benchmark_scenes/urban/urban_01_delhi_airport_runway.tif",
+      "expected_router_path": "detection",
+      "actual_router_path": "detection",
+      "latency_ms": 7.45,
+      "memory_rss_mb": 297.62,
+      "passed": true,
+      "status": "PASS",
+      "details": {
+        "confidence": 0.95,
+        "rationale": "count/find verb + object 'plane'",
+        "tool_call": {
+          "action": "detection",
+          "target": "plane",
+          "confidence": 0.25
+        }
+      }
+    },
+    {
+      "query_id": "Q-003",
+      "prompt": "Count the number of cargo ships docked at JNPT port berths.",
+      "category": "counting",
+      "complexity": "simple",
+      "target_scene": "data/benchmark_scenes/urban/urban_02_mumbai_jnpt_port_ships.tif",
+      "expected_router_path": "detection",
+      "actual_router_path": "detection",
+      "latency_ms": 7.48,
+      "memory_rss_mb": 297.63,
+      "passed": true,
+      "status": "PASS",
+      "details": {
+        "confidence": 0.95,
+        "rationale": "count/find verb + object 'ship'",
+        "tool_call": {
+          "action": "detection",
+          "target": "ship",
+          "confidence": 0.25
+        }
+      }
+    },
+    {
+      "query_id": "Q-004",
+      "prompt": "Identify and locate all maritime vessels in the harbor.",
+      "category": "detection",
+      "complexity": "moderate",
+      "target_scene": "data/benchmark_scenes/urban/urban_02_mumbai_jnpt_port_ships.tif",
+      "expected_router_path": "detection",
+      "actual_router_path": "detection",
+      "latency_ms": 5.55,
+      "memory_rss_mb": 297.64,
+      "passed": true,
+      "status": "PASS",
+      "details": {
+        "confidence": 0.95,
+        "rationale": "count/find verb + object 'ship'",
+        "tool_call": {
+          "action": "detection",
+          "target": "ship",
+          "confidence": 0.25
+        }
+      }
+    },
+    {
+      "query_id": "Q-005",
+      "prompt": "How many petroleum storage tanks are in this Jamnagar refinery facility?",
+      "category": "counting",
+      "complexity": "simple",
+      "target_scene": "data/benchmark_scenes/urban/urban_03_refinery_storage_tanks.tif",
+      "expected_router_path": "detection",
+      "actual_router_path": "detection",
+      "latency_ms": 3.94,
+      "memory_rss_mb": 297.66,
+      "passed": true,
+      "status": "PASS",
+      "details": {
+        "confidence": 0.95,
+        "rationale": "count/find verb + object 'storage_tank'",
+        "tool_call": {
+          "action": "detection",
+          "target": "storage_tank",
+          "confidence": 0.25
+        }
+      }
+    }
+  ]
+}
