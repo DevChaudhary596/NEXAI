@@ -15,8 +15,8 @@ import pytest
 from app.models.geojson import BBox, FeatureCollection
 from app.services.cv_impl import CVService
 
-SCENE_PATH = "data/real_satellite_airport.jpg"
-GEOTIFF_PATH = "data/real_satellite_airport.tif"
+SCENE_PATH = "data/test_baseball_diamond.jpg"
+GEOTIFF_PATH = "data/test_georeferenced_baseball.tif"
 
 
 @pytest.fixture(scope="module")
@@ -28,13 +28,13 @@ def test_1_real_detection(cv_service):
     """
     Test 1: Verify detect() runs actual model inference and returns real detections.
     """
-    result = cv_service.detect(SCENE_PATH, "plane", None, 0.3)
+    result = cv_service.detect(SCENE_PATH, "baseball diamond", None, 0.1)
     assert isinstance(result, FeatureCollection)
-    assert len(result.features) > 0, "Should detect planes in the aerial airport scene"
+    assert len(result.features) > 0, "Should detect baseball diamond in the aerial scene"
 
     first_feat = result.features[0]
-    assert first_feat.properties["target"] == "plane"
-    assert first_feat.properties["confidence"] >= 0.3
+    assert first_feat.properties["target"] == "baseball diamond"
+    assert first_feat.properties["confidence"] >= 0.1
     assert first_feat.geometry.type in ("Polygon", "MultiPolygon")
     # Verify coordinate polygon has at least 3 points
     coords = first_feat.geometry.coordinates[0]

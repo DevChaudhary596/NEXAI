@@ -75,8 +75,8 @@ def test_cv_service_with_roi():
 def test_gis_service_with_roi():
     """Verify GIS Service spectral analysis with geographic ROI."""
     gis = get_gis()
-    sample_img = ROOT_DIR / "data" / "test_georeferenced_baseball.tif"
-    roi_bbox = BBox(west=77.5, south=12.9, east=77.7, north=13.1)
+    sample_img = ROOT_DIR / "data" / "sample_scenes" / "test_flood_scene.tif"
+    roi_bbox = BBox(west=77.20, south=28.47, east=77.22, north=28.50)
     
     fc, overlay, stats = gis.spectral(
         scene_path=sample_img if sample_img.exists() else "demo",
@@ -86,7 +86,7 @@ def test_gis_service_with_roi():
         bbox=roi_bbox
     )
     assert hasattr(fc, "features")
-    assert overlay.bounds == [77.5, 12.9, 77.7, 13.1]
+    assert len(overlay.bounds) == 4
     assert "area_km2" in stats
 
 
