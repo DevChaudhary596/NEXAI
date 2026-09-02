@@ -38,14 +38,17 @@ DETECTION_SYNONYMS: dict[str, str] = {
     "oil tank": "storage_tank", "oil tanks": "storage_tank", "tank": "storage_tank",
     "tanks": "storage_tank", "silo": "storage_tank", "silos": "storage_tank",
     "ship": "ship", "ships": "ship", "boat": "ship", "boats": "ship",
-    "vessel": "ship", "vessels": "ship",
+    "vessel": "ship", "vessels": "ship", "freighter": "ship", "freighters": "ship",
+    "cargo ship": "ship", "cargo ships": "ship", "container ship": "ship",
+    "container ships": "ship", "tanker": "ship", "tankers": "ship",
+    "submarine": "ship", "submarines": "ship",
     "plane": "plane", "planes": "plane", "aircraft": "plane",
     "airplane": "plane", "airplanes": "plane", "jet": "plane", "jets": "plane",
     "vehicle": "vehicle", "vehicles": "vehicle", "car": "vehicle", "cars": "vehicle",
     "truck": "vehicle", "trucks": "vehicle",
     "building": "building", "buildings": "building", "house": "building",
     "houses": "building", "structure": "building", "structures": "building",
-    "bridge": "bridge", "bridges": "bridge",
+    "bridge": "bridge", "bridges": "bridge", "flyover": "bridge", "flyovers": "bridge",
     "harbor": "harbor", "harbors": "harbor", "harbour": "harbor", "port": "harbor",
     "roundabout": "roundabout", "roundabouts": "roundabout",
     "helicopter": "helicopter", "helicopters": "helicopter",
@@ -56,12 +59,18 @@ DETECTION_SYNONYMS: dict[str, str] = {
 SEGMENTATION_SYNONYMS: dict[str, str] = {
     "water": "water", "water body": "water", "water bodies": "water",
     "lake": "water", "lakes": "water", "river": "water", "rivers": "water",
+    "flooded area": "water", "flooded areas": "water", "inundation": "water",
+    "storm surge": "water", "floodwater": "water",
     "building": "building", "buildings": "building", "rooftop": "building",
-    "rooftops": "building",
+    "rooftops": "building", "submerged structures": "building",
     "vegetation": "vegetation", "forest": "vegetation", "trees": "vegetation",
-    "canopy": "vegetation",
+    "canopy": "vegetation", "crop parcel": "vegetation", "crop parcels": "vegetation",
+    "parcel": "vegetation", "parcels": "vegetation", "farmland": "vegetation",
+    "farmlands": "vegetation", "field": "vegetation", "fields": "vegetation",
     "road": "road", "roads": "road", "highway": "road", "highways": "road",
+    "waterlogged rural roads": "road", "waterlogged roads": "road",
     "bare soil": "bare_soil", "barren": "bare_soil", "soil": "bare_soil",
+    "landslide": "bare_soil", "debris": "bare_soil", "scar": "bare_soil",
 }
 
 # Index keyword sets. Ordered by specificity when scanned.
@@ -73,21 +82,23 @@ SPECTRAL_KEYWORDS: dict[SpectralIndex, tuple[str, ...]] = {
     SpectralIndex.NDVI: (
         "ndvi", "vegetation", "crop", "crops", "farm", "farmland", "agricultur",
         "greenery", "green cover", "plant health", "crop health", "biomass",
-        "forest cover", "drought", "yield",
+        "forest cover", "drought", "yield", "greenness", "chlorophyll", "paddy",
+        "canopy", "canopy loss",
     ),
     SpectralIndex.NDBI: (
         "ndbi", "built-up", "built up", "builtup", "urban", "urbanis", "urbaniz",
         "impervious", "settlement", "concrete", "construction", "sprawl",
+        "highway lanes", "corridor clearing",
     ),
 }
 
 _COUNT_VERBS = re.compile(
     r"\b(how many|count|number of|find|locate|detect|identify|spot|list all|"
-    r"how much of|are there any|show me all)\b"
+    r"how much of|show me all)\b"
 )
 _SEGMENT_VERBS = re.compile(
-    r"\b(segment|mask|outline|delineate|trace|extent of|boundary|boundaries|"
-    r"footprint|silhouette|exact shape)\b"
+    r"\b(segment|segmented|segmenting|mask|outline|delineate|trace|extent of|boundary|boundaries|"
+    r"footprint|silhouette|exact shape|highlight|isolate|draw|show (?:the )?(?:flooded|submerged|inundated|burned|vegetated|built-up)?\s*(?:area|areas|region|zone)?)\b"
 )
 _AREA_WORDS = re.compile(r"\b(area|areas|coverage|extent|region|regions|zone|zones)\b")
 _BITEMPORAL = re.compile(
@@ -98,7 +109,7 @@ _VQA_OPENERS = re.compile(
     # Stems take \w* because a trailing \b cannot match mid-word: bare "summar"
     # never matches "summarise".
     r"^\s*(what|describ\w*|explain\w*|summar\w*|caption\w*|"
-    r"tell me about|is this|does this|can you see|what kind|what type)\b"
+    r"tell me about|is this|does this|can you see|what kind|what type|are there any|is there any)\b"
 )
 # "above 0.4", "> 0.35", "below -0.1", "less than 0.2"
 _THRESHOLD = re.compile(
@@ -159,6 +170,29 @@ def route_by_rules(prompt: str) -> RoutingDecision | None:
     """Deterministic pass. Returns None when it is not confident."""
     text = prompt.lower().strip()
 
+    # 0. Explicit index acronyms ("ndvi", "ndwi", "ndbi") with or without thresholds -> Spectral
+    if re.search(r"\b(ndvi|ndwi|ndbi)\b", text):
+        index = _detect_index(text)
+        if index is not None:
+            threshold, operator = _extract_threshold(text)
+            defaults = {SpectralIndex.NDVI: 0.3, SpectralIndex.NDWI: 0.0, SpectralIndex.NDBI: 0.0}
+            call = SpectralCall(
+                index=index,
+                threshold=threshold if threshold is not None else defaults[index],
+                operator=operator,
+                bi_temporal=bool(_BITEMPORAL.search(text)),
+            )
+            return RoutingDecision(
+                tool_call=call,
+                confidence=0.95,
+                rationale=(
+                    f"explicit {index.value} index mention"
+                    + (" + change wording" if call.bi_temporal else "")
+                    + (f" + explicit threshold {threshold}" if threshold is not None else "")
+                ),
+                source=RoutingSource.RULES,
+            )
+
     # 1. Explicit segmentation verbs win outright - "segment the water" is a
     #    mask request even though 'water' is also an NDWI trigger.
     if _SEGMENT_VERBS.search(text):
@@ -171,7 +205,7 @@ def route_by_rules(prompt: str) -> RoutingDecision | None:
                 source=RoutingSource.RULES,
             )
 
-    # 2. Counting verb + a detectable object -> YOLO. Checked before spectral so
+    # 2. Counting/locating verb + a detectable object -> YOLO. Checked before spectral so
     #    "how many buildings" is a detection, not an NDBI query.
     if _COUNT_VERBS.search(text):
         target = _best_match(text, DETECTION_SYNONYMS)
@@ -180,6 +214,14 @@ def route_by_rules(prompt: str) -> RoutingDecision | None:
                 tool_call=DetectionCall(target=target),
                 confidence=0.95,
                 rationale=f"count/find verb + object '{target}'",
+                source=RoutingSource.RULES,
+            )
+        seg_target = _best_match(text, SEGMENTATION_SYNONYMS)
+        if seg_target:
+            return RoutingDecision(
+                tool_call=SegmentationCall(target=seg_target),
+                confidence=0.9,
+                rationale=f"find verb + segmentation target '{seg_target}'",
                 source=RoutingSource.RULES,
             )
 
@@ -217,7 +259,7 @@ def route_by_rules(prompt: str) -> RoutingDecision | None:
         )
 
     # 5. Clear descriptive openers with no tool signal -> VQA.
-    if _VQA_OPENERS.search(text) and not target:
+    if _VQA_OPENERS.search(text):
         return RoutingDecision(
             tool_call=VQACall(),
             confidence=0.85,
