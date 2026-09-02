@@ -1,0 +1,3 @@
+"""
+Raster module initialization.
+"""
