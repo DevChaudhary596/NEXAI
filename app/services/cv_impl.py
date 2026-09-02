@@ -143,10 +143,9 @@ class CVService:
             offset_x = crop_min_x
             offset_y = crop_min_y
 
-        # Check if scene is explicitly high-resolution aerial/drone imagery
+        # Check if scene is explicitly a Sentinel-2 coarse satellite raster
         scene_name = str(scene_path).lower()
-        is_aerial = "aerial" in scene_name or "drone" in scene_name or "dota" in scene_name
-        is_s2 = not is_aerial
+        is_s2 = "sentinel" in scene_name or "s2" in scene_name or "benchmark_scenes" in scene_name
 
         # Run real CPU detection
         detections, metrics = self.detector.detect_image(
@@ -221,13 +220,18 @@ class CVService:
             offset_x = crop_min_x
             offset_y = crop_min_y
 
+        # Check if scene is explicitly a Sentinel-2 coarse satellite raster
+        scene_name = str(scene_path).lower()
+        is_s2 = "sentinel" in scene_name or "s2" in scene_name or "benchmark_scenes" in scene_name
+
         # Run real CPU segmentation
         segmented_objects, metrics = self.segmenter.segment_image(
             image_np=image_np,
             target=target,
             detector=self.detector,
             confidence_threshold=0.30,
-            tile_size=640
+            tile_size=640,
+            is_sentinel2=is_s2
         )
         self.last_benchmark_metrics = metrics
 

@@ -42,7 +42,8 @@ class RealSegmenter:
         target: str,
         detector: RealOBBDetector,
         confidence_threshold: float = 0.35,
-        tile_size: int = 640
+        tile_size: int = 640,
+        is_sentinel2: bool = False
     ) -> Tuple[List[Dict[str, Any]], Dict[str, float]]:
         """
         Segment target objects in an image array.
@@ -68,7 +69,8 @@ class RealSegmenter:
             image_np=image_np,
             target=target,
             confidence_threshold=confidence_threshold,
-            tile_size=tile_size
+            tile_size=tile_size,
+            is_sentinel2=is_sentinel2
         )
 
         if not detections:

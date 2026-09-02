@@ -1,13 +1,13 @@
 {
-  "timestamp": "2026-09-02 22:31:45",
+  "timestamp": "2026-09-03 00:05:15",
   "mode": "router",
   "total_queries": 5,
   "passed_queries": 5,
   "failed_queries": 0,
   "pass_rate_pct": 100.0,
-  "avg_latency_ms": 5.55,
-  "max_latency_ms": 6.82,
-  "peak_rss_mb": 297.92,
+  "avg_latency_ms": 5.92,
+  "max_latency_ms": 6.49,
+  "peak_rss_mb": 298.14,
   "hardware_budget_passed": true,
   "results": [
     {
@@ -18,8 +18,8 @@
       "target_scene": "data/benchmark_scenes/urban/urban_01_delhi_airport_runway.tif",
       "expected_router_path": "detection",
       "actual_router_path": "detection",
-      "latency_ms": 6.11,
-      "memory_rss_mb": 297.88,
+      "latency_ms": 6.01,
+      "memory_rss_mb": 298.09,
       "passed": true,
       "status": "PASS",
       "details": {
@@ -40,8 +40,8 @@
       "target_scene": "data/benchmark_scenes/urban/urban_01_delhi_airport_runway.tif",
       "expected_router_path": "detection",
       "actual_router_path": "detection",
-      "latency_ms": 6.82,
-      "memory_rss_mb": 297.89,
+      "latency_ms": 6.49,
+      "memory_rss_mb": 298.11,
       "passed": true,
       "status": "PASS",
       "details": {
@@ -62,8 +62,8 @@
       "target_scene": "data/benchmark_scenes/urban/urban_02_mumbai_jnpt_port_ships.tif",
       "expected_router_path": "detection",
       "actual_router_path": "detection",
-      "latency_ms": 5.3,
-      "memory_rss_mb": 297.91,
+      "latency_ms": 5.46,
+      "memory_rss_mb": 298.11,
       "passed": true,
       "status": "PASS",
       "details": {
@@ -84,8 +84,8 @@
       "target_scene": "data/benchmark_scenes/urban/urban_02_mumbai_jnpt_port_ships.tif",
       "expected_router_path": "detection",
       "actual_router_path": "detection",
-      "latency_ms": 4.51,
-      "memory_rss_mb": 297.91,
+      "latency_ms": 5.3,
+      "memory_rss_mb": 298.12,
       "passed": true,
       "status": "PASS",
       "details": {
@@ -106,8 +106,8 @@
       "target_scene": "data/benchmark_scenes/urban/urban_03_refinery_storage_tanks.tif",
       "expected_router_path": "detection",
       "actual_router_path": "detection",
-      "latency_ms": 5.03,
-      "memory_rss_mb": 297.92,
+      "latency_ms": 6.34,
+      "memory_rss_mb": 298.14,
       "passed": true,
       "status": "PASS",
       "details": {

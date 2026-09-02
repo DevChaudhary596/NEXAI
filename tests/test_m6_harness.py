@@ -20,6 +20,7 @@ from app.orchestrator import Orchestrator
 SAMPLE_IMAGE = "data/real_satellite_airport.jpg"
 RELIABLE_SAMPLE_IMAGE = "data/test_baseball_diamond.jpg"
 GEOTIFF_IMAGE = "data/test_georeferenced_baseball.tif"
+SENTINEL_IMAGE = "data/benchmark_scenes/urban/urban_01_delhi_airport_runway.tif"
 
 
 def test_m6_cpu_only_execution():
@@ -35,9 +36,9 @@ def test_m6_harness_detect_and_segment_contract():
     service = CVService()
 
     # detect(scene_path, target: str, bbox: BBox | None, confidence: float) -> FeatureCollection
-    # Enterprise constraint: Plane should be rejected and return 0 features.
+    # Enterprise constraint: Plane should be rejected on Sentinel-2 10m resolution and return 0 features.
     fc_det = service.detect(
-        scene_path=SAMPLE_IMAGE,
+        scene_path=SENTINEL_IMAGE,
         target="plane",
         bbox=None,
         confidence=0.4
@@ -48,7 +49,7 @@ def test_m6_harness_detect_and_segment_contract():
     # segment(scene_path, target: str, bbox: BBox | None) -> FeatureCollection
     # Enterprise constraint: Plane should be rejected and return 0 features.
     fc_seg = service.segment(
-        scene_path=SAMPLE_IMAGE,
+        scene_path=SENTINEL_IMAGE,
         target="plane",
         bbox=None
     )
