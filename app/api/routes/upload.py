@@ -103,6 +103,21 @@ def get_thumbnail(scene_id: str) -> FileResponse:
     return FileResponse(path, media_type="image/jpeg")
 
 
+@router.get("/scenes/{scene_id}/overlays/{name}.png")
+def get_overlay(scene_id: str, name: str) -> FileResponse:
+    """Serve a georeferenced RGBA overlay PNG (M3's spectral output).
+
+    `RasterOverlay.url` in a /query response points here - M4's
+    RasterOverlay.tsx loads it directly with L.imageOverlay(url, bounds).
+    """
+    storage = get_storage()
+    try:
+        path = storage.resolve_overlay(scene_id, name)
+    except FileNotFoundError:
+        raise ApiError(404, "overlay_not_found", f"No overlay '{name}' for scene: {scene_id}")
+    return FileResponse(path, media_type="image/png")
+
+
 @router.delete("/scenes/{scene_id}")
 def delete_scene(scene_id: str) -> Response:
     """Remove a scene and its thumbnail from storage."""
