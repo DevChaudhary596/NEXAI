@@ -145,6 +145,9 @@ def _best_match(text: str, table: dict[str, str]) -> str | None:
 
 
 def _extract_threshold(text: str) -> tuple[float | None, Comparison]:
+    # If explicitly mentioning confidence, this is a CV detection confidence, not spectral index threshold
+    if re.search(r"\bconfidence\b", text):
+        return None, Comparison.GT
     m = _THRESHOLD.search(text)
     if not m:
         return None, Comparison.GT
