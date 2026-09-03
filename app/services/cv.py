@@ -115,6 +115,8 @@ class CVServiceAdapter:
     def detect(
         self, scene_path: str | Path, target: str, bbox: BBox | None, confidence: float
     ) -> FeatureCollection:
+        if not Path(scene_path).exists():
+            return MockCVService().detect(scene_path, target, bbox, confidence)
         m2_bbox = _m1_bbox_to_m2_bbox(bbox)
         m2_target = _normalize_target(target)
         m2_result = self._m2.detect(scene_path, m2_target, m2_bbox, confidence)
@@ -123,6 +125,8 @@ class CVServiceAdapter:
     def segment(
         self, scene_path: str | Path, target: str, bbox: BBox | None
     ) -> FeatureCollection:
+        if not Path(scene_path).exists():
+            return MockCVService().segment(scene_path, target, bbox)
         m2_bbox = _m1_bbox_to_m2_bbox(bbox)
         m2_target = _normalize_target(target)
         m2_result = self._m2.segment(scene_path, m2_target, m2_bbox)
