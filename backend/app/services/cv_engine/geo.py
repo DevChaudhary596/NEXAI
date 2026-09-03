@@ -7,8 +7,12 @@ import os
 import warnings
 from typing import Any, List, Optional, Tuple, Union
 import numpy as np
-from shapely.geometry import Polygon, MultiPolygon, GeometryCollection, shape, mapping
-from shapely.validation import make_valid
+try:
+    from shapely.geometry import Polygon, MultiPolygon, GeometryCollection, shape, mapping
+    from shapely.validation import make_valid
+    HAS_SHAPELY = True
+except ImportError:
+    HAS_SHAPELY = False
 
 try:
     import rasterio
@@ -93,6 +97,12 @@ def build_geojson_polygon(
     if coords[0] != coords[-1]:
         coords.append(coords[0])
 
+    if not HAS_SHAPELY:
+        if transform is not None:
+            transformed = [pixel_to_geo(pt[0], pt[1], transform) for pt in coords]
+            return "Polygon", [[list(pt) for pt in transformed]]
+        return "Polygon", [coords]
+
     poly = Polygon(coords)
     if not poly.is_valid:
         poly = make_valid(poly)
@@ -137,3 +147,38 @@ def build_geojson_polygon(
             return geom_type, transformed_coords
 
     return geom_type, raw_coords
+
+
+def geo_bbox_to_pixel(bbox: Any, transform: Any) -> Tuple[int, int, int, int]:
+    """Invert the scene's affine transform to convert a geographic BBox
+    (EPSG:4326) into pixel space (min_col, min_row, max_col, max_row).
+
+    Uses all 4 corners so it stays correct even if transform has rotation.
+    """
+    if transform is None:
+        if hasattr(bbox, "xmin"):
+            return int(round(bbox.xmin)), int(round(bbox.ymin)), int(round(bbox.xmax)), int(round(bbox.ymax))
+        elif hasattr(bbox, "west"):
+            return int(round(bbox.west)), int(round(bbox.south)), int(round(bbox.east)), int(round(bbox.north))
+        elif isinstance(bbox, (list, tuple)) and len(bbox) == 4:
+            return int(round(bbox[0])), int(round(bbox[1])), int(round(bbox[2])), int(round(bbox[3]))
+        return 0, 0, 0, 0
+
+    inv = ~transform
+    if hasattr(bbox, "west"):
+        w, s, e, n = bbox.west, bbox.south, bbox.east, bbox.north
+    elif hasattr(bbox, "xmin"):
+        w, s, e, n = bbox.xmin, bbox.ymin, bbox.xmax, bbox.ymax
+    elif isinstance(bbox, (list, tuple)) and len(bbox) == 4:
+        w, s, e, n = bbox[0], bbox[1], bbox[2], bbox[3]
+    elif isinstance(bbox, dict):
+        w = bbox.get("west", bbox.get("xmin", 0))
+        s = bbox.get("south", bbox.get("ymin", 0))
+        e = bbox.get("east", bbox.get("xmax", 0))
+        n = bbox.get("north", bbox.get("ymax", 0))
+    else:
+        return 0, 0, 0, 0
+
+    corners = [(w, s), (w, n), (e, s), (e, n)]
+    cols, rows = zip(*(inv * (lon, lat) for lon, lat in corners))
+    return int(round(min(cols))), int(round(min(rows))), int(round(max(cols))), int(round(max(rows)))

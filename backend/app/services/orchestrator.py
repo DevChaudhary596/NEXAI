@@ -51,6 +51,63 @@ def resolve_scene(scene_id: str) -> Path:
         return Path(s.scenes_dir) / f"{scene_id}.tif"
 
 
+def _get_scene_or_roi_crop(scene: Path, roi: Any) -> Path | None:
+    """If scene exists and an ROI is specified, crop the image to the ROI
+    so the VLM answers about the user's selected area rather than the full scene.
+    Falls back to uncropped scene if crop fails or rasterio is absent."""
+    if not scene or not scene.exists():
+        return None
+    if roi is None or not hasattr(roi, "bbox") or roi.bbox is None:
+        return scene
+
+    bbox = roi.bbox
+    try:
+        from PIL import Image
+        import numpy as np
+        import rasterio
+        from rasterio.windows import from_bounds
+        from rasterio.warp import transform_bounds
+
+        crop_dir = scene.parent.parent / "crops"
+        crop_dir.mkdir(parents=True, exist_ok=True)
+        crop_hash = f"{scene.stem}_{abs(hash((bbox.west, bbox.south, bbox.east, bbox.north))) % 100000}.jpg"
+        crop_path = crop_dir / crop_hash
+        if crop_path.exists():
+            return crop_path
+
+        with rasterio.open(str(scene)) as src:
+            if src.crs and not src.crs.is_geographic:
+                try:
+                    left, bottom, right, top = transform_bounds(
+                        "EPSG:4326", src.crs, bbox.west, bbox.south, bbox.east, bbox.north
+                    )
+                except Exception:
+                    left, bottom, right, top = bbox.west, bbox.south, bbox.east, bbox.north
+            else:
+                left, bottom, right, top = bbox.west, bbox.south, bbox.east, bbox.north
+
+            window = from_bounds(left, bottom, right, top, transform=src.transform)
+            window = window.intersection(rasterio.windows.Window(0, 0, src.width, src.height))
+            if window.width > 2 and window.height > 2:
+                if src.count >= 3:
+                    arr = src.read([1, 2, 3], window=window)
+                else:
+                    arr = np.repeat(src.read(1, window=window)[np.newaxis, :, :], 3, axis=0)
+
+                if arr.dtype == np.uint16:
+                    arr = (arr / 256).astype(np.uint8)
+                elif arr.dtype in (np.float32, np.float64):
+                    arr = np.clip(arr * 255 if arr.max() <= 1.0 else arr, 0, 255).astype(np.uint8)
+                arr = np.transpose(arr, (1, 2, 0))
+                im = Image.fromarray(arr)
+                im.save(crop_path, quality=90)
+                return crop_path
+    except Exception as exc:
+        log.warning("ROI crop for VLM failed: %s, using full scene", exc)
+
+    return scene
+
+
 def _summarise(tool_call, stats: dict[str, float], fc: FeatureCollection) -> str:
     """Deterministic factual context handed to the VLM for phrasing.
 
@@ -136,8 +193,9 @@ def handle_query(req: QueryRequest) -> QueryResponse:
 
     context = _summarise(decision.tool_call, stats, fc)
     t = time.perf_counter()
+    vlm_image = _get_scene_or_roi_crop(scene, req.roi)
     with vram_scope("answer"):
-        answer = vlm.answer(req.prompt, scene if scene.exists() else None, context=context)
+        answer = vlm.answer(req.prompt, vlm_image, context=context)
     timings.answer_ms = (time.perf_counter() - t) * 1000
     timings.total_ms = (time.perf_counter() - t0) * 1000
 
