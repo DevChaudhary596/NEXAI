@@ -13,7 +13,11 @@ from .routing import (
     RoutingSource, SegmentationCall, SpectralCall, ToolCall, VQACall,
 )
 from .tasks import TaskState, TaskStatus
-from .upload import SceneListItem, SceneListResponse, UploadResponse
+from .upload import FetchSatelliteRequest, SceneListItem, SceneListResponse, UploadResponse
+from .watches import (
+    AlertListResponse, AlertResponse, CreateWatchRequest, WatchableToolCall,
+    WatchListResponse, WatchResponse,
+)
 
 __all__ = [
     "CONTRACT_VERSION", "BBox", "Comparison", "ROI", "SceneRef", "SpectralIndex",
@@ -22,5 +26,7 @@ __all__ = [
     "DETECTION_TARGETS", "SEGMENTATION_TARGETS", "DetectionCall", "RoutingDecision",
     "RoutingSource", "SegmentationCall", "SpectralCall", "ToolCall", "VQACall",
     "TaskState", "TaskStatus",
-    "UploadResponse", "SceneListItem", "SceneListResponse",
+    "UploadResponse", "SceneListItem", "SceneListResponse", "FetchSatelliteRequest",
+    "AlertListResponse", "AlertResponse", "CreateWatchRequest", "WatchableToolCall",
+    "WatchListResponse", "WatchResponse",
 ]

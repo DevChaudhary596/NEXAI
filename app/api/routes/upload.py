@@ -1,6 +1,8 @@
 """Upload & scene management routes. M5 Days 1-2.
 
 POST /api/v1/upload — multipart GeoTIFF upload with thumbnail generation.
+POST /api/v1/scenes/fetch-satellite — fetch live Sentinel-2 imagery for an AOI,
+    no GeoTIFF upload required.
 GET  /api/v1/scenes — list all uploaded scenes.
 GET  /api/v1/scenes/{scene_id}/thumbnail — serve the JPEG thumbnail.
 DELETE /api/v1/scenes/{scene_id} — remove a scene.
@@ -9,12 +11,14 @@ from __future__ import annotations
 
 import logging
 
+import httpx
 from fastapi import APIRouter, File, UploadFile
 from fastapi.responses import FileResponse, Response
 
 from app.api.errors import ApiError
 from app.core.config import get_settings
-from app.core.schemas import SceneListItem, SceneListResponse, UploadResponse
+from app.core.schemas import FetchSatelliteRequest, SceneListItem, SceneListResponse, UploadResponse
+from app.services import satellite_fetch
 from app.services.storage import get_storage
 
 log = logging.getLogger(__name__)
@@ -68,6 +72,59 @@ async def upload_scene(file: UploadFile = File(...)) -> UploadResponse:
         crs=meta.get("crs"),
         resolution_m=meta.get("resolution_m"),
         band_count=meta.get("band_count"),
+    )
+
+
+@router.post("/scenes/fetch-satellite", response_model=UploadResponse, status_code=201)
+async def fetch_satellite_scene(req: FetchSatelliteRequest) -> UploadResponse:
+    """Fetch the freshest low-cloud Sentinel-2 pass for an AOI and register
+    it as a scene — the "no GeoTIFF required" path. Same response shape as
+    /upload, so the frontend treats it identically once it comes back.
+    """
+    storage = get_storage()
+    bbox = req.bbox
+
+    try:
+        item = await satellite_fetch.find_latest_scene(
+            bbox.west, bbox.south, bbox.east, bbox.north
+        )
+    except satellite_fetch.NoImageryFoundError as exc:
+        raise ApiError(404, "no_imagery_found", str(exc))
+    except httpx.HTTPError as exc:
+        raise ApiError(502, "imagery_provider_error", f"Sentinel-2 search failed: {exc}")
+
+    try:
+        data = satellite_fetch.crop_scene_to_geotiff(
+            item, bbox.west, bbox.south, bbox.east, bbox.north
+        )
+    except Exception as exc:
+        log.exception("satellite crop failed")
+        raise ApiError(502, "imagery_provider_error", f"Could not read Sentinel-2 imagery: {exc}")
+
+    filename = satellite_fetch.scene_label(item)
+    scene_id = storage.mint_scene_id()
+    scene_path = storage.save_scene(scene_id, data, filename)
+    storage.generate_thumbnail(scene_id, scene_path)
+    meta = storage.extract_metadata(scene_path)
+
+    log.info(
+        "satellite fetch complete: scene_id=%s item=%s bbox=%s",
+        scene_id, item["id"], (bbox.west, bbox.south, bbox.east, bbox.north),
+    )
+
+    capture_info = satellite_fetch.scene_capture_info(item)
+    return UploadResponse(
+        scene_id=scene_id,
+        filename=filename,
+        size_bytes=len(data),
+        thumbnail_url=f"/api/v1/scenes/{scene_id}/thumbnail",
+        bounds=meta.get("bounds"),
+        crs=meta.get("crs"),
+        resolution_m=meta.get("resolution_m"),
+        band_count=meta.get("band_count"),
+        satellite=capture_info["satellite"],
+        capture_date=capture_info["capture_date"],
+        cloud_cover_pct=capture_info["cloud_cover_pct"],
     )
 
 

@@ -4,11 +4,14 @@ Wires together:
   - M1's VLM lifespan warm-up
   - M1's /api/v1/query and /api/v1/route endpoints
   - M5's /api/v1/upload, /api/v1/tasks, /api/v1/tiles, /healthz
+  - Live Sentinel-2 fetch and AOI watch/alert routes
   - CORS for M4's Next.js frontend
   - Uniform error envelope for all /api/v1/* failures
 """
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
 from contextlib import asynccontextmanager
 
@@ -16,7 +19,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.errors import register_error_handlers
-from app.api.routes import health, query, tasks, tiles, upload
+from app.api.routes import health, query, tasks, tiles, upload, watches
 from app.core.config import get_settings
 from app.core.schemas.common import CONTRACT_VERSION
 
@@ -42,7 +45,14 @@ async def lifespan(_: FastAPI):
     get_storage()
     log.info("storage initialized at %s", s.data_dir)
 
+    from app.services.watch_scheduler import run_scheduler_loop
+    scheduler_task = asyncio.create_task(run_scheduler_loop())
+
     yield
+
+    scheduler_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await scheduler_task
 
 
 app = FastAPI(
@@ -75,3 +85,4 @@ app.include_router(query.router)       # POST /api/v1/query, POST /api/v1/route
 app.include_router(upload.router)      # POST /api/v1/upload, GET /api/v1/scenes
 app.include_router(tasks.router)       # POST /api/v1/tasks, GET /api/v1/tasks/{id}
 app.include_router(tiles.router)       # GET  /api/v1/tiles/{scene_id}/{z}/{x}/{y}.png
+app.include_router(watches.router)     # POST /api/v1/watches, GET /api/v1/alerts

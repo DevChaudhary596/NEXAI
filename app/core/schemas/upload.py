@@ -6,7 +6,13 @@ from __future__ import annotations
 
 from pydantic import Field
 
-from .common import Strict
+from .common import BBox, Strict
+
+
+class FetchSatelliteRequest(Strict):
+    """POST /api/v1/scenes/fetch-satellite request body."""
+
+    bbox: BBox = Field(description="Area of interest, EPSG:4326.")
 
 
 class UploadResponse(Strict):
@@ -23,6 +29,15 @@ class UploadResponse(Strict):
     crs: str | None = Field(default=None, description="CRS string, e.g. 'EPSG:32643'.")
     resolution_m: float | None = Field(default=None, ge=0)
     band_count: int | None = Field(default=None, ge=1)
+    satellite: str | None = Field(
+        default=None, description="Source instrument, e.g. 'Sentinel-2 L2A'. None for a manual upload."
+    )
+    capture_date: str | None = Field(
+        default=None, description="ISO date the imagery was captured. None for a manual upload."
+    )
+    cloud_cover_pct: float | None = Field(
+        default=None, ge=0, le=100, description="Scene-wide cloud cover at capture. None for a manual upload."
+    )
 
 
 class SceneListItem(Strict):

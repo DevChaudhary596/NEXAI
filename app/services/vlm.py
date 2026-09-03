@@ -63,10 +63,35 @@ class MockVLM(VLMBackend):
     def answer(
         self, prompt: str, image_path: str | Path | None = None, *, context: str = ""
     ) -> str:
-        head = "*(mock VLM - set SATQUERY_VLM_BACKEND=local on the GPU host)*"
+        head = "*(mock VLM - set SATQUERY_VLM_BACKEND=local on GPU or mlx on Apple Silicon)*"
         if context:
             return f"{head}\n\nBased on the analysis of this scene:\n\n{context}"
-        return f"{head}\n\nI can see a satellite scene. Query received: {prompt!r}"
+
+        desc_parts = []
+        if image_path and Path(image_path).exists():
+            try:
+                from app.services.cv import get_cv
+                cv = get_cv()
+                for target in ["plane", "ship", "storage_tank", "vehicle"]:
+                    fc = cv.detect(image_path, target, None, 0.35)
+                    if fc.count > 0:
+                        desc_parts.append(f"{fc.count} {target.replace('_', ' ')}(s)")
+            except Exception as exc:
+                log.debug("Mock VLM scene inspection fallback: %s", exc)
+
+        if desc_parts:
+            summary = ", ".join(desc_parts)
+            return (
+                f"{head}\n\n"
+                f"The satellite scene shows an aerial view containing {summary}. "
+                f"You can ask questions like 'how many planes are here?' or 'detect storage tanks' to visualize them on the map."
+            )
+
+        return (
+            f"{head}\n\n"
+            f"I can see the satellite scene. You can ask object detection questions (e.g. planes, ships, tanks, vehicles), "
+            f"segmentation queries, or spectral index analyses (NDVI, NDWI) across the scene or within a selected ROI."
+        )
 
 
 def _cuda_capability() -> tuple[int, int] | None:

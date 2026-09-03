@@ -7,6 +7,7 @@ uvicorn[standard]>=0.23.0
 python-multipart>=0.0.6
 pydantic>=2.0.0
 pydantic-settings>=2.0.0
+email-validator>=2.0.0  # pydantic's EmailStr (app/core/schemas/watches.py)
 
 # ── Geospatial ────────────────────────────────────────────────────────────
 rasterio>=1.3.0
@@ -20,6 +21,9 @@ shapely>=2.0.0
 geopandas>=0.14.0
 pyproj>=3.5.0
 
+# ── Live imagery (app/services/satellite_fetch.py) ────────────────────────
+# httpx also doubles as the test client below.
+httpx>=0.24.0
+
 # ── Testing ───────────────────────────────────────────────────────────────
 pytest>=7.0.0
-httpx>=0.24.0

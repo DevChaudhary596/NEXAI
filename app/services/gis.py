@@ -160,7 +160,7 @@ class GISServiceAdapter:
         return arr, transform, crs
 
     def _build_overlay(
-        self, arr, transform, index: SpectralIndex, scene_path, name_suffix: str,
+        self, arr, transform, crs, index: SpectralIndex, scene_path, name_suffix: str,
     ) -> RasterOverlay:
         import numpy as np
         from app.core.config import get_settings
@@ -173,19 +173,19 @@ class GISServiceAdapter:
 
         return RasterOverlay(
             url=f"/api/v1/scenes/{scene_id}/overlays/{out_path.stem}.png",
-            bounds=list(_array_bounds(arr, transform)),
+            bounds=list(_array_bounds(arr, transform, crs)),
             legend=LEGENDS[index],
         )
 
     def spectral(self, scene_path, index: SpectralIndex, threshold: float, operator, bbox):
         import numpy as np
 
-        arr, transform, _crs = self._compute_index(scene_path, index, bbox)
+        arr, transform, crs = self._compute_index(scene_path, index, bbox)
 
         mask = self._threshold(arr, threshold, _op_to_str(operator))
-        geojson = self._polygonize(mask, transform, _OUTPUT_CRS, min_area_sqm=100.0)
+        geojson = self._polygonize(mask, transform, crs or _OUTPUT_CRS, min_area_sqm=100.0)
         fc = _geojson_to_feature_collection(geojson, index, source="spectral")
-        overlay = self._build_overlay(arr, transform, index, scene_path, "spectral")
+        overlay = self._build_overlay(arr, transform, crs, index, scene_path, "spectral")
 
         valid = arr[~np.isnan(arr)]
         area_km2 = round(sum(f.properties.area_m2 or 0.0 for f in fc.features) / 1e6, 4)
@@ -223,9 +223,9 @@ class GISServiceAdapter:
         # Protocol docstring ("regions that crossed threshold") and Mock's
         # behaviour.
         mask = self._threshold(np.abs(delta), threshold, ">")
-        geojson = self._polygonize(mask, transform_a, _OUTPUT_CRS, min_area_sqm=100.0)
+        geojson = self._polygonize(mask, transform_a, crs_a or _OUTPUT_CRS, min_area_sqm=100.0)
         fc = _geojson_to_feature_collection(geojson, index, source="spectral")
-        overlay = self._build_overlay(delta, transform_a, index, scene_a, "change")
+        overlay = self._build_overlay(delta, transform_a, crs_a, index, scene_a, "change")
 
         changed_area_km2 = round(sum(f.properties.area_m2 or 0.0 for f in fc.features) / 1e6, 4)
         return fc, overlay, {
@@ -254,11 +254,19 @@ def _scene_id_from_path(scene_path) -> str:
     return p.parent.name if p.name == "scene.tif" else p.stem
 
 
-def _array_bounds(arr, transform) -> tuple[float, float, float, float]:
+def _array_bounds(arr, transform, crs=None) -> tuple[float, float, float, float]:
+    """Bounds in EPSG:4326 - RasterOverlay.bounds' documented contract - even
+    when `transform` is in a projected CRS (Sentinel-2's per-UTM-zone scenes),
+    since `transform` on its own carries no CRS information and array_bounds()
+    would otherwise hand back raw UTM metres mislabeled as lon/lat degrees."""
     from rasterio.transform import array_bounds
+    from rasterio.warp import transform_bounds
 
     height, width = arr.shape[-2:]
-    return array_bounds(height, width, transform)
+    bounds = array_bounds(height, width, transform)
+    if crs and str(crs) != _OUTPUT_CRS:
+        bounds = transform_bounds(crs, _OUTPUT_CRS, *bounds)
+    return bounds
 
 
 def _geojson_to_feature_collection(
