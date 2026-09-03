@@ -172,6 +172,7 @@ cython_debug/
 *.tiff
 !data/sample_scenes/.gitkeep
 !data/sample_scenes/README.md
+!data/benchmark_scenes/**
 
 # Downloaded/converted model weights for backend-goru - regenerate via
 # backend-goru/scripts/README_LORA.md, never commit (multi-GB).
