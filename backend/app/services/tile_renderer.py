@@ -77,14 +77,31 @@ def render_tile(
 
             # Read windowed data
             window = from_bounds(*scene_bounds, src.transform)
-            bands = min(3, src.count)
+            if src.count >= 4:
+                # 4+ band scenes follow this app's Sentinel-2 convention
+                # (gis.py: 1=Blue, 2=Green, 3=Red, 4=NIR — see
+                # satellite_fetch.py) rather than already being in R,G,B
+                # display order, so pick bands by that meaning.
+                band_indices = [3, 2, 1]
+            else:
+                band_indices = list(range(1, min(3, src.count) + 1))
+            bands = len(band_indices)
 
             if layer == "rgb":
+                # boundless+fill_value=0 is required whenever `window` only
+                # partially overlaps the dataset (any tile straddling the
+                # scene's edge). Without it, rasterio silently clips the
+                # window to the overlapping sliver and then stretches that
+                # sliver across the full out_shape — the real image appears
+                # to "bleed" past its true geographic footprint into
+                # neighboring tiles instead of fading to transparent.
                 data = src.read(
-                    list(range(1, bands + 1)),
+                    band_indices,
                     window=window,
                     out_shape=(bands, size, size),
                     resampling=rasterio.enums.Resampling.bilinear,
+                    boundless=True,
+                    fill_value=0,
                 )
                 arr = np.moveaxis(data, 0, -1)
 
@@ -138,6 +155,8 @@ def _render_spectral_tile(
             window=window,
             out_shape=(src.count, size, size),
             resampling=rasterio.enums.Resampling.bilinear,
+            boundless=True,
+            fill_value=0,
         ).astype(float)
 
         # Standard Sentinel-2 band ordering: B2(blue), B3(green), B4(red), B8(NIR)

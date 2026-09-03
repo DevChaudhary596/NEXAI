@@ -73,7 +73,7 @@ class StorageService:
         return dest
 
     def generate_thumbnail(self, scene_id: str, scene_path: Path) -> Path:
-        """Create a JPEG thumbnail from the first 3 bands of the GeoTIFF."""
+        """Create a JPEG thumbnail from the GeoTIFF's display bands."""
         thumb_path = self._thumbs_dir / f"{scene_id}.jpg"
 
         try:
@@ -82,9 +82,17 @@ class StorageService:
             from PIL import Image
 
             with rasterio.open(scene_path) as src:
-                # Read first 3 bands (or fewer if single-band)
-                bands = min(3, src.count)
-                data = src.read(list(range(1, bands + 1)))
+                # 4+ band scenes follow this app's Sentinel-2 convention
+                # (gis.py: 1=Blue, 2=Green, 3=Red, 4=NIR — see
+                # satellite_fetch.py), so pick R,G,B by that meaning rather
+                # than assuming the first three bands are already in
+                # display order. 3-or-fewer-band scenes are used as-is.
+                if src.count >= 4:
+                    band_indices = [3, 2, 1]
+                else:
+                    band_indices = list(range(1, min(3, src.count) + 1))
+                bands = len(band_indices)
+                data = src.read(band_indices)
 
                 # Normalize to 0-255
                 arr = np.moveaxis(data, 0, -1)  # (H, W, C)
@@ -123,12 +131,24 @@ class StorageService:
         return thumb_path
 
     def extract_metadata(self, scene_path: Path) -> dict[str, Any]:
-        """Extract CRS, bounds, resolution, band count from a GeoTIFF."""
+        """Extract CRS, bounds, resolution, band count from a GeoTIFF.
+
+        `bounds` is always returned in EPSG:4326 (the API contract UploadResponse
+        promises this), regardless of the file's native CRS — every existing
+        test fixture happens to already be EPSG:4326 so this went unnoticed,
+        but a projected-CRS source (e.g. Sentinel-2's per-UTM-zone COGs) would
+        otherwise come back as raw UTM metres, which the frontend would then
+        treat as degrees.
+        """
         try:
             import rasterio
+            from rasterio.warp import transform_bounds
 
             with rasterio.open(scene_path) as src:
-                bounds = list(src.bounds)
+                if src.crs and str(src.crs) != "EPSG:4326":
+                    bounds = list(transform_bounds(src.crs, "EPSG:4326", *src.bounds))
+                else:
+                    bounds = list(src.bounds)
                 return {
                     "crs": str(src.crs) if src.crs else None,
                     "bounds": bounds,

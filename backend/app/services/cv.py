@@ -23,6 +23,27 @@ from app.core.schemas import BBox, Feature, FeatureCollection, FeatureProperties
 
 log = logging.getLogger(__name__)
 
+# M1's DetectionTarget/SegmentationTarget schemas are meant to only advertise
+# classes M2's real YOLOv8n-OBB detector was actually trained on (see the
+# warning in app/core/schemas/routing.py: an unsupported class must surface as
+# an error, not a silent empty result) - but "building" (detection and
+# segmentation) and segmentation's "water"/"vegetation"/"road"/"bare_soil" slipped
+# in without a matching DOTA class. M2's detector already declines gracefully
+# (returns [] rather than fabricating a detection) per its own "Never
+# fabricate!" comment, which is the right call for *it* - the fix belongs here,
+# at the M1 contract boundary, by refusing before we even call in.
+def _require_supported_target(m2_target: str, action: str) -> None:
+    from app.services.cv_engine.detector import normalize_target_to_classes
+
+    if normalize_target_to_classes(m2_target):
+        return
+    raise ValueError(
+        f"'{m2_target}' is not a class this {action} model was trained to recognize "
+        "(it only knows DOTA's aerial-object classes: plane, ship, storage tank, "
+        "vehicle, bridge, harbor, roundabout, helicopter, swimming pool - not "
+        "generic land-cover classes like buildings, water, vegetation, roads, or bare soil)."
+    )
+
 
 # ── M1's Protocol (what the orchestrator expects) ────────────────────────
 
@@ -117,6 +138,7 @@ class CVServiceAdapter:
     ) -> FeatureCollection:
         m2_bbox = _m1_bbox_to_m2_bbox(bbox)
         m2_target = _normalize_target(target)
+        _require_supported_target(m2_target, "detection")
         m2_result = self._m2.detect(scene_path, m2_target, m2_bbox, confidence)
         return _m2_fc_to_m1_fc(m2_result, source="detection")
 
@@ -125,6 +147,7 @@ class CVServiceAdapter:
     ) -> FeatureCollection:
         m2_bbox = _m1_bbox_to_m2_bbox(bbox)
         m2_target = _normalize_target(target)
+        _require_supported_target(m2_target, "segmentation")
         m2_result = self._m2.segment(scene_path, m2_target, m2_bbox)
         return _m2_fc_to_m1_fc(m2_result, source="segmentation")
 

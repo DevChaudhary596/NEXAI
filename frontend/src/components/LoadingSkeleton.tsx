@@ -1,5 +1,17 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
+
+export function TypingIndicator() {
+  return (
+    <div className="typing-indicator" aria-label="Assistant is typing">
+      <span className="typing-indicator__dot" />
+      <span className="typing-indicator__dot" />
+      <span className="typing-indicator__dot" />
+    </div>
+  );
+}
+
 export function LoadingSkeleton() {
   return (
     <div className="chat-message chat-message--assistant">
@@ -41,23 +53,7 @@ export function MapSpinner() {
         gap: "12px",
       }}
     >
-      <div
-        style={{
-          width: "36px",
-          height: "36px",
-          border: "3px solid rgba(6, 182, 212, 0.2)",
-          borderTopColor: "#06b6d4",
-          borderRadius: "50%",
-          animation: "spin 0.8s linear infinite",
-        }}
-      />
-      <style jsx>{`
-        @keyframes spin {
-          to {
-            transform: rotate(360deg);
-          }
-        }
-      `}</style>
+      <Loader2 size={32} color="#06b6d4" className="spin" />
       <span
         style={{
           fontSize: "0.75rem",

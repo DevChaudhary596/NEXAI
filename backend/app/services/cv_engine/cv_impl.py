@@ -23,16 +23,16 @@ except ImportError:
     HAS_RASTERIO = False
 
 
-def load_image_and_georef(scene_path: Union[str, Path]) -> tuple[np.ndarray, Optional[Any]]:
+def load_image_and_georef(scene_path: Union[str, Path]) -> tuple[np.ndarray, Optional[Any], Optional[Any]]:
     """
     Load image from path (supporting GeoTIFF, PNG, JPG, etc.) and extract georeference if available.
-    Returns (image_rgb_numpy, affine_transform).
+    Returns (image_rgb_numpy, affine_transform, crs).
     """
     path_str = str(scene_path)
     if not os.path.exists(path_str):
         raise FileNotFoundError(f"Scene image file does not exist: {path_str}")
 
-    transform, _ = get_image_georeference(path_str)
+    transform, crs = get_image_georeference(path_str)
     image_np = None
 
     # Attempt rasterio read first (best for GeoTIFFs)
@@ -82,7 +82,51 @@ def load_image_and_georef(scene_path: Union[str, Path]) -> tuple[np.ndarray, Opt
     if image_np is None or image_np.size == 0:
         raise ValueError(f"Loaded image is empty or invalid from '{path_str}'")
 
-    return image_np, transform
+    return image_np, transform, crs
+
+
+def _get_pixel_crop_bounds(
+    bbox: Any, img_w: int, img_h: int, transform: Any = None, crs: Any = None
+) -> tuple[int, int, int, int] | None:
+    """Convert bounding box (either geo coordinates or pixel coordinates) to clamped pixel crop bounds."""
+    if bbox is None:
+        return None
+
+    if not isinstance(bbox, BBox):
+        bbox = BBox(bbox)
+
+    xmin, ymin, xmax, ymax = float(bbox.xmin), float(bbox.ymin), float(bbox.xmax), float(bbox.ymax)
+
+    # Check if coords are geographic vs already pixel coordinates
+    if transform is not None and not getattr(transform, "is_identity", False):
+        try:
+            from rasterio.windows import from_bounds
+            from rasterio.warp import transform_bounds
+
+            # If CRS is projected and bbox is in lat/lon (EPSG:4326), reproject bbox to dataset CRS
+            if crs is not None and str(crs) not in ("EPSG:4326", "OGC:CRS84") and abs(xmin) <= 180 and abs(ymin) <= 90:
+                xmin, ymin, xmax, ymax = transform_bounds("EPSG:4326", crs, xmin, ymin, xmax, ymax)
+
+            win = from_bounds(xmin, ymin, xmax, ymax, transform=transform)
+            crop_min_x = max(0, int(round(win.col_off)))
+            crop_min_y = max(0, int(round(win.row_off)))
+            crop_max_x = min(img_w, int(round(win.col_off + win.width)))
+            crop_max_y = min(img_h, int(round(win.row_off + win.height)))
+        except Exception:
+            crop_min_x = max(0, int(round(xmin)))
+            crop_min_y = max(0, int(round(ymin)))
+            crop_max_x = min(img_w, int(round(xmax)))
+            crop_max_y = min(img_h, int(round(ymax)))
+    else:
+        crop_min_x = max(0, int(round(xmin)))
+        crop_min_y = max(0, int(round(ymin)))
+        crop_max_x = min(img_w, int(round(xmax)))
+        crop_max_y = min(img_h, int(round(ymax)))
+
+    if crop_max_x <= crop_min_x or crop_max_y <= crop_min_y:
+        return None
+
+    return crop_min_x, crop_min_y, crop_max_x, crop_max_y
 
 
 class CVService:
@@ -118,27 +162,20 @@ class CVService:
         Returns:
             FeatureCollection containing real detected object features.
         """
-        image_np, transform = load_image_and_georef(scene_path)
+        image_np, transform, crs = load_image_and_georef(scene_path)
         img_h, img_w = image_np.shape[:2]
 
         offset_x = 0
         offset_y = 0
 
         # Handle optional bbox
-        if bbox is not None:
-            if not isinstance(bbox, BBox):
-                bbox = BBox(bbox)
+        crop_bounds = _get_pixel_crop_bounds(bbox, img_w, img_h, transform=transform, crs=crs)
+        if bbox is not None and crop_bounds is None:
+            # Invalid or non-overlapping crop region
+            return FeatureCollection(features=[])
 
-            # Clamp coordinates to image dimensions
-            crop_min_x = max(0, int(round(bbox.xmin)))
-            crop_min_y = max(0, int(round(bbox.ymin)))
-            crop_max_x = min(img_w, int(round(bbox.xmax)))
-            crop_max_y = min(img_h, int(round(bbox.ymax)))
-
-            if crop_max_x <= crop_min_x or crop_max_y <= crop_min_y:
-                # Invalid crop region
-                return FeatureCollection(features=[])
-
+        if crop_bounds is not None:
+            crop_min_x, crop_min_y, crop_max_x, crop_max_y = crop_bounds
             image_np = image_np[crop_min_y:crop_max_y, crop_min_x:crop_max_x]
             offset_x = crop_min_x
             offset_y = crop_min_y
@@ -192,25 +229,19 @@ class CVService:
         Returns:
             FeatureCollection containing real polygon segmentation features.
         """
-        image_np, transform = load_image_and_georef(scene_path)
+        image_np, transform, crs = load_image_and_georef(scene_path)
         img_h, img_w = image_np.shape[:2]
 
         offset_x = 0
         offset_y = 0
 
         # Handle optional bbox
-        if bbox is not None:
-            if not isinstance(bbox, BBox):
-                bbox = BBox(bbox)
+        crop_bounds = _get_pixel_crop_bounds(bbox, img_w, img_h, transform=transform, crs=crs)
+        if bbox is not None and crop_bounds is None:
+            return FeatureCollection(features=[])
 
-            crop_min_x = max(0, int(round(bbox.xmin)))
-            crop_min_y = max(0, int(round(bbox.ymin)))
-            crop_max_x = min(img_w, int(round(bbox.xmax)))
-            crop_max_y = min(img_h, int(round(bbox.ymax)))
-
-            if crop_max_x <= crop_min_x or crop_max_y <= crop_min_y:
-                return FeatureCollection(features=[])
-
+        if crop_bounds is not None:
+            crop_min_x, crop_min_y, crop_max_x, crop_max_y = crop_bounds
             image_np = image_np[crop_min_y:crop_max_y, crop_min_x:crop_max_x]
             offset_x = crop_min_x
             offset_y = crop_min_y

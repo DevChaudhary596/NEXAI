@@ -195,3 +195,17 @@ node_modules/
 out/
 *.tsbuildinfo
 
+# CesiumJS static assets — copied from node_modules/cesium by `npm run postinstall`,
+# not meant to be committed.
+frontend/public/cesium/
+
+# Downloaded/converted model weights — regenerate/redownload, never commit (multi-GB
+# for the MLX VLM checkpoint alone). Same intent as the backend-goru/models/ rule
+# above, just for the actual directory name this checkout uses.
+backend/models/
+backend/yolov8n-obb.pt
+
+# Synthetic smoke-test tiles from prepare_dataset.py --synthetic - regenerate
+# on demand, not real satellite data. Same intent as backend-goru/data/images/ above.
+backend/data/images/
+

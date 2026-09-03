@@ -21,6 +21,12 @@ def query(req: QueryRequest) -> QueryResponse:
         return handle_query(req)
     except SceneNotFound as exc:
         raise ApiError(404, "scene_not_found", f"scene not found: {exc}") from exc
+    except ValueError as exc:
+        # A well-formed request the scene or model can't satisfy - e.g. a
+        # plain 3-band RGB upload asked for NDVI/NDWI (needs a NIR band), or a
+        # target class the detector was never trained on. A foreseeable
+        # client-input mismatch, not a server fault.
+        raise ApiError(422, "unsupported_query", str(exc)) from exc
     except Exception as exc:
         log.exception("query failed")
         raise ApiError(500, "query_failed", f"query failed: {exc}") from exc

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import L from "leaflet";
+import { motion } from "motion/react";
 import type { RasterOverlay as RasterOverlayType } from "@/types";
 
 interface RasterOverlayProps {
@@ -52,7 +53,12 @@ export default function RasterOverlay({ map, overlays }: RasterOverlayProps) {
   if (!legendOverlay) return null;
 
   return (
-    <div className="legend-widget">
+    <motion.div
+      className="legend-widget pixel-frame"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+    >
       <div className="legend-widget__title">Legend</div>
       {Object.entries(legendOverlay.legend).map(([value, hexColor]) => (
         <div key={value} className="legend-widget__item">
@@ -63,6 +69,6 @@ export default function RasterOverlay({ map, overlays }: RasterOverlayProps) {
           <span>{value}</span>
         </div>
       ))}
-    </div>
+    </motion.div>
   );
 }

@@ -172,15 +172,13 @@ class RealOBBDetector:
             metrics["total_time_ms"] = (time.perf_counter() - start_total) * 1000.0
             return [], metrics
 
-        # Check Sentinel-2 10m GSD feasibility
+        # Optional Sentinel-2 10m GSD feasibility check (log notice but proceed with inference)
         import logging
         for cls in target_classes:
             if cls in SENTINEL2_UNRELIABLE_CLASSES:
-                logging.error(f"Target '{cls}' is physically too small (<30m) for Sentinel-2 10m resolution. Bypassing inference to prevent hallucination.")
-                metrics["total_time_ms"] = (time.perf_counter() - start_total) * 1000.0
-                return [], metrics
+                logging.debug("Target '%s' may be small for 10m resolution, proceeding with detector.", cls)
             elif cls in SENTINEL2_RELIABLE_CLASSES:
-                logging.info(f"Target '{cls}' is valid for Sentinel-2 10m/px resolution. Proceeding with inference.")
+                logging.info("Target '%s' is standard class for detection.", cls)
 
 
 
