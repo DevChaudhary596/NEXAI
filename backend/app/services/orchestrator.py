@@ -51,6 +51,7 @@ def resolve_scene(scene_id: str) -> Path:
         return Path(s.scenes_dir) / f"{scene_id}.tif"
 
 
+def _summarise(tool_call, stats: dict[str, float], fc: FeatureCollection, has_roi: bool = False) -> str:
 def _get_scene_or_roi_crop(scene: Path, roi: Any) -> Path | None:
     """If scene exists and an ROI is specified, crop the image to the ROI
     so the VLM answers about the user's selected area rather than the full scene.
@@ -115,12 +116,13 @@ def _summarise(tool_call, stats: dict[str, float], fc: FeatureCollection) -> str
     into prose - so a hallucinated count cannot reach the user.
     """
     action = tool_call.action
+    scope = "within the ROI" if has_roi else "in the scene"
     if action == ToolAction.DETECTION:
         scores = [f.properties.score for f in fc.features if f.properties.score]
         avg = sum(scores) / len(scores) if scores else 0.0
         return (
             f"Detector found {fc.count} instance(s) of '{tool_call.target}' "
-            f"within the ROI, mean confidence {avg:.2f}."
+            f"{scope}, mean confidence {avg:.2f}."
         )
     if action == ToolAction.SEGMENTATION:
         area = sum(f.properties.area_m2 or 0 for f in fc.features)
@@ -191,7 +193,7 @@ def handle_query(req: QueryRequest) -> QueryResponse:
         fc, overlays, stats = run_tool(decision, req, scene)
     timings.tool_ms = (time.perf_counter() - t) * 1000
 
-    context = _summarise(decision.tool_call, stats, fc)
+    context = _summarise(decision.tool_call, stats, fc, has_roi=bool(req.roi))
     t = time.perf_counter()
     vlm_image = _get_scene_or_roi_crop(scene, req.roi)
     with vram_scope("answer"):

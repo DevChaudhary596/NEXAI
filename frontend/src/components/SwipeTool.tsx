@@ -2,24 +2,27 @@
 
 import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
+import { motion, AnimatePresence } from "motion/react";
+import { ArrowLeftRight, GripVertical } from "lucide-react";
 import type { RasterOverlay } from "@/types";
 
 interface SwipeToolProps {
   map: L.Map | null;
-  baseTileUrl: string | null;
   overlays: RasterOverlay[];
 }
 
 /**
  * Split-screen swipe comparison tool.
  *
- * Uses two panes — the base satellite imagery on the left and the first
- * raster overlay on the right — with a draggable divider.
+ * The base satellite/scene imagery is already the map's own tile layers;
+ * this overlays the first raster result on top and clip-paths it to the
+ * right of a draggable divider, so the left side reads as "base" and the
+ * right as "base + overlay" — no separate base layer needed.
  *
  * Note: This is a pure Leaflet implementation rather than the
  * leaflet-side-by-side plugin for better control and fewer deps.
  */
-export default function SwipeTool({ map, baseTileUrl, overlays }: SwipeToolProps) {
+export default function SwipeTool({ map, overlays }: SwipeToolProps) {
   const [active, setActive] = useState(false);
   const [position, setPosition] = useState(0.5); // 0..1
   const containerRef = useRef<HTMLDivElement>(null);
@@ -120,97 +123,58 @@ export default function SwipeTool({ map, baseTileUrl, overlays }: SwipeToolProps
   return (
     <>
       {/* Toggle button */}
-      <button
-        className={`swipe-toggle ${active ? "swipe-toggle--active" : ""}`}
+      <motion.button
+        className={`swipe-toggle pixel-notch ${active ? "swipe-toggle--active" : ""}`}
         onClick={() => setActive(!active)}
+        whileTap={{ scale: 0.96 }}
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
       >
-        <span className="swipe-toggle__icon">⇔</span>
+        <span className="swipe-toggle__icon">
+          <ArrowLeftRight size={14} />
+        </span>
         {active ? "Exit Swipe" : "Compare Swipe"}
-      </button>
+      </motion.button>
 
-      {/* Swipe divider */}
-      {active && (
-        <div
-          ref={containerRef}
-          style={{
-            position: "absolute",
-            top: 0,
-            bottom: 0,
-            left: `${position * 100}%`,
-            width: "4px",
-            background: "white",
-            cursor: "ew-resize",
-            zIndex: 1001,
-            boxShadow: "0 0 8px rgba(0,0,0,0.5)",
-            transform: "translateX(-50%)",
-          }}
-          onMouseDown={handleMouseDown}
-        >
-          {/* Drag handle */}
-          <div
-            style={{
-              position: "absolute",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              width: "24px",
-              height: "40px",
-              background: "white",
-              borderRadius: "4px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
-              fontSize: "10px",
-              color: "#333",
-            }}
-          >
-            ⋮⋮
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {active && (
+          <>
+            {/* Swipe divider */}
+            <motion.div
+              ref={containerRef}
+              className="swipe-divider"
+              style={{ left: `${position * 100}%` }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onMouseDown={handleMouseDown}
+            >
+              <div className="swipe-divider__handle">
+                <GripVertical size={14} />
+              </div>
+            </motion.div>
 
-      {/* Labels */}
-      {active && (
-        <>
-          <div
-            style={{
-              position: "absolute",
-              top: "12px",
-              left: "12px",
-              zIndex: 1000,
-              padding: "4px 12px",
-              background: "rgba(10, 14, 26, 0.8)",
-              backdropFilter: "blur(8px)",
-              borderRadius: "6px",
-              fontSize: "0.72rem",
-              fontWeight: 600,
-              color: "#f1f5f9",
-              border: "1px solid rgba(148, 163, 184, 0.2)",
-            }}
-          >
-            Base Imagery
-          </div>
-          <div
-            style={{
-              position: "absolute",
-              top: "12px",
-              right: "12px",
-              zIndex: 1000,
-              padding: "4px 12px",
-              background: "rgba(10, 14, 26, 0.8)",
-              backdropFilter: "blur(8px)",
-              borderRadius: "6px",
-              fontSize: "0.72rem",
-              fontWeight: 600,
-              color: "#f1f5f9",
-              border: "1px solid rgba(148, 163, 184, 0.2)",
-            }}
-          >
-            Overlay
-          </div>
-        </>
-      )}
+            {/* Labels */}
+            <motion.div
+              className="swipe-label swipe-label--left"
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+            >
+              Base Imagery
+            </motion.div>
+            <motion.div
+              className="swipe-label swipe-label--right"
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+            >
+              Overlay
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </>
   );
 }

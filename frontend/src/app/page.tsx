@@ -2,8 +2,12 @@
 
 import { useState, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
+import { AnimatePresence, motion } from "motion/react";
+import { Wifi, WifiOff, Map as MapIcon, Box } from "lucide-react";
+import { PixelSatellite } from "@/components/PixelIcons";
 import ChatSidebar from "@/components/ChatSidebar";
 import SceneUploader from "@/components/SceneUploader";
+import AlertsBell from "@/components/AlertsBell";
 import { ProgressBar } from "@/components/LoadingSkeleton";
 import { healthCheck } from "@/lib/api";
 import type {
@@ -20,8 +24,21 @@ const MapPanel = dynamic(() => import("@/components/MapPanel"), {
   loading: () => (
     <div className="map-panel" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ textAlign: "center", color: "var(--text-tertiary)" }}>
-        <div style={{ fontSize: "2rem", marginBottom: "8px" }}>🗺️</div>
+        <MapIcon size={32} style={{ marginBottom: 8, opacity: 0.5 }} />
         <div style={{ fontSize: "0.85rem" }}>Loading map…</div>
+      </div>
+    </div>
+  ),
+});
+
+// Lazy-load Cesium3DView — Cesium touches window/DOM at import time and is huge.
+const Cesium3DView = dynamic(() => import("@/components/Cesium3DView"), {
+  ssr: false,
+  loading: () => (
+    <div className="map-panel" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ textAlign: "center", color: "var(--text-tertiary)" }}>
+        <Box size={32} style={{ marginBottom: 8, opacity: 0.5 }} />
+        <div style={{ fontSize: "0.85rem" }}>Loading 3D view…</div>
       </div>
     </div>
   ),
@@ -35,6 +52,7 @@ export default function Home() {
   const [sceneId, setSceneId] = useState<string | null>(null);
   const [sceneName, setSceneName] = useState<string | null>(null);
   const [sceneBounds, setSceneBounds] = useState<number[] | null>(null);
+  const [scene, setScene] = useState<UploadResponse | null>(null);
 
   // Map interaction state
   const [roi, setROI] = useState<ROI | null>(null);
@@ -43,6 +61,7 @@ export default function Home() {
   const [geojson, setGeojson] = useState<FeatureCollection | null>(null);
   const [overlays, setOverlays] = useState<RasterOverlay[]>([]);
   const [isQuerying, setIsQuerying] = useState(false);
+  const [viewMode, setViewMode] = useState<"2d" | "3d">("2d");
 
   // Health check on mount
   useEffect(() => {
@@ -60,6 +79,7 @@ export default function Home() {
     setSceneId(response.scene_id);
     setSceneName(response.filename);
     setSceneBounds(response.bounds);
+    setScene(response);
     // Clear previous query results
     setGeojson(null);
     setOverlays([]);
@@ -98,9 +118,16 @@ export default function Home() {
       <ProgressBar visible={isQuerying} />
 
       {/* Header */}
-      <header className="app-header">
+      <motion.header
+        className="app-header"
+        initial={{ y: -24, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+      >
         <div className="app-header__logo">
-          <div className="app-header__logo-icon">🛰️</div>
+          <div className="app-header__logo-icon">
+            <PixelSatellite size={20} />
+          </div>
           <div>
             <div className="app-header__title">SatQuery AI</div>
             <div className="app-header__subtitle">
@@ -109,46 +136,98 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="app-header__status">
-          <div
-            className={`status-dot ${!isOnline ? "status-dot--offline" : ""}`}
-          />
-          <span className="status-label">
-            {isOnline ? "Backend Connected" : "Backend Offline"}
-          </span>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          {sceneId && (
+            <button
+              className="view-mode-toggle pixel-notch"
+              onClick={() => setViewMode((m) => (m === "2d" ? "3d" : "2d"))}
+            >
+              {viewMode === "2d" ? (
+                <>
+                  <Box size={12} /> View in 3D
+                </>
+              ) : (
+                <>
+                  <MapIcon size={12} /> View in 2D
+                </>
+              )}
+            </button>
+          )}
+
+          <AlertsBell />
+
+          <div className="app-header__status">
+            <span className={`status-dot ${!isOnline ? "status-dot--offline" : ""}`} />
+            {isOnline ? <Wifi size={13} color="var(--text-secondary)" /> : <WifiOff size={13} color="var(--text-secondary)" />}
+            <span className="status-label">
+              {isOnline ? "Backend Connected" : "Backend Offline"}
+            </span>
+          </div>
         </div>
-      </header>
+      </motion.header>
 
       {/* Main content */}
       <main className="app-main">
-        {/* Map panel */}
-        <MapPanel
-          sceneId={sceneId}
-          sceneBounds={sceneBounds}
-          roi={roi}
-          onROIChange={setROI}
-          geojson={geojson}
-          overlays={overlays}
-        />
-
-        {/* Chat sidebar — show uploader if no scene, chat if scene loaded */}
-        {!sceneId ? (
-          <div className="chat-sidebar">
-            <div className="chat-sidebar__header">
-              <span className="chat-sidebar__header-title">🛰️ Upload Scene</span>
-              <span className="chat-sidebar__header-badge">Step 1</span>
-            </div>
-            <SceneUploader onUploadComplete={handleUploadComplete} />
-          </div>
-        ) : (
-          <ChatSidebar
+        {/* Map panel — 2D Leaflet or 3D Cesium */}
+        {viewMode === "3d" ? (
+          <Cesium3DView
             sceneId={sceneId}
-            sceneName={sceneName}
+            sceneBounds={sceneBounds}
+            geojson={geojson}
+          />
+        ) : (
+          <MapPanel
+            sceneId={sceneId}
+            sceneBounds={sceneBounds}
+            scene={scene}
             roi={roi}
-            onClearROI={handleClearROI}
-            onQueryResponse={handleQueryResponse}
+            onROIChange={setROI}
+            geojson={geojson}
+            overlays={overlays}
           />
         )}
+
+        {/* Chat sidebar — show uploader if no scene, chat if scene loaded */}
+        <AnimatePresence mode="wait">
+          {!sceneId ? (
+            <motion.div
+              key="uploader"
+              className="chat-sidebar"
+              initial={{ x: 40, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: -24, opacity: 0 }}
+              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <div className="chat-sidebar__header">
+                <span className="chat-sidebar__header-title">
+                  <PixelSatellite size={15} /> Upload Scene
+                </span>
+                <span className="chat-sidebar__header-badge">Step 1</span>
+              </div>
+              <SceneUploader onUploadComplete={handleUploadComplete} />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="chat"
+              initial={{ x: 40, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: -24, opacity: 0 }}
+              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+              style={{ display: "flex", flexShrink: 0 }}
+            >
+              <ChatSidebar
+                sceneId={sceneId}
+                sceneName={sceneName}
+                scene={scene}
+                sceneBounds={sceneBounds}
+                roi={roi}
+                onClearROI={handleClearROI}
+                onQueryResponse={handleQueryResponse}
+                setIsQuerying={setIsQuerying}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
     </div>
   );

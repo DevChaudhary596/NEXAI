@@ -149,7 +149,11 @@ export default function GeoJSONLayer({
         if (layer) map.removeLayer(layer);
       });
     };
-  }, [map, geojson]); // Re-create layers when data changes
+    // Deliberately excludes opacity/visibility: rebuilding every GeoJSON layer
+    // on each slider tick would flicker and defeat the point of the two
+    // effects below, which patch live layers in place instead.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, geojson]);
 
   // Handle visibility changes
   useEffect(() => {

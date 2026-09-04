@@ -149,6 +149,9 @@ export interface UploadResponse {
   crs: string | null;
   resolution_m: number | null;
   band_count: number | null;
+  satellite: string | null;
+  capture_date: string | null;
+  cloud_cover_pct: number | null;
 }
 
 export interface SceneListItem {
@@ -166,6 +169,47 @@ export interface SceneListResponse {
   total: number;
 }
 
+/* ── Watches & Alerts ───────────────────────────────────────── */
+
+// VQA has no stats to diff against a previous pass, so watches can't target it.
+export type WatchableToolCall = DetectionCall | SegmentationCall | SpectralCall;
+
+export interface CreateWatchRequest {
+  email: string;
+  label?: string | null;
+  bbox: BBox;
+  tool_call: WatchableToolCall;
+}
+
+export interface WatchResponse {
+  id: string;
+  email: string;
+  label: string | null;
+  bbox: BBox;
+  tool_call: WatchableToolCall;
+  created_at: string;
+  last_checked_at: string | null;
+  active: boolean;
+}
+
+export interface AlertResponse {
+  id: string;
+  watch_id: string;
+  created_at: string;
+  message: string;
+  stats_before: Record<string, number>;
+  stats_after: Record<string, number>;
+  seen: boolean;
+}
+
+export interface WatchListResponse {
+  watches: WatchResponse[];
+}
+
+export interface AlertListResponse {
+  alerts: AlertResponse[];
+}
+
 /* ── Chat UI ────────────────────────────────────────────────── */
 
 export type MessageRole = "user" | "assistant" | "system";
@@ -177,6 +221,9 @@ export interface ChatMessage {
   timestamp: Date;
   /** Only present on assistant messages */
   queryResponse?: QueryResponse;
+  /** The prompt that produced this assistant message - needed by "Monitor
+   * this AOI" / "Export Report" without re-deriving it from message order. */
+  question?: string;
   isLoading?: boolean;
   isError?: boolean;
 }

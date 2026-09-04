@@ -8,17 +8,21 @@ import GeoJSONLayer from "./GeoJSONLayer";
 import LayerControls from "./LayerControls";
 import RasterOverlayComponent from "./RasterOverlay";
 import SwipeTool from "./SwipeTool";
+import MapSearch from "./MapSearch";
+import SatelliteMetaPill from "./SatelliteMetaPill";
 import type {
   ROI,
   FeatureCollection,
   FeatureSource,
   RasterOverlay,
+  UploadResponse,
 } from "@/types";
 import { getTileUrl } from "@/lib/api";
 
 interface MapPanelProps {
   sceneId: string | null;
   sceneBounds: number[] | null;
+  scene: UploadResponse | null;
   roi: ROI | null;
   onROIChange: (roi: ROI | null) => void;
   geojson: FeatureCollection | null;
@@ -41,15 +45,22 @@ const fixLeafletIcons = () => {
 export default function MapPanel({
   sceneId,
   sceneBounds,
+  scene,
   roi,
   onROIChange,
   geojson,
   overlays,
 }: MapPanelProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<L.Map | null>(null);
+  // Internal-only guard against double-init; never read during render (see `map` state below).
+  const mapInitGuardRef = useRef<L.Map | null>(null);
   const sceneTileLayerRef = useRef<L.TileLayer | null>(null);
-  const [mapReady, setMapReady] = useState(false);
+  const sceneFrameRef = useRef<L.Rectangle | null>(null);
+  const baseLayersRef = useRef<L.TileLayer[]>([]);
+  // The Leaflet instance itself is render-relevant (passed to children), so it
+  // lives in state rather than a ref — reading `ref.current` during render can
+  // return stale data since ref writes don't schedule a re-render.
+  const [map, setMap] = useState<L.Map | null>(null);
 
   const [visibility, setVisibility] = useState<Record<FeatureSource, boolean>>({
     detection: true,
@@ -64,11 +75,11 @@ export default function MapPanel({
 
   // Initialize map
   useEffect(() => {
-    if (!mapContainerRef.current || mapRef.current) return;
+    if (!mapContainerRef.current || mapInitGuardRef.current) return;
 
     fixLeafletIcons();
 
-    const map = L.map(mapContainerRef.current, {
+    const leafletMap = L.map(mapContainerRef.current, {
       center: [20, 78], // India center
       zoom: 5,
       zoomControl: true,
@@ -76,46 +87,93 @@ export default function MapPanel({
     });
 
     // ESRI World Imagery satellite basemap (free, no API key)
-    L.tileLayer(
+    const worldImagery = L.tileLayer(
       "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
       {
         attribution:
           "Tiles &copy; Esri — Source: Esri, Maxar, Earthstar Geographics",
         maxZoom: 19,
       }
-    ).addTo(map);
+    ).addTo(leafletMap);
 
     // Add labels layer on top of satellite
-    L.tileLayer(
+    const worldLabels = L.tileLayer(
       "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
       {
         maxZoom: 19,
         pane: "overlayPane",
       }
-    ).addTo(map);
+    ).addTo(leafletMap);
 
-    mapRef.current = map;
-    setMapReady(true);
+    baseLayersRef.current = [worldImagery, worldLabels];
+    mapInitGuardRef.current = leafletMap;
+    setMap(leafletMap);
+
+    // Leaflet caches the container's pixel size at init time. Flex layout,
+    // sidebar transitions, and dev-mode Fast Refresh can all change that size
+    // afterwards without firing a window "resize" event, which leaves tiles
+    // laid out against a stale size (they render squished/tiled). Keep the
+    // map's internal size in sync with the container's real size.
+    const container = mapContainerRef.current;
+    const resizeObserver = new ResizeObserver(() => {
+      leafletMap.invalidateSize();
+    });
+    resizeObserver.observe(container);
+
+    // Also correct for any mismatch from layout that settles just after init.
+    const raf = requestAnimationFrame(() => leafletMap.invalidateSize());
 
     return () => {
-      map.remove();
-      mapRef.current = null;
-      setMapReady(false);
+      cancelAnimationFrame(raf);
+      resizeObserver.disconnect();
+      leafletMap.remove();
+      mapInitGuardRef.current = null;
+      setMap(null);
     };
   }, []);
 
   // Add scene tile layer when scene changes
   useEffect(() => {
-    const map = mapRef.current;
     if (!map) return;
 
-    // Remove previous scene tile layer
+    // Remove previous scene tile layer + frame
     if (sceneTileLayerRef.current) {
       map.removeLayer(sceneTileLayerRef.current);
       sceneTileLayerRef.current = null;
     }
+    if (sceneFrameRef.current) {
+      map.removeLayer(sceneFrameRef.current);
+      sceneFrameRef.current = null;
+    }
 
-    if (!sceneId) return;
+    if (!sceneId) {
+      // No scene loaded: show the real-world basemap at full strength.
+      baseLayersRef.current.forEach((layer) => layer.setOpacity(1));
+      return;
+    }
+
+    // A scene is loaded: dim the surrounding basemap slightly so the scene
+    // reads as the highlighted subject, but keep it clearly legible and
+    // explorable — panning/zooming out should still show real roads,
+    // labels, and imagery around the scene, not a blackout. The glowing
+    // frame below (not darkness) is what marks the scene as "yours".
+    baseLayersRef.current.forEach((layer) => layer.setOpacity(0.55));
+
+    // Scene bounds, if available, both constrain the tile layer to its real
+    // footprint (Leaflet tile layers otherwise tile infinitely across the
+    // whole viewport with no notion of "outside the scene") and frame it
+    // with a glowing outline so the extent reads as an intentional
+    // "viewport" rather than an arbitrary rectangle floating on the map.
+    const latLngBounds: L.LatLngBoundsExpression | undefined =
+      sceneBounds && sceneBounds.length === 4
+        ? (() => {
+            const [west, south, east, north] = sceneBounds;
+            return [
+              [south, west],
+              [north, east],
+            ] as L.LatLngBoundsExpression;
+          })()
+        : undefined;
 
     // Add the backend tile layer for this scene
     const sceneTileLayer = L.tileLayer(getTileUrl(sceneId), {
@@ -123,23 +181,29 @@ export default function MapPanel({
       tileSize: 256,
       zIndex: 300,
       opacity: 1,
+      bounds: latLngBounds,
     });
 
     sceneTileLayer.addTo(map);
     sceneTileLayerRef.current = sceneTileLayer;
 
-    // Fly to scene bounds if available
-    if (sceneBounds && sceneBounds.length === 4) {
-      const [west, south, east, north] = sceneBounds;
-      map.flyToBounds(
-        [
-          [south, west],
-          [north, east],
-        ],
-        { padding: [30, 30], maxZoom: 16 }
-      );
+    if (latLngBounds) {
+      const sceneFrame = L.rectangle(latLngBounds, {
+        pane: "overlayPane",
+        color: "#22d3ee",
+        weight: 2,
+        fill: false,
+        interactive: false,
+        className: "scene-frame",
+      });
+      sceneFrame.addTo(map);
+      sceneFrameRef.current = sceneFrame;
+
+      // Generous padding so the initial view shows real surrounding area
+      // to explore, not just a tight crop of the scene itself.
+      map.flyToBounds(latLngBounds, { padding: [140, 140], maxZoom: 15 });
     }
-  }, [sceneId, sceneBounds]);
+  }, [map, sceneId, sceneBounds]);
 
   const handleROIChange = useCallback(
     (newRoi: ROI | null) => {
@@ -162,25 +226,25 @@ export default function MapPanel({
     []
   );
 
-  const baseTileUrl = sceneId ? getTileUrl(sceneId) : null;
-
   return (
     <div className="map-panel">
       <div ref={mapContainerRef} className="map-panel__container" />
 
+      {/* Place search — Google-Earth-style, shared with the 3D view */}
+      {map && <MapSearch map={map} />}
+
+      {/* Satellite provenance — only present for a live Sentinel-2 fetch */}
+      <SatelliteMetaPill scene={scene} />
+
       {/* ROI Drawing Tool */}
-      {mapReady && (
-        <ROIDrawTool
-          map={mapRef.current}
-          roi={roi}
-          onROIChange={handleROIChange}
-        />
+      {map && (
+        <ROIDrawTool map={map} roi={roi} onROIChange={handleROIChange} />
       )}
 
       {/* GeoJSON Vector Layers */}
-      {mapReady && (
+      {map && (
         <GeoJSONLayer
-          map={mapRef.current}
+          map={map}
           geojson={geojson}
           visibility={visibility}
           opacity={opacity}
@@ -197,21 +261,10 @@ export default function MapPanel({
       />
 
       {/* Raster Overlays */}
-      {mapReady && (
-        <RasterOverlayComponent
-          map={mapRef.current}
-          overlays={overlays}
-        />
-      )}
+      {map && <RasterOverlayComponent map={map} overlays={overlays} />}
 
       {/* Swipe Comparison Tool */}
-      {mapReady && (
-        <SwipeTool
-          map={mapRef.current}
-          baseTileUrl={baseTileUrl}
-          overlays={overlays}
-        />
-      )}
+      {map && <SwipeTool map={map} overlays={overlays} />}
     </div>
   );
 }

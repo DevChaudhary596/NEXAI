@@ -78,7 +78,14 @@ def polygonize_mask(
     gdf["area_m2"] = areas_m2.values
     gdf["area_hectares"] = gdf["area_m2"] / 10000.0
     gdf["area_sq_km"] = gdf["area_m2"] / 1000000.0
-    
+
+    # Output GeoJSON is always WGS84 lon/lat regardless of the source raster's
+    # CRS (callers may pass a projected CRS, e.g. Sentinel-2's per-UTM-zone
+    # tiles) - GeoJSON's implicit CRS is WGS84 and every downstream consumer
+    # (the frontend map, _geojson_to_feature_collection) assumes it.
+    if not gdf.crs.is_geographic:
+        gdf = gdf.to_crs("EPSG:4326")
+
     # Export to dict (GeoJSON)
     geojson_dict = gdf.__geo_interface__
     

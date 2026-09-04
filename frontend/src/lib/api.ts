@@ -10,6 +10,11 @@ import type {
   ErrorResponse,
   UploadResponse,
   SceneListResponse,
+  BBox,
+  CreateWatchRequest,
+  WatchResponse,
+  WatchListResponse,
+  AlertListResponse,
 } from "@/types";
 
 const API_BASE =
@@ -78,6 +83,20 @@ export async function uploadScene(file: File): Promise<UploadResponse> {
 }
 
 /**
+ * POST /api/v1/scenes/fetch-satellite
+ * Fetch the freshest low-cloud Sentinel-2 pass for an AOI — no GeoTIFF
+ * upload required. Same response shape as uploadScene().
+ */
+export async function fetchSatelliteScene(bbox: BBox): Promise<UploadResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/scenes/fetch-satellite`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ bbox }),
+  });
+  return handleResponse<UploadResponse>(res);
+}
+
+/**
  * GET /api/v1/scenes
  * List all uploaded scenes.
  */
@@ -123,6 +142,68 @@ export function getTileUrl(sceneId: string, layer: string = "rgb"): string {
  */
 export function getThumbnailUrl(sceneId: string): string {
   return `${API_BASE}/api/v1/scenes/${sceneId}/thumbnail`;
+}
+
+/* ── Watches & Alerts ───────────────────────────────────────── */
+
+/**
+ * POST /api/v1/watches
+ * Register an AOI + tool call to be re-checked against future Sentinel-2
+ * passes. Alerts fire when the recomputed stats move meaningfully.
+ */
+export async function createWatch(
+  req: CreateWatchRequest
+): Promise<WatchResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/watches`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+  return handleResponse<WatchResponse>(res);
+}
+
+/**
+ * GET /api/v1/watches?email=...
+ */
+export async function listWatches(email: string): Promise<WatchListResponse> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/watches?email=${encodeURIComponent(email)}`
+  );
+  return handleResponse<WatchListResponse>(res);
+}
+
+/**
+ * DELETE /api/v1/watches/:id
+ */
+export async function deleteWatch(watchId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/watches/${watchId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok && res.status !== 204) {
+    throw new ApiError(res.status, "delete_failed", "Failed to delete watch");
+  }
+}
+
+/**
+ * GET /api/v1/alerts?email=...
+ */
+export async function listAlerts(email: string): Promise<AlertListResponse> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/alerts?email=${encodeURIComponent(email)}`
+  );
+  return handleResponse<AlertListResponse>(res);
+}
+
+/**
+ * POST /api/v1/alerts/:id/seen
+ */
+export async function markAlertSeen(alertId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/alerts/${alertId}/seen`, {
+    method: "POST",
+  });
+  if (!res.ok && res.status !== 204) {
+    throw new ApiError(res.status, "mark_seen_failed", "Failed to mark alert seen");
+  }
 }
 
 export { ApiError };

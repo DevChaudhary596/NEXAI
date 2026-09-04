@@ -53,6 +53,16 @@ class Settings(BaseSettings):
         description="Max concurrent background query workers. 1 on 8 GB hosts to avoid OOM.",
     )
 
+    # ── Watches (AOI monitoring / alerts) ────────────────────────────────
+    watch_check_interval_minutes: int = Field(
+        default=60,
+        description="How often the background scheduler re-checks a watch for a new Sentinel-2 pass.",
+    )
+    watches_db_path: str | None = Field(
+        default=None,
+        description="SQLite file for watches/alerts. Falls back to data_dir/watches.db.",
+    )
+
     # ── Server ────────────────────────────────────────────────────────────
     host: str = "0.0.0.0"
     port: int = 8000
@@ -76,6 +86,10 @@ class Settings(BaseSettings):
     @property
     def resolved_tile_cache_dir(self) -> str:
         return self.tile_cache_dir or os.path.join(self.data_dir, "tile_cache")
+
+    @property
+    def resolved_watches_db_path(self) -> str:
+        return self.watches_db_path or os.path.join(self.data_dir, "watches.db")
 
 
 @lru_cache
