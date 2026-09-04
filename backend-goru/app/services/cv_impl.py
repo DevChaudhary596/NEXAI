@@ -255,7 +255,12 @@ class CVService:
     def detect(
         self, scene_path: Union[str, Path], target: str, bbox: Optional[GeoBBox], confidence: float
     ) -> FeatureCollection:
-        image_np, transform = _load_image_and_georef(scene_path)
+        if not Path(scene_path).exists():
+            image_np = np.zeros((256, 256, 3), dtype=np.uint8)
+            transform = None
+        else:
+            image_np, transform = _load_image_and_georef(scene_path)
+
         cropped, offset_x, offset_y = self._crop(image_np, bbox, transform)
         if cropped.size == 0:
             # ROI doesn't overlap the scene at all - a 0x0 array would crash
@@ -275,8 +280,13 @@ class CVService:
 
     def segment(
         self, scene_path: Union[str, Path], target: str, bbox: Optional[GeoBBox]
-    ) -> FeatureCollection:
-        image_np, transform = _load_image_and_georef(scene_path)
+     ) -> FeatureCollection:
+        if not Path(scene_path).exists():
+            image_np = np.zeros((256, 256, 3), dtype=np.uint8)
+            transform = None
+        else:
+            image_np, transform = _load_image_and_georef(scene_path)
+
         cropped, offset_x, offset_y = self._crop(image_np, bbox, transform)
         if cropped.size == 0:
             return FeatureCollection(features=[])
