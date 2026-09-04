@@ -15,6 +15,7 @@ import type {
   WatchResponse,
   WatchListResponse,
   AlertListResponse,
+  TranscribeResponse,
 } from "@/types";
 
 const API_BASE =
@@ -80,6 +81,23 @@ export async function uploadScene(file: File): Promise<UploadResponse> {
     body: form,
   });
   return handleResponse<UploadResponse>(res);
+}
+
+/**
+ * POST /api/v1/transcribe
+ * Send a recorded voice clip, get back a transcript to drop into the chat
+ * input. Day 10.
+ */
+export async function transcribeAudio(blob: Blob): Promise<TranscribeResponse> {
+  const form = new FormData();
+  const ext = blob.type.includes("webm") ? "webm" : blob.type.includes("ogg") ? "ogg" : "wav";
+  form.append("file", blob, `clip.${ext}`);
+
+  const res = await fetch(`${API_BASE}/api/v1/transcribe`, {
+    method: "POST",
+    body: form,
+  });
+  return handleResponse<TranscribeResponse>(res);
 }
 
 /**

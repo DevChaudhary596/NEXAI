@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { PixelSatellite, PixelBot } from "./PixelIcons";
 import { TypingIndicator } from "./LoadingSkeleton";
+import VoiceInputButton from "./VoiceInputButton";
 import { queryScene, createWatch } from "@/lib/api";
 import { exportIntelligenceReport } from "@/lib/pdfReport";
 import { getStoredWatchEmail, setStoredWatchEmail } from "@/lib/watchEmail";
@@ -35,6 +36,7 @@ import type {
   BBox,
   WatchableToolCall,
   ToolCall,
+  ConversationTurn,
 } from "@/types";
 
 interface ChatSidebarProps {
@@ -69,6 +71,20 @@ function formatTime(date: Date): string {
 function formatROI(roi: ROI): string {
   const b = roi.bbox;
   return `${b.south.toFixed(2)}°N, ${b.west.toFixed(2)}°E → ${b.north.toFixed(2)}°N, ${b.east.toFixed(2)}°E`;
+}
+
+// Day 8: turn the on-screen message list into wire-format history. The
+// backend also trims to its own max_history_turns, so this only needs to be
+// a reasonable-sized window, not exactly right.
+const MAX_HISTORY_MESSAGES = 16;
+
+function toHistory(messages: ChatMessage[]): ConversationTurn[] {
+  return messages
+    .filter((m): m is ChatMessage & { role: "user" | "assistant" } =>
+      (m.role === "user" || m.role === "assistant") && !m.isError
+    )
+    .slice(-MAX_HISTORY_MESSAGES)
+    .map((m) => ({ role: m.role, content: m.content }));
 }
 
 const SAMPLE_PROMPTS = [
@@ -211,6 +227,7 @@ export default function ChatSidebar({
           prompt: prompt.trim(),
           scene_id: sceneId,
           roi: roi,
+          history: toHistory(messages),
         });
 
         const assistantMessage: ChatMessage = {
@@ -241,7 +258,7 @@ export default function ChatSidebar({
         setIsQuerying?.(false);
       }
     },
-    [sceneId, roi, isLoading, onQueryResponse, setIsQuerying]
+    [sceneId, roi, isLoading, messages, onQueryResponse, setIsQuerying]
   );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -255,6 +272,30 @@ export default function ChatSidebar({
     setInput(prompt);
     if (sceneId) sendMessage(prompt);
   };
+
+  // Day 10: hands-free voice querying - transcript comes back and is sent
+  // immediately, same as pressing Enter.
+  const handleTranscribed = useCallback(
+    (text: string) => {
+      if (!text.trim()) return;
+      setInput(text);
+      sendMessage(text);
+    },
+    [sendMessage]
+  );
+
+  const handleVoiceError = useCallback((message: string) => {
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: generateId(),
+        role: "assistant",
+        content: message,
+        timestamp: new Date(),
+        isError: true,
+      },
+    ]);
+  }, []);
 
   return (
     <div className="chat-sidebar">
@@ -498,6 +539,11 @@ export default function ChatSidebar({
             }
             disabled={!sceneId || isLoading}
             rows={1}
+          />
+          <VoiceInputButton
+            disabled={!sceneId || isLoading}
+            onTranscribed={handleTranscribed}
+            onError={handleVoiceError}
           />
           <button
             className="send-button pixel-notch"
