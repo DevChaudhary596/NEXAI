@@ -22,9 +22,34 @@ class Settings(BaseSettings):
     adapter_path: str | None = None
     max_pixels: int = 256 * 28 * 28
     min_pixels: int = 64 * 28 * 28
-    max_new_tokens: int = 384
+    # Day 11: dropped from 384 -> 150. The structured 3-bullet answer format
+    # (Day 9) fits comfortably under 150 tokens, and generation time is
+    # ~linear in max_new_tokens - this is the single biggest lever on the
+    # <4s end-to-end target. Bump per-request via SATQUERY_MAX_NEW_TOKENS if
+    # a real GPU run shows answers getting cut off.
+    max_new_tokens: int = 150
     vram_ceiling_gb: float = 5.0
     rules_only_router: bool = False
+
+    # ── Multi-turn memory (M1 Day 8) ────────────────────────────────────────
+    max_history_turns: int = Field(
+        default=8,
+        description=(
+            "Prior user/assistant turns kept as text-only context on each "
+            "request. Bounded so a long chat can't grow the prompt (and VRAM) "
+            "without limit - only the current turn ever carries the image."
+        ),
+    )
+
+    # ── ASR / voice input (M1 Day 10) ───────────────────────────────────────
+    asr_backend: str = Field(default="mock", pattern="^(mock|local)$")
+    asr_model_size: str = Field(
+        default="base",
+        description="faster-whisper model size for the local ASR backend (tiny/base/small/...).",
+    )
+    asr_max_seconds: int = Field(
+        default=60, description="Reject recordings longer than this - a runaway hot-mic guard."
+    )
 
     # ── M5: Storage & Upload ──────────────────────────────────────────────
     data_dir: str = Field(
