@@ -21,6 +21,14 @@ def query(req: QueryRequest) -> QueryResponse:
         return handle_query(req)
     except SceneNotFound as exc:
         raise ApiError(404, "scene_not_found", f"scene not found: {exc}") from exc
+    except ValueError as exc:
+        # Fallback only: the specific "scene lacks the bands/resolution this
+        # needs" case (UnsupportedSceneError) is now caught inside
+        # handle_query and answered gracefully in-chat (Day 13) rather than
+        # reaching here. This still catches e.g. a target class the detector
+        # was never trained on - a foreseeable client-input mismatch, not a
+        # server fault, but not one worth a canned VLM explanation either.
+        raise ApiError(422, "unsupported_query", str(exc)) from exc
     except Exception as exc:
         log.exception("query failed")
         raise ApiError(500, "query_failed", f"query failed: {exc}") from exc

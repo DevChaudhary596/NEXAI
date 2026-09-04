@@ -1,0 +1,13 @@
+# Only needed for the real CV path (app/services/cv_impl.py, M2's engine).
+# Not needed for the VLM/mock-CV path - app/services/cv.py falls back to
+# MockCVService when these aren't importable, so the rest of backend-goru
+# (tests, notebooks, LoRA training) doesn't need this file at all.
+#
+# Versions mirror the pins at the NEXAI repo root (requirements.txt) that
+# M2's engine was actually built and tested against.
+torch>=2.0.0
+torchvision>=0.15.0
+ultralytics>=8.0.0
+shapely>=2.0.0
+rasterio>=1.3.0
+opencv-python>=4.8.0

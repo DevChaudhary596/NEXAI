@@ -1,0 +1,227 @@
+/**
+ * SatQuery AI — API Client
+ *
+ * Communicates with the FastAPI backend (M5).
+ * Backend routes defined in: backend/app/main.py
+ */
+import type {
+  QueryRequest,
+  QueryResponse,
+  ErrorResponse,
+  UploadResponse,
+  SceneListResponse,
+  BBox,
+  CreateWatchRequest,
+  WatchResponse,
+  WatchListResponse,
+  AlertListResponse,
+  TranscribeResponse,
+} from "@/types";
+
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+/* ── Helpers ────────────────────────────────────────────────── */
+
+class ApiError extends Error {
+  constructor(
+    public status: number,
+    public code: string,
+    message: string
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+async function handleResponse<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    let body: ErrorResponse | null = null;
+    try {
+      body = (await res.json()) as ErrorResponse;
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new ApiError(
+      res.status,
+      body?.code ?? "unknown",
+      body?.detail ?? `Request failed with status ${res.status}`
+    );
+  }
+  return res.json() as Promise<T>;
+}
+
+/* ── Public API ─────────────────────────────────────────────── */
+
+/**
+ * POST /api/v1/query
+ * Main entry point. Sends prompt + scene_id + optional ROI.
+ */
+export async function queryScene(
+  req: QueryRequest
+): Promise<QueryResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/query`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+  return handleResponse<QueryResponse>(res);
+}
+
+/**
+ * POST /api/v1/upload
+ * Upload a GeoTIFF file. Returns scene_id for subsequent queries.
+ */
+export async function uploadScene(file: File): Promise<UploadResponse> {
+  const form = new FormData();
+  form.append("file", file);
+
+  const res = await fetch(`${API_BASE}/api/v1/upload`, {
+    method: "POST",
+    body: form,
+  });
+  return handleResponse<UploadResponse>(res);
+}
+
+/**
+ * POST /api/v1/transcribe
+ * Send a recorded voice clip, get back a transcript to drop into the chat
+ * input. Day 10.
+ */
+export async function transcribeAudio(blob: Blob): Promise<TranscribeResponse> {
+  const form = new FormData();
+  const ext = blob.type.includes("webm") ? "webm" : blob.type.includes("ogg") ? "ogg" : "wav";
+  form.append("file", blob, `clip.${ext}`);
+
+  const res = await fetch(`${API_BASE}/api/v1/transcribe`, {
+    method: "POST",
+    body: form,
+  });
+  return handleResponse<TranscribeResponse>(res);
+}
+
+/**
+ * POST /api/v1/scenes/fetch-satellite
+ * Fetch the freshest low-cloud Sentinel-2 pass for an AOI — no GeoTIFF
+ * upload required. Same response shape as uploadScene().
+ */
+export async function fetchSatelliteScene(bbox: BBox): Promise<UploadResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/scenes/fetch-satellite`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ bbox }),
+  });
+  return handleResponse<UploadResponse>(res);
+}
+
+/**
+ * GET /api/v1/scenes
+ * List all uploaded scenes.
+ */
+export async function listScenes(): Promise<SceneListResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/scenes`);
+  return handleResponse<SceneListResponse>(res);
+}
+
+/**
+ * DELETE /api/v1/scenes/:id
+ */
+export async function deleteScene(sceneId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/scenes/${sceneId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok && res.status !== 204) {
+    throw new ApiError(res.status, "delete_failed", "Failed to delete scene");
+  }
+}
+
+/**
+ * GET /healthz
+ */
+export async function healthCheck(): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/healthz`);
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Build the tile layer URL template for Leaflet.
+ * M5's tile route: GET /api/v1/tiles/{scene_id}/{z}/{x}/{y}.png
+ */
+export function getTileUrl(sceneId: string, layer: string = "rgb"): string {
+  return `${API_BASE}/api/v1/tiles/${sceneId}/{z}/{x}/{y}.png?layer=${layer}`;
+}
+
+/**
+ * Build the thumbnail URL for a scene.
+ */
+export function getThumbnailUrl(sceneId: string): string {
+  return `${API_BASE}/api/v1/scenes/${sceneId}/thumbnail`;
+}
+
+/* ── Watches & Alerts ───────────────────────────────────────── */
+
+/**
+ * POST /api/v1/watches
+ * Register an AOI + tool call to be re-checked against future Sentinel-2
+ * passes. Alerts fire when the recomputed stats move meaningfully.
+ */
+export async function createWatch(
+  req: CreateWatchRequest
+): Promise<WatchResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/watches`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+  return handleResponse<WatchResponse>(res);
+}
+
+/**
+ * GET /api/v1/watches?email=...
+ */
+export async function listWatches(email: string): Promise<WatchListResponse> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/watches?email=${encodeURIComponent(email)}`
+  );
+  return handleResponse<WatchListResponse>(res);
+}
+
+/**
+ * DELETE /api/v1/watches/:id
+ */
+export async function deleteWatch(watchId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/watches/${watchId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok && res.status !== 204) {
+    throw new ApiError(res.status, "delete_failed", "Failed to delete watch");
+  }
+}
+
+/**
+ * GET /api/v1/alerts?email=...
+ */
+export async function listAlerts(email: string): Promise<AlertListResponse> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/alerts?email=${encodeURIComponent(email)}`
+  );
+  return handleResponse<AlertListResponse>(res);
+}
+
+/**
+ * POST /api/v1/alerts/:id/seen
+ */
+export async function markAlertSeen(alertId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/alerts/${alertId}/seen`, {
+    method: "POST",
+  });
+  if (!res.ok && res.status !== 204) {
+    throw new ApiError(res.status, "mark_seen_failed", "Failed to mark alert seen");
+  }
+}
+
+export { ApiError };

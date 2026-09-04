@@ -1,0 +1,3 @@
+"""
+Change detection module initialization.
+"""
