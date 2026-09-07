@@ -1,23 +1,24 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Search, Sun, Bell, Globe, Map as MapIcon, X } from "lucide-react";
-import AlertsBell from "./AlertsBell";
+import { Search, Globe, X, Maximize2, Minimize2 } from "lucide-react";
 
 interface TopNavProps {
   onSearchSubmit: (query: string) => void;
   onNavClick: (section: string) => void;
   activeSection: string;
-  viewMode: "3d" | "2d";
-  onToggleViewMode: () => void;
+  isFullScreen?: boolean;
+  onToggleFullScreen?: () => void;
+  onResetGlobe?: () => void;
 }
 
 export default function TopNav({
   onSearchSubmit,
   onNavClick,
   activeSection,
-  viewMode,
-  onToggleViewMode,
+  isFullScreen = false,
+  onToggleFullScreen,
+  onResetGlobe,
 }: TopNavProps) {
   const [query, setQuery] = useState("");
 
@@ -63,7 +64,7 @@ export default function TopNav({
         <input
           id="top-search-input"
           type="text"
-          placeholder="Search for a location, asset, or ask anything..."
+          placeholder="Search any airport, city, or coordinates..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="theme-topnav__search-input"
@@ -80,16 +81,31 @@ export default function TopNav({
         <kbd className="theme-topnav__kbd">⌘K</kbd>
       </form>
 
-      {/* Right Controls */}
+      {/* Right Controls: Globe & Fullscreen */}
       <div className="theme-topnav__right">
-        {/* 3D / 2D Toggle */}
-        <button
-          onClick={onToggleViewMode}
-          className="theme-topnav__icon-btn"
-          title={viewMode === "3d" ? "Switch to 2D Map" : "Switch to 3D Globe"}
-        >
-          {viewMode === "3d" ? <MapIcon size={16} /> : <Globe size={16} />}
-        </button>
+        {/* Reset to Global Space Orbit */}
+        {onResetGlobe && (
+          <button
+            type="button"
+            onClick={onResetGlobe}
+            className="theme-topnav__icon-btn"
+            title="Reset Global Earth Orbit View"
+          >
+            <Globe size={16} />
+          </button>
+        )}
+
+        {/* Maximize Globe to Full Screen */}
+        {onToggleFullScreen && (
+          <button
+            type="button"
+            onClick={onToggleFullScreen}
+            className="theme-topnav__icon-btn theme-topnav__icon-btn--fullscreen"
+            title={isFullScreen ? "Exit Fullscreen (ESC)" : "Maximize 3D Globe Fullscreen"}
+          >
+            <Maximize2 size={16} />
+          </button>
+        )}
       </div>
     </header>
   );

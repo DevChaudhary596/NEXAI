@@ -42,6 +42,8 @@ interface Cesium3DViewProps {
   flyToTarget?: FlyToTarget | null;
   onTargetReached?: () => void;
   onFallbackTo2D?: () => void;
+  isFullScreen?: boolean;
+  onToggleFullScreen?: () => void;
 }
 
 /** Low Earth Orbit Satellite Specification */
@@ -125,8 +127,12 @@ const QUICK_PRESETS = [
   { name: "Space Orbit", lon: 77.2090, lat: 28.6139, height: 16000000, pitch: -90, isAirport: false },
   { name: "SFO Airport", lon: -122.375, lat: 37.619, height: 1600, pitch: -45, isAirport: true },
   { name: "JFK Runway", lon: -73.7781, lat: 40.6413, height: 1800, pitch: -45, isAirport: true },
+  { name: "Heathrow (LHR)", lon: -0.4543, lat: 51.4700, height: 1400, pitch: -45, isAirport: true },
+  { name: "Tokyo Haneda", lon: 139.7798, lat: 35.5494, height: 1500, pitch: -45, isAirport: true },
+  { name: "Dubai Intl", lon: 55.3644, lat: 25.2532, height: 1600, pitch: -45, isAirport: true },
   { name: "Delhi IGI Airport", lon: 77.1000, lat: 28.5562, height: 1800, pitch: -45, isAirport: true },
-  { name: "Mumbai JNPT Port", lon: 72.95, lat: 18.95, height: 4500, pitch: -50, isAirport: false },
+  { name: "Suez Canal", lon: 32.3425, lat: 30.5852, height: 3500, pitch: -50, isAirport: false },
+  { name: "Mumbai Port", lon: 72.95, lat: 18.95, height: 4500, pitch: -50, isAirport: false },
   { name: "Kaziranga Basin", lon: 93.17, lat: 26.58, height: 8000, pitch: -60, isAirport: false },
 ];
 
@@ -174,6 +180,8 @@ export default function Cesium3DView({
   flyToTarget,
   onTargetReached,
   onFallbackTo2D,
+  isFullScreen = false,
+  onToggleFullScreen,
 }: Cesium3DViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Cesium.Viewer | null>(null);
@@ -453,6 +461,15 @@ export default function Cesium3DView({
       setReady(false);
     };
   }, []);
+
+  // Resize Cesium viewer when entering or exiting full screen
+  useEffect(() => {
+    if (!viewerRef.current) return;
+    const timer = setTimeout(() => {
+      viewerRef.current?.resize();
+    }, 80);
+    return () => clearTimeout(timer);
+  }, [isFullScreen]);
 
   // ── Switch Basemap Provider (Google vs Esri) ─────────────────────────
   const switchBasemap = useCallback((type: "google" | "esri") => {
@@ -926,13 +943,64 @@ export default function Cesium3DView({
           <MapPin size={15} />
         </button>
         <div className="globe-ctrl-divider" />
-        <button onClick={handleZoomIn} className="globe-ctrl-btn" title="Zoom In (+)">
+        <button type="button" onClick={handleZoomIn} className="globe-ctrl-btn" title="Zoom In (+)">
           <Plus size={16} />
         </button>
-        <button onClick={handleZoomOut} className="globe-ctrl-btn" title="Zoom Out (-)">
+        <button type="button" onClick={handleZoomOut} className="globe-ctrl-btn" title="Zoom Out (-)">
           <Minus size={16} />
         </button>
+        {onToggleFullScreen && (
+          <>
+            <div className="globe-ctrl-divider" />
+            <button
+              type="button"
+              onClick={onToggleFullScreen}
+              className={`globe-ctrl-btn ${isFullScreen ? "globe-ctrl-btn--active" : ""}`}
+              title={isFullScreen ? "Exit Full Screen (Esc)" : "Expand Globe to Full Screen"}
+            >
+              {isFullScreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+            </button>
+          </>
+        )}
       </div>
+
+      {/* ── Fullscreen Floating Top Banner ─────────────────────────── */}
+      {isFullScreen && (
+        <div className="globe-fullscreen-topbar">
+          <div className="globe-fullscreen-topbar__brand">
+            <span className="globe-pill__dot globe-pill__dot--live" />
+            <span className="globe-fullscreen-topbar__title">SatQuery • Fullscreen 3D Earth Engine</span>
+            <span className="globe-fullscreen-topbar__meta">Sub-meter High-Res Satellite Imagery</span>
+          </div>
+
+          <div className="globe-fullscreen-topbar__presets">
+            {QUICK_PRESETS.slice(1).map((preset) => (
+              <button
+                key={preset.name}
+                type="button"
+                onClick={() => flyToPreset(preset)}
+                className="globe-fullscreen-preset-chip"
+                title={`Zoom directly to ${preset.name}`}
+              >
+                {preset.isAirport ? <Plane size={11} color="#38bdf8" /> : <Sparkles size={10} color="#22d3ee" />}
+                <span>{preset.name}</span>
+              </button>
+            ))}
+          </div>
+
+          {onToggleFullScreen && (
+            <button
+              type="button"
+              onClick={onToggleFullScreen}
+              className="globe-fullscreen-close-btn"
+              title="Exit Full Screen (Esc)"
+            >
+              <Minimize2 size={13} />
+              <span>Exit Fullscreen (ESC)</span>
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

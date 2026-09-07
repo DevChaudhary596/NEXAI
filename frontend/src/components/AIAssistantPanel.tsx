@@ -12,6 +12,7 @@ import {
   Play,
   X,
   Sun,
+  Moon,
   Loader2,
   Check,
   Trash2,
@@ -101,17 +102,27 @@ export default function AIAssistantPanel({
   const [reportGenerated, setReportGenerated] = useState(false);
   const [watchCreated, setWatchCreated] = useState(false);
   const [showChatMenu, setShowChatMenu] = useState(false);
+  const [isLightMode, setIsLightMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    const saved = localStorage.getItem("satquery_theme");
+    if (saved === "light" || document.documentElement.classList.contains("light-theme")) {
+      setIsLightMode(true);
+      document.documentElement.classList.add("light-theme");
+    }
+  }, []);
+
   const handleToggleTheme = () => {
-    const isLight = document.documentElement.classList.contains("light-theme");
-    if (isLight) {
+    if (isLightMode) {
       document.documentElement.classList.remove("light-theme");
       localStorage.setItem("satquery_theme", "dark");
+      setIsLightMode(false);
     } else {
       document.documentElement.classList.add("light-theme");
       localStorage.setItem("satquery_theme", "light");
+      setIsLightMode(true);
     }
   };
 
@@ -320,11 +331,11 @@ export default function AIAssistantPanel({
           </div>
           <button
             type="button"
-            className="native-circle-btn"
-            title="Toggle Theme"
+            className={`native-circle-btn ${isLightMode ? "native-circle-btn--active" : ""}`}
+            title={isLightMode ? "Switch to Dark Orbit Mode" : "Switch to Daylight Mode"}
             onClick={handleToggleTheme}
           >
-            <Sun size={14} />
+            {isLightMode ? <Moon size={14} color="#f59e0b" /> : <Sun size={14} />}
           </button>
           <button
             type="button"

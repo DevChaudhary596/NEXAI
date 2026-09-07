@@ -61,6 +61,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<NavItemKey>("dashboard");
   const [activeSection, setActiveSection] = useState("explore");
   const [viewMode, setViewMode] = useState<"3d" | "2d">("3d");
+  const [isGlobeFullScreen, setIsGlobeFullScreen] = useState(false);
 
   // Camera flight target for the 3D globe
   const [flyToTarget, setFlyToTarget] = useState<FlyToTarget | null>(null);
@@ -99,16 +100,27 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
-  // Keyboard shortcut ⌘K
+  // Keyboard shortcut ⌘K and Escape for Fullscreen
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
         setIsCmdPaletteOpen(true);
       }
+      if (e.key === "Escape") {
+        setIsGlobeFullScreen(false);
+      }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  const handleToggleFullScreen = useCallback(() => {
+    setIsGlobeFullScreen((prev) => !prev);
+  }, []);
+
+  const handleResetGlobe = useCallback(() => {
+    setFlyToTarget({ lon: 77.2090, lat: 28.6139, height: 16000000, pitch: -90 });
   }, []);
 
   // Handle scene upload
@@ -199,7 +211,7 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="theme-dashboard-wrapper">
+    <div className={`theme-dashboard-wrapper ${isGlobeFullScreen ? "theme-dashboard-wrapper--fullscreen-globe" : ""}`}>
       {/* Top Progress Bar during queries */}
       <ProgressBar visible={isQuerying} />
 
@@ -220,12 +232,13 @@ export default function Home() {
               }
             }}
             activeSection={activeSection}
-            viewMode={viewMode}
-            onToggleViewMode={() => setViewMode((m) => (m === "3d" ? "2d" : "3d"))}
+            isFullScreen={isGlobeFullScreen}
+            onToggleFullScreen={handleToggleFullScreen}
+            onResetGlobe={handleResetGlobe}
           />
 
           {/* Center Hero: 3D Interactive Earth Globe (or 2D Map) */}
-          <div className="theme-hero-card">
+          <div className={`theme-hero-card ${isGlobeFullScreen ? "theme-hero-card--fullscreen" : ""}`}>
             {viewMode === "3d" ? (
               <CesiumErrorBoundary
                 fallback={
@@ -247,6 +260,8 @@ export default function Home() {
                   flyToTarget={flyToTarget}
                   onTargetReached={() => setFlyToTarget(null)}
                   onFallbackTo2D={() => setViewMode("2d")}
+                  isFullScreen={isGlobeFullScreen}
+                  onToggleFullScreen={handleToggleFullScreen}
                 />
               </CesiumErrorBoundary>
             ) : (
