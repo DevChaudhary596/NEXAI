@@ -28,10 +28,20 @@ if (typeof window !== "undefined") {
   (window as unknown as { CESIUM_BASE_URL?: string }).CESIUM_BASE_URL = "/cesium";
 }
 
+export interface FlyToTarget {
+  lon: number;
+  lat: number;
+  height: number;
+  pitch?: number;
+}
+
 interface Cesium3DViewProps {
   sceneId: string | null;
   sceneBounds: number[] | null;
   geojson: FeatureCollection | null;
+  flyToTarget?: FlyToTarget | null;
+  onTargetReached?: () => void;
+  onFallbackTo2D?: () => void;
 }
 
 /** Low Earth Orbit Satellite Specification */
@@ -92,38 +102,48 @@ const ORBITING_SATELLITES: SatelliteSpec[] = [
     inclinationDeg: 51.64,
     raanDeg: 310,
     speedDegPerSec: 0.065,
-    initialAnomalyDeg: 290,
+    initialAnomalyDeg: 80,
     color: "#fbbf24",
-    type: "Orbital Laboratory",
-    sensor: "Multi-Payload",
+    type: "Space Station",
+    sensor: "Crew Earth Observations",
   },
 ];
 
-/** High-detail airport & landscape fly-to presets */
+const SOURCE_COLOR: Record<FeatureSource, [number, number, number]> = {
+  detection: [251, 146, 60],
+  segmentation: [52, 211, 153],
+  spectral: [96, 165, 250],
+};
+
+const EXTRUSION_HEIGHT: Record<FeatureSource, number> = {
+  detection: 40,
+  segmentation: 25,
+  spectral: 15,
+};
+
 const QUICK_PRESETS = [
-  { name: "Global Space View", lon: 78.9629, lat: 20.5937, height: 16000000, pitch: -90, isAirport: false },
-  { name: "Delhi Airport (DEL)", lon: 77.0988, lat: 28.5562, height: 1400, pitch: -42, isAirport: true },
-  { name: "San Francisco Airport (SFO)", lon: -122.3754, lat: 37.6189, height: 1500, pitch: -45, isAirport: true },
-  { name: "Mumbai Airport (BOM)", lon: 72.8679, lat: 19.0887, height: 1400, pitch: -42, isAirport: true },
-  { name: "Dubai Airport (DXB)", lon: 55.3644, lat: 25.2532, height: 1500, pitch: -45, isAirport: true },
-  { name: "Punjab Farmland (NDVI)", lon: 75.83, lat: 30.78, height: 16000, pitch: -45, isAirport: false },
-  { name: "Kaziranga Basin (Flood)", lon: 93.17, lat: 26.58, height: 26000, pitch: -40, isAirport: false },
+  { name: "Space Orbit", lon: 77.2090, lat: 28.6139, height: 16000000, pitch: -90, isAirport: false },
+  { name: "SFO Airport", lon: -122.375, lat: 37.619, height: 1600, pitch: -45, isAirport: true },
+  { name: "JFK Runway", lon: -73.7781, lat: 40.6413, height: 1800, pitch: -45, isAirport: true },
+  { name: "Delhi IGI Airport", lon: 77.1000, lat: 28.5562, height: 1800, pitch: -45, isAirport: true },
+  { name: "Mumbai JNPT Port", lon: 72.95, lat: 18.95, height: 4500, pitch: -50, isAirport: false },
+  { name: "Kaziranga Basin", lon: 93.17, lat: 26.58, height: 8000, pitch: -60, isAirport: false },
 ];
 
-/** Extrusion height (metres) per feature source */
-const EXTRUSION_HEIGHT: Record<FeatureSource, number> = {
-  detection: 25,
-  segmentation: 6,
-  spectral: 12,
-};
-
-const SOURCE_COLOR: Record<FeatureSource, [number, number, number]> = {
-  detection: [251, 146, 60], // amber
-  segmentation: [52, 211, 153], // green
-  spectral: [34, 211, 238], // cyan
-};
-
-const SATELLITE_SVG = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="%2322d3ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 7 9 3 5 7l4 4"/><path d="m17 11 4 4-4 4-4-4"/><path d="m8 12 4 4"/><path d="m14 8 2 2"/><path d="m9 15-2 2"/><path d="m17 9 2-2"/></svg>`;
+const SATELLITE_SVG = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <rect x="2" y="16" width="14" height="16" rx="1.5" fill="%231e3a8a" stroke="%2338bdf8" stroke-width="1.2"/>
+  <line x1="2" y1="21.5" x2="16" y2="21.5" stroke="%2338bdf8" stroke-width="0.8"/>
+  <line x1="2" y1="26.5" x2="16" y2="26.5" stroke="%2338bdf8" stroke-width="0.8"/>
+  <line x1="9" y1="16" x2="9" y2="32" stroke="%2338bdf8" stroke-width="0.8"/>
+  <line x1="16" y1="24" x2="20" y2="24" stroke="%23cbd5e1" stroke-width="2.2"/>
+  <rect x="20" y="16" width="8" height="16" rx="2" fill="%23f8fafc" stroke="%23475569" stroke-width="1.2"/>
+  <circle cx="24" cy="24" r="2.5" fill="%2322d3ee"/>
+  <line x1="28" y1="24" x2="32" y2="24" stroke="%23cbd5e1" stroke-width="2.2"/>
+  <rect x="32" y="16" width="14" height="16" rx="1.5" fill="%231e3a8a" stroke="%2338bdf8" stroke-width="1.2"/>
+  <line x1="32" y1="21.5" x2="46" y2="21.5" stroke="%2338bdf8" stroke-width="0.8"/>
+  <line x1="32" y1="26.5" x2="46" y2="26.5" stroke="%2338bdf8" stroke-width="0.8"/>
+  <line x1="39" y1="16" x2="39" y2="32" stroke="%2338bdf8" stroke-width="0.8"/>
+</svg>`;
 
 /** Compute Cartesian coordinate on an inclined circular Keplerian orbit */
 function computeOrbitCartesian(
@@ -151,6 +171,9 @@ export default function Cesium3DView({
   sceneId,
   sceneBounds,
   geojson,
+  flyToTarget,
+  onTargetReached,
+  onFallbackTo2D,
 }: Cesium3DViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Cesium.Viewer | null>(null);
@@ -162,6 +185,7 @@ export default function Cesium3DView({
   const satellitesDataSourceRef = useRef<Cesium.CustomDataSource | null>(null);
 
   const [ready, setReady] = useState(false);
+  const [webglError, setWebglError] = useState(false);
   const [coords, setCoords] = useState({
     lat: "28.6139° N",
     lon: "77.2090° E",
@@ -170,7 +194,7 @@ export default function Cesium3DView({
   const [autoRotate, setAutoRotate] = useState(false);
   const [feedExpanded, setFeedExpanded] = useState(false);
   const [activeBasemap, setActiveBasemap] = useState<"google" | "esri">("google");
-  const [showLabels, setShowLabels] = useState(true);
+  const [showLabels, setShowLabels] = useState(false);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -187,42 +211,67 @@ export default function Cesium3DView({
   useEffect(() => {
     if (!containerRef.current || viewerRef.current) return;
 
-    // Web Mercator tiling scheme is crucial so zoom levels 18-21 align correctly
-    const webMercator = new Cesium.WebMercatorTilingScheme();
+    let viewer: Cesium.Viewer;
+    let removePreRender: (() => void) | undefined;
+    let handler: Cesium.ScreenSpaceEventHandler | undefined;
 
-    // Google Satellite Tiles (Level 0 - 21) — Sub-meter high-res down to individual airplanes
-    const googleImagery = new Cesium.UrlTemplateImageryProvider({
-      url: "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
-      tilingScheme: webMercator,
-      maximumLevel: 21,
-      credit: new Cesium.Credit("Satellite Imagery © Google"),
-    });
+    try {
+      if (containerRef.current) {
+        containerRef.current.innerHTML = "";
+      }
 
-    const viewer = new Cesium.Viewer(containerRef.current, {
-      baseLayer: new Cesium.ImageryLayer(googleImagery),
-      terrainProvider: new Cesium.EllipsoidTerrainProvider(),
-      timeline: false,
-      animation: false,
-      sceneModePicker: false,
-      baseLayerPicker: false,
-      geocoder: false,
-      homeButton: false,
-      navigationHelpButton: false,
-      fullscreenButton: false,
-      infoBox: false,
-      selectionIndicator: false,
-    });
+      // Web Mercator tiling scheme is crucial so zoom levels 18-21 align correctly
+      const webMercator = new Cesium.WebMercatorTilingScheme();
 
-    baseImageryLayerRef.current = viewer.imageryLayers.get(0);
+      // Google Satellite Tiles (Level 0 - 21) — Sub-meter high-res down to individual airplanes
+      const googleImagery = new Cesium.UrlTemplateImageryProvider({
+        url: "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+        tilingScheme: webMercator,
+        maximumLevel: 21,
+        credit: new Cesium.Credit("Satellite Imagery © Google"),
+      });
 
-    // Reference boundaries & places labels
-    const labelsImagery = new Cesium.UrlTemplateImageryProvider({
-      url: "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
-      tilingScheme: webMercator,
-      maximumLevel: 19,
-    });
-    const labelsLayer = viewer.imageryLayers.addImageryProvider(labelsImagery);
-    labelsImageryLayerRef.current = labelsLayer;
+      viewer = new Cesium.Viewer(containerRef.current, {
+        contextOptions: {
+          webgl: {
+            alpha: true,
+            depth: true,
+            stencil: false,
+            antialias: true,
+            preserveDrawingBuffer: false,
+            failIfMajorPerformanceCaveat: false,
+          },
+        },
+        baseLayer: new Cesium.ImageryLayer(googleImagery),
+        terrainProvider: new Cesium.EllipsoidTerrainProvider(),
+        timeline: false,
+        animation: false,
+        sceneModePicker: false,
+        baseLayerPicker: false,
+        geocoder: false,
+        homeButton: false,
+        navigationHelpButton: false,
+        fullscreenButton: false,
+        infoBox: false,
+        selectionIndicator: false,
+      });
+
+      baseImageryLayerRef.current = viewer.imageryLayers.get(0);
+
+      // Reference boundaries & places labels (Hidden by default to match clean orbital aesthetic)
+      const labelsImagery = new Cesium.UrlTemplateImageryProvider({
+        url: "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+        tilingScheme: webMercator,
+        maximumLevel: 19,
+      });
+      const labelsLayer = viewer.imageryLayers.addImageryProvider(labelsImagery);
+      labelsLayer.show = false;
+      labelsImageryLayerRef.current = labelsLayer;
+    } catch (err) {
+      console.warn("WebGL initialization encountered an issue:", err);
+      setWebglError(true);
+      return;
+    }
 
     // ── Camera Controller Zoom Optimization (Allowing close-up airport zoom) ──
     const controller = viewer.scene.screenSpaceCameraController;
@@ -341,7 +390,7 @@ export default function Cesium3DView({
 
     // ── Animation Loop for Satellite Orbits & Cinematic Rotation ────────
     let lastTime = performance.now();
-    const removePreRender = viewer.scene.preRender.addEventListener(() => {
+    removePreRender = viewer.scene.preRender.addEventListener(() => {
       const now = performance.now();
       const deltaSec = Math.min((now - lastTime) / 1000, 0.1);
       lastTime = now;
@@ -362,7 +411,7 @@ export default function Cesium3DView({
     });
 
     // ── Dynamic Live Coordinates Tracker on Mouse Move ──────────────────
-    const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+    handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
     handler.setInputAction((movement: { endPosition: Cesium.Cartesian2 }) => {
       const cartesian = viewer.camera.pickEllipsoid(
         movement.endPosition,
@@ -394,9 +443,10 @@ export default function Cesium3DView({
     setReady(true);
 
     return () => {
-      removePreRender();
-      handler.destroy();
-      if (!viewer.isDestroyed()) viewer.destroy();
+      if (removePreRender) removePreRender();
+      if (handler && !handler.isDestroyed()) handler.destroy();
+      if (viewer && !viewer.isDestroyed()) viewer.destroy();
+      if (containerRef.current) containerRef.current.innerHTML = "";
       viewerRef.current = null;
       resultsDataSourceRef.current = null;
       satellitesDataSourceRef.current = null;
@@ -560,6 +610,24 @@ export default function Cesium3DView({
     }
   }, [ready, geojson]);
 
+  // ── Fly to Target Effect (triggered from Global Search, Recent Projects, Quick Actions) ──
+  useEffect(() => {
+    if (!ready || !viewerRef.current || !flyToTarget) return;
+    const { lon, lat, height, pitch = -45 } = flyToTarget;
+    viewerRef.current.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(lon, lat, Math.max(height, 50)),
+      orientation: {
+        heading: Cesium.Math.toRadians(0),
+        pitch: Cesium.Math.toRadians(pitch),
+        roll: 0.0,
+      },
+      duration: 2.2,
+      complete: () => {
+        onTargetReached?.();
+      },
+    });
+  }, [ready, flyToTarget, onTargetReached]);
+
   // ── Search Places Handler ────────────────────────────────────────────
   const handleSearchSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -651,58 +719,64 @@ export default function Cesium3DView({
     });
   };
 
+  if (webglError) {
+    return (
+      <div className="globe-container" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "500px", background: "#020408" }}>
+        <div style={{ textAlign: "center", padding: "30px", maxWidth: "460px" }}>
+          <Globe size={48} color="#22d3ee" style={{ margin: "0 auto 16px auto", opacity: 0.8 }} />
+          <h3 style={{ fontSize: "1.1rem", fontWeight: 600, color: "#f1f5f9", marginBottom: 8 }}>
+            WebGL Acceleration Notice
+          </h3>
+          <p style={{ fontSize: "0.82rem", color: "#94a3b8", lineHeight: 1.5, marginBottom: 20 }}>
+            Your browser session experienced a WebGL context restriction. You can switch to the high-resolution 2D Satellite View or reload.
+          </p>
+          <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+            {onFallbackTo2D && (
+              <button
+                onClick={onFallbackTo2D}
+                style={{
+                  padding: "8px 18px",
+                  background: "#22d3ee",
+                  color: "#0f172a",
+                  fontWeight: 600,
+                  fontSize: "0.82rem",
+                  borderRadius: "8px",
+                  border: "none",
+                  cursor: "pointer",
+                }}
+              >
+                Switch to 2D Map
+              </button>
+            )}
+            <button
+              onClick={() => {
+                setWebglError(false);
+                window.location.reload();
+              }}
+              style={{
+                padding: "8px 18px",
+                background: "rgba(255, 255, 255, 0.1)",
+                color: "#fff",
+                fontWeight: 500,
+                fontSize: "0.82rem",
+                borderRadius: "8px",
+                border: "1px solid rgba(255, 255, 255, 0.2)",
+                cursor: "pointer",
+              }}
+            >
+              Retry 3D Earth
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="globe-container">
       {/* 3D Cesium Earth Canvas */}
       <div ref={containerRef} className="globe-canvas" />
 
-      {/* ── Top Search Bar (Matching Reference Image) ─────────────── */}
-      <div className="globe-search-wrapper">
-        <form onSubmit={handleSearchSubmit} className="globe-search-bar">
-          <Search size={15} className="globe-search-icon" />
-          <input
-            type="text"
-            className="globe-search-input"
-            placeholder="Search any airport, city, or coordinate (e.g. SFO, Delhi Airport, Kaziranga)..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onFocus={() => searchResults.length > 0 && setSearchOpen(true)}
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              className="globe-search-clear"
-              onClick={() => {
-                setSearchQuery("");
-                setSearchResults([]);
-                setSearchOpen(false);
-              }}
-            >
-              <X size={13} />
-            </button>
-          )}
-          <button type="submit" className="globe-search-submit" disabled={isSearching}>
-            {isSearching ? "Flying…" : "Jump"}
-          </button>
-        </form>
-
-        {/* Search Results Dropdown */}
-        {searchOpen && searchResults.length > 0 && (
-          <div className="globe-search-dropdown">
-            {searchResults.map((res, i) => (
-              <button
-                key={i}
-                type="button"
-                className="globe-search-item"
-                onClick={() => selectSearchResult(res)}
-              >
-                <MapPin size={13} className="globe-search-item-pin" />
-                <span className="globe-search-item-text">{res.displayName}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
 
       {/* ── Top-Left: Hero Overlay (Matching Reference Image) ──────── */}
       <div className="globe-hud__hero">
@@ -779,7 +853,7 @@ export default function Cesium3DView({
 
         <div className="globe-hud__feed-preview">
           <img
-            src="/images/satellite_feed_preview.jpg"
+            src="/images/exact_live_feed.jpg"
             alt="Real-time Satellite Feed"
             className="globe-hud__feed-img"
           />

@@ -1,11 +1,17 @@
 import type { Metadata } from "next";
-import { Inter, Press_Start_2P } from "next/font/google";
+import { Inter, Press_Start_2P, Playfair_Display } from "next/font/google";
 import "@/styles/globals.css";
 
 const inter = Inter({
   subsets: ["latin"],
   display: "swap",
   variable: "--font-inter",
+});
+
+const serifFont = Playfair_Display({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-serif",
 });
 
 const pixelFont = Press_Start_2P({
@@ -16,17 +22,18 @@ const pixelFont = Press_Start_2P({
 });
 
 export const metadata: Metadata = {
-  title: "SatQuery AI — Interactive Remote Sensing Analysis",
+  title: "SatQuery — Autonomous Geospatial Intelligence Platform",
   description:
-    "An interactive Vision-Language assistant for multimodal remote sensing image analysis through text queries. SIH Problem Statement 26167.",
+    "Enterprise-grade autonomous geospatial intelligence and remote sensing platform. Real-time planetary observation, automated computer vision, and spectral analytics.",
   keywords: [
     "satellite imagery",
     "remote sensing",
-    "VLM",
+    "geospatial intelligence",
+    "earth observation",
     "GIS",
     "object detection",
     "NDVI",
-    "SIH",
+    "SatQuery",
   ],
 };
 
@@ -36,7 +43,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${pixelFont.variable}`}>
+    <html lang="en" className={`${inter.variable} ${serifFont.variable} ${pixelFont.variable}`}>
       <head>
         <link
           rel="icon"
@@ -44,16 +51,7 @@ export default function RootLayout({
         />
       </head>
       <body>
-        <div className="ambient-bg" aria-hidden="true">
-          <div className="ambient-bg__blob ambient-bg__blob--1" />
-          <div className="ambient-bg__blob ambient-bg__blob--2" />
-          <div className="ambient-bg__blob ambient-bg__blob--3" />
-          <div className="ambient-bg__pixel-star" style={{ top: "14%", left: "22%", animationDelay: "0s" }} />
-          <div className="ambient-bg__pixel-star" style={{ top: "28%", left: "68%", animationDelay: "0.6s" }} />
-          <div className="ambient-bg__pixel-star" style={{ top: "62%", left: "40%", animationDelay: "1.2s" }} />
-          <div className="ambient-bg__pixel-star" style={{ top: "45%", left: "85%", animationDelay: "1.8s" }} />
-          <div className="ambient-bg__pixel-star" style={{ top: "78%", left: "12%", animationDelay: "0.9s" }} />
-        </div>
+        <div className="theme-epic-backdrop" aria-hidden="true" />
         {children}
       </body>
     </html>
