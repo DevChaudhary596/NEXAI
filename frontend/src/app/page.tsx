@@ -61,7 +61,7 @@ export default function Home() {
   const [geojson, setGeojson] = useState<FeatureCollection | null>(null);
   const [overlays, setOverlays] = useState<RasterOverlay[]>([]);
   const [isQuerying, setIsQuerying] = useState(false);
-  const [viewMode, setViewMode] = useState<"2d" | "3d">("2d");
+  const [viewMode, setViewMode] = useState<"2d" | "3d">("3d");
 
   // Health check on mount
   useEffect(() => {
@@ -137,22 +137,21 @@ export default function Home() {
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          {sceneId && (
-            <button
-              className="view-mode-toggle pixel-notch"
-              onClick={() => setViewMode((m) => (m === "2d" ? "3d" : "2d"))}
-            >
-              {viewMode === "2d" ? (
-                <>
-                  <Box size={12} /> View in 3D
-                </>
-              ) : (
-                <>
-                  <MapIcon size={12} /> View in 2D
-                </>
-              )}
-            </button>
-          )}
+          <button
+            className="view-mode-toggle pixel-notch"
+            onClick={() => setViewMode((m) => (m === "2d" ? "3d" : "2d"))}
+            title={viewMode === "3d" ? "Switch to 2D Map" : "Switch to 3D Globe"}
+          >
+            {viewMode === "2d" ? (
+              <>
+                <Box size={12} /> 3D Globe
+              </>
+            ) : (
+              <>
+                <MapIcon size={12} /> 2D Map
+              </>
+            )}
+          </button>
 
           <AlertsBell />
 
