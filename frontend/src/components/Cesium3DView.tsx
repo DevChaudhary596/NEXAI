@@ -795,35 +795,38 @@ export default function Cesium3DView({
       <div ref={containerRef} className="globe-canvas" />
 
 
-      {/* ── Top-Left: Hero Overlay (Matching Reference Image) ──────── */}
-      <div className="globe-hud__hero">
-        <div className="globe-hud__tag">
-          <span className="globe-hud__tag-line" />
-          <span>SATELLITE INTELLIGENCE</span>
-        </div>
-        <h1 className="globe-hud__title">A clearer planet.</h1>
-        <p className="globe-hud__subtitle">
-          Turn satellite data into real-world decisions.
-        </p>
+      {/* ── Top-Left: Hero Overlay (Only when NOT in fullscreen) ──────── */}
+      {!isFullScreen && (
+        <div className="globe-hud__hero">
+          <div className="globe-hud__tag">
+            <span className="globe-hud__tag-line" />
+            <span>SATELLITE INTELLIGENCE</span>
+          </div>
+          <h1 className="globe-hud__title">A clearer planet.</h1>
+          <p className="globe-hud__subtitle">
+            Turn satellite data into real-world decisions.
+          </p>
 
-        {/* Airport & Location Fast-Jump Chips */}
-        <div className="globe-hud__quick-targets">
-          <span className="globe-hud__chips-label">Quick Zoom:</span>
-          {QUICK_PRESETS.slice(1).map((preset) => (
-            <button
-              key={preset.name}
-              onClick={() => flyToPreset(preset)}
-              className="globe-hud__target-chip"
-              title={`Zoom directly to ${preset.name}`}
-            >
-              {preset.isAirport ? <Plane size={11} color="#38bdf8" /> : <Sparkles size={10} color="#22d3ee" />}
-              <span>{preset.name}</span>
-            </button>
-          ))}
+          {/* Airport & Location Fast-Jump Chips */}
+          <div className="globe-hud__quick-targets">
+            <span className="globe-hud__chips-label">Quick Zoom:</span>
+            {QUICK_PRESETS.slice(1).map((preset) => (
+              <button
+                key={preset.name}
+                type="button"
+                onClick={() => flyToPreset(preset)}
+                className="globe-hud__target-chip"
+                title={`Zoom directly to ${preset.name}`}
+              >
+                {preset.isAirport ? <Plane size={11} color="#38bdf8" /> : <Sparkles size={10} color="#22d3ee" />}
+                <span>{preset.name}</span>
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* ── Top-Right: Coordinates & Status Badges ────────────────── */}
+      {/* ── Top-Right: Coordinates & Minimal Controls ────────────────── */}
       <div className="globe-hud__telemetry">
         <div className="globe-hud__coords">
           <Navigation size={13} className="globe-hud__compass-icon" />
@@ -833,76 +836,96 @@ export default function Cesium3DView({
           <span className="globe-hud__coords-divider">•</span>
           <span className="globe-hud__alt">{coords.heightKm}</span>
         </div>
-        <div className="globe-hud__pills">
-          <div className="globe-pill">
-            <span className="globe-pill__dot globe-pill__dot--live" /> Live
-          </div>
-          <div className="globe-pill">
-            <span className="globe-pill__dot" /> Analysis Ready
-          </div>
-          <div className="globe-pill">
-            <span className="globe-pill__dot" /> Global Coverage
-          </div>
-          <div className="globe-pill">
-            <span className="globe-pill__dot" /> AI-Powered Insights
-          </div>
-        </div>
-      </div>
-
-      {/* ── Bottom-Left: Live Satellite Feed Card ──────────────────── */}
-      <div className={`globe-hud__feed-card ${feedExpanded ? "globe-hud__feed-card--expanded" : ""}`}>
-        <div className="globe-hud__feed-header">
-          <div>
-            <div className="globe-hud__feed-title">Live Satellite Feed</div>
-            <div className="globe-hud__feed-sub">
-              <span className="globe-pill__dot globe-pill__dot--live" />
-              <span>4 satellites active in orbit</span>
+        {!isFullScreen && (
+          <div className="globe-hud__pills">
+            <div className="globe-pill">
+              <span className="globe-pill__dot globe-pill__dot--live" /> Live
+            </div>
+            <div className="globe-pill">
+              <span className="globe-pill__dot" /> Analysis Ready
+            </div>
+            <div className="globe-pill">
+              <span className="globe-pill__dot" /> Global Coverage
+            </div>
+            <div className="globe-pill">
+              <span className="globe-pill__dot" /> AI-Powered Insights
             </div>
           </div>
-          <button
-            className="globe-hud__feed-expand-btn"
-            onClick={() => setFeedExpanded(!feedExpanded)}
-            title={feedExpanded ? "Collapse Feed" : "Expand Feed"}
-          >
-            {feedExpanded ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
-          </button>
-        </div>
+        )}
+      </div>
 
-        <div className="globe-hud__feed-preview">
-          <img
-            src="/images/exact_live_feed.jpg"
-            alt="Real-time Satellite Feed"
-            className="globe-hud__feed-img"
-          />
-          <div className="globe-hud__feed-scanline" />
-          <div className="globe-hud__feed-badge">
-            <span className="globe-hud__feed-sat-name">Sentinel-2A</span>
-            <span className="globe-hud__feed-dot">•</span>
-            <span>10:24 UTC</span>
-            <span className="globe-hud__feed-dot">•</span>
-            <span>10 m GSD</span>
-            <div className="globe-hud__feed-signal" title="Signal: 98% Strong">
-              <span className="signal-bar signal-bar--1" />
-              <span className="signal-bar signal-bar--2" />
-              <span className="signal-bar signal-bar--3" />
-              <span className="signal-bar signal-bar--4" />
+      {/* Minimal Floating Exit Button in Fullscreen Mode */}
+      {isFullScreen && onToggleFullScreen && (
+        <button
+          type="button"
+          onClick={onToggleFullScreen}
+          className="globe-fullscreen-minimal-exit"
+          title="Exit Full Screen (ESC)"
+        >
+          <Minimize2 size={14} />
+          <span>Exit Fullscreen</span>
+          <kbd className="globe-esc-kbd">ESC</kbd>
+        </button>
+      )}
+
+      {/* ── Bottom-Left: Live Satellite Feed Card (Only when NOT in fullscreen) ──── */}
+      {!isFullScreen && (
+        <div className={`globe-hud__feed-card ${feedExpanded ? "globe-hud__feed-card--expanded" : ""}`}>
+          <div className="globe-hud__feed-header">
+            <div>
+              <div className="globe-hud__feed-title">Live Satellite Feed</div>
+              <div className="globe-hud__feed-sub">
+                <span className="globe-pill__dot globe-pill__dot--live" />
+                <span>4 satellites active in orbit</span>
+              </div>
+            </div>
+            <button
+              className="globe-hud__feed-expand-btn"
+              onClick={() => setFeedExpanded(!feedExpanded)}
+              title={feedExpanded ? "Collapse Feed" : "Expand Feed"}
+            >
+              {feedExpanded ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+            </button>
+          </div>
+
+          <div className="globe-hud__feed-preview">
+            <img
+              src="/images/exact_live_feed.jpg"
+              alt="Real-time Satellite Feed"
+              className="globe-hud__feed-img"
+            />
+            <div className="globe-hud__feed-scanline" />
+            <div className="globe-hud__feed-badge">
+              <span className="globe-hud__feed-sat-name">Sentinel-2A</span>
+              <span className="globe-hud__feed-dot">•</span>
+              <span>10:24 UTC</span>
+              <span className="globe-hud__feed-dot">•</span>
+              <span>10 m GSD</span>
+              <div className="globe-hud__feed-signal" title="Signal: 98% Strong">
+                <span className="signal-bar signal-bar--1" />
+                <span className="signal-bar signal-bar--2" />
+                <span className="signal-bar signal-bar--3" />
+                <span className="signal-bar signal-bar--4" />
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* ── Bottom-Center: Mission Exploration Dock ────────────────── */}
-      <div className="globe-hud__dock">
-        <div className="globe-hud__dock-brand">
-          <span className="globe-hud__dock-step">EXPLORE</span>
-          <span className="globe-hud__dock-sep">—</span>
-          <span className="globe-hud__dock-step">ANALYZE</span>
-          <span className="globe-hud__dock-sep">—</span>
-          <span className="globe-hud__dock-step">UNDERSTAND</span>
-          <span className="globe-hud__dock-sep">—</span>
-          <span className="globe-hud__dock-step">ACT</span>
+      {/* ── Bottom-Center: Mission Exploration Dock (Only when NOT in fullscreen) ── */}
+      {!isFullScreen && (
+        <div className="globe-hud__dock">
+          <div className="globe-hud__dock-brand">
+            <span className="globe-hud__dock-step">EXPLORE</span>
+            <span className="globe-hud__dock-sep">—</span>
+            <span className="globe-hud__dock-step">ANALYZE</span>
+            <span className="globe-hud__dock-sep">—</span>
+            <span className="globe-hud__dock-step">UNDERSTAND</span>
+            <span className="globe-hud__dock-sep">—</span>
+            <span className="globe-hud__dock-step">ACT</span>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ── Floating 3D Globe Navigation Controls ──────────────────── */}
       <div className="globe-controls">
@@ -963,44 +986,6 @@ export default function Cesium3DView({
           </>
         )}
       </div>
-
-      {/* ── Fullscreen Floating Top Banner ─────────────────────────── */}
-      {isFullScreen && (
-        <div className="globe-fullscreen-topbar">
-          <div className="globe-fullscreen-topbar__brand">
-            <span className="globe-pill__dot globe-pill__dot--live" />
-            <span className="globe-fullscreen-topbar__title">SatQuery • Fullscreen 3D Earth Engine</span>
-            <span className="globe-fullscreen-topbar__meta">Sub-meter High-Res Satellite Imagery</span>
-          </div>
-
-          <div className="globe-fullscreen-topbar__presets">
-            {QUICK_PRESETS.slice(1).map((preset) => (
-              <button
-                key={preset.name}
-                type="button"
-                onClick={() => flyToPreset(preset)}
-                className="globe-fullscreen-preset-chip"
-                title={`Zoom directly to ${preset.name}`}
-              >
-                {preset.isAirport ? <Plane size={11} color="#38bdf8" /> : <Sparkles size={10} color="#22d3ee" />}
-                <span>{preset.name}</span>
-              </button>
-            ))}
-          </div>
-
-          {onToggleFullScreen && (
-            <button
-              type="button"
-              onClick={onToggleFullScreen}
-              className="globe-fullscreen-close-btn"
-              title="Exit Full Screen (Esc)"
-            >
-              <Minimize2 size={13} />
-              <span>Exit Fullscreen (ESC)</span>
-            </button>
-          )}
-        </div>
-      )}
     </div>
   );
 }

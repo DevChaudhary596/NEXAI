@@ -7070,93 +7070,60 @@ input[type="range"]::-moz-range-thumb {
   display: none !important;
 }
 
-/* Floating Fullscreen Topbar */
-.globe-fullscreen-topbar {
-  position: absolute;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  background: rgba(9, 14, 26, 0.88);
-  backdrop-filter: blur(28px);
-  -webkit-backdrop-filter: blur(28px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7), 0 0 25px rgba(34, 211, 238, 0.18);
-  padding: 8px 20px;
-  border-radius: 9999px;
-  z-index: 2000;
-  pointer-events: auto;
-  max-width: calc(100vw - 40px);
+/* In Fullscreen Mode: HIDE all cards, docks, hero text, and pills so ONLY the globe is opened */
+.theme-hero-card--fullscreen .globe-hud__hero,
+.theme-hero-card--fullscreen .globe-hud__feed-card,
+.theme-hero-card--fullscreen .globe-hud__dock,
+.theme-hero-card--fullscreen .globe-hud__pills {
+  display: none !important;
 }
 
-.globe-fullscreen-topbar__brand {
-  display: flex;
+/* Position telemetry to top-left in fullscreen so it never overlaps the exit button */
+.theme-hero-card--fullscreen .globe-hud__telemetry {
+  top: 24px !important;
+  left: 28px !important;
+  right: auto !important;
+  align-items: flex-start !important;
+}
+
+/* Minimal sleek floating exit button in top right */
+.globe-fullscreen-minimal-exit {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-}
-
-.globe-fullscreen-topbar__title {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: #f8fafc;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-}
-
-.globe-fullscreen-topbar__meta {
-  font-size: 0.72rem;
-  color: #94a3b8;
-  white-space: nowrap;
-}
-
-.globe-fullscreen-topbar__presets {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  overflow-x: auto;
-  max-width: 580px;
-  padding: 2px 0;
-}
-
-.globe-fullscreen-preset-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
+  padding: 8px 16px;
   border-radius: 9999px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  color: #e2e8f0;
-  font-size: 0.73rem;
+  background: rgba(9, 14, 26, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #f1f5f9;
+  font-size: 0.78rem;
   font-weight: 600;
   cursor: pointer;
+  z-index: 2500;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
   transition: all 0.2s ease;
-  white-space: nowrap;
 }
 
-.globe-fullscreen-preset-chip:hover {
-  background: rgba(34, 211, 238, 0.22);
-  border-color: rgba(34, 211, 238, 0.6);
-  color: #38bdf8;
+.globe-fullscreen-minimal-exit:hover {
+  background: rgba(239, 68, 68, 0.35);
+  border-color: rgba(239, 68, 68, 0.6);
+  color: #ffffff;
   transform: translateY(-1px);
+  box-shadow: 0 8px 30px rgba(239, 68, 68, 0.3);
 }
 
-.globe-fullscreen-close-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  border-radius: 9999px;
-  background: rgba(239, 68, 68, 0.25);
-  border: 1px solid rgba(239, 68, 68, 0.5);
-  color: #fca5a5;
-  font-size: 0.74rem;
+.globe-esc-kbd {
+  font-size: 0.65rem;
   font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  white-space: nowrap;
+  padding: 1px 6px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  color: #e2e8f0;
 }
 
 .globe-fullscreen-close-btn:hover {
