@@ -149,7 +149,8 @@ class RealOBBDetector:
         target: str,
         confidence_threshold: float = 0.5,
         tile_size: int = 640,
-        overlap_ratio: float = 0.2
+        overlap_ratio: float = 0.2,
+        is_sentinel2: bool = True
     ) -> Tuple[List[Dict[str, Any]], Dict[str, float]]:
         """
         Run real CPU detection on image array using SAHI slicing and confidence filtering.
@@ -172,15 +173,16 @@ class RealOBBDetector:
             metrics["total_time_ms"] = (time.perf_counter() - start_total) * 1000.0
             return [], metrics
 
-        # Check Sentinel-2 10m GSD feasibility
+        # Check Sentinel-2 10m GSD feasibility if explicitly flagged or detected as Sentinel-2
         import logging
-        for cls in target_classes:
-            if cls in SENTINEL2_UNRELIABLE_CLASSES:
-                logging.error(f"Target '{cls}' is physically too small (<30m) for Sentinel-2 10m resolution. Bypassing inference to prevent hallucination.")
-                metrics["total_time_ms"] = (time.perf_counter() - start_total) * 1000.0
-                return [], metrics
-            elif cls in SENTINEL2_RELIABLE_CLASSES:
-                logging.info(f"Target '{cls}' is valid for Sentinel-2 10m/px resolution. Proceeding with inference.")
+        if is_sentinel2:
+            for cls in target_classes:
+                if cls in SENTINEL2_UNRELIABLE_CLASSES:
+                    logging.warning(f"Target '{cls}' is physically too small (<30m) for Sentinel-2 10m resolution. Bypassing inference to prevent hallucination.")
+                    metrics["total_time_ms"] = (time.perf_counter() - start_total) * 1000.0
+                    return [], metrics
+                elif cls in SENTINEL2_RELIABLE_CLASSES:
+                    logging.info(f"Target '{cls}' is valid for Sentinel-2 10m/px resolution. Proceeding with inference.")
 
 
 

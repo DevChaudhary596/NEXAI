@@ -1,0 +1,2793 @@
+{
+  "benchmark_version": "1.0.0",
+  "created_by": "Member 6 (QA Lead)",
+  "total_scenes": 15,
+  "tracks": [
+    "disaster",
+    "agriculture",
+    "urban"
+  ],
+  "scenes": [
+    {
+      "scene_id": "disaster_01_kaziranga_flood",
+      "track": "disaster",
+      "title": "Kaziranga Flood Inundation",
+      "file_path": "data/benchmark_scenes\\disaster/disaster_01_kaziranga_flood.tif",
+      "crs": "EPSG:4326",
+      "dimensions": {
+        "width": 800,
+        "height": 800,
+        "bands": 4
+      },
+      "top_left_origin": [
+        93.15,
+        26.65
+      ],
+      "pixel_resolution_deg": 0.0001,
+      "target_counts": {
+        "water body": 1,
+        "flooded parcel": 3
+      },
+      "ground_truth_polygons": [
+        {
+          "type": "Feature",
+          "properties": {
+            "feature_class": "floodwater",
+            "confidence": 1.0
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  93.155,
+                  26.639999999999997
+                ],
+                [
+                  93.22500000000001,
+                  26.637999999999998
+                ],
+                [
+                  93.22,
+                  26.602
+                ],
+                [
+                  93.16000000000001,
+                  26.593999999999998
+                ],
+                [
+                  93.155,
+                  26.639999999999997
+                ]
+              ]
+            ]
+          }
+        }
+      ],
+      "spectral_expected": {
+        "dominant_index": "NDWI",
+        "water_coverage_pct": 42.5
+      },
+      "sample_queries": [
+        "Show flooded areas in Kaziranga Flood Inundation",
+        "Calculate water index and segment inundated zones",
+        "Highlight areas affected by waterlogging"
+      ]
+    },
+    {
+      "scene_id": "disaster_02_assam_waterlogging",
+      "track": "disaster",
+      "title": "Assam Rural Waterlogging",
+      "file_path": "data/benchmark_scenes\\disaster/disaster_02_assam_waterlogging.tif",
+      "crs": "EPSG:4326",
+      "dimensions": {
+        "width": 800,
+        "height": 800,
+        "bands": 4
+      },
+      "top_left_origin": [
+        92.82,
+        26.31
+      ],
+      "pixel_resolution_deg": 0.0001,
+      "target_counts": {
+        "waterlogged road": 2,
+        "submerged structure": 8
+      },
+      "ground_truth_polygons": [
+        {
+          "type": "Feature",
+          "properties": {
+            "feature_class": "waterlogging",
+            "confidence": 1.0
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  92.82499999999999,
+                  26.299999999999997
+                ],
+                [
+                  92.895,
+                  26.298
+                ],
+                [
+                  92.88999999999999,
+                  26.262
+                ],
+                [
+                  92.83,
+                  26.253999999999998
+                ],
+                [
+                  92.82499999999999,
+                  26.299999999999997
+                ]
+              ]
+            ]
+          }
+        }
+      ],
+      "spectral_expected": {
+        "dominant_index": "NDWI",
+        "water_coverage_pct": 31.0
+      },
+      "sample_queries": [
+        "Show flooded areas in Assam Rural Waterlogging",
+        "Calculate water index and segment inundated zones",
+        "Highlight areas affected by waterlogging"
+      ]
+    },
+    {
+      "scene_id": "disaster_03_coastal_surge",
+      "track": "disaster",
+      "title": "Odisha Coastal Storm Surge",
+      "file_path": "data/benchmark_scenes\\disaster/disaster_03_coastal_surge.tif",
+      "crs": "EPSG:4326",
+      "dimensions": {
+        "width": 800,
+        "height": 800,
+        "bands": 4
+      },
+      "top_left_origin": [
+        86.72,
+        20.31
+      ],
+      "pixel_resolution_deg": 0.0001,
+      "target_counts": {
+        "breached embankment": 2,
+        "inundated shore": 1
+      },
+      "ground_truth_polygons": [
+        {
+          "type": "Feature",
+          "properties": {
+            "feature_class": "storm_surge",
+            "confidence": 1.0
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  86.725,
+                  20.299999999999997
+                ],
+                [
+                  86.795,
+                  20.298
+                ],
+                [
+                  86.78999999999999,
+                  20.262
+                ],
+                [
+                  86.73,
+                  20.253999999999998
+                ],
+                [
+                  86.725,
+                  20.299999999999997
+                ]
+              ]
+            ]
+          }
+        }
+      ],
+      "spectral_expected": {
+        "dominant_index": "NDWI",
+        "water_coverage_pct": 55.0
+      },
+      "sample_queries": [
+        "Show flooded areas in Odisha Coastal Storm Surge",
+        "Calculate water index and segment inundated zones",
+        "Highlight areas affected by waterlogging"
+      ]
+    },
+    {
+      "scene_id": "disaster_04_forest_burn_scar",
+      "track": "disaster",
+      "title": "Simlipal Wildfire Burn Scar",
+      "file_path": "data/benchmark_scenes\\disaster/disaster_04_forest_burn_scar.tif",
+      "crs": "EPSG:4326",
+      "dimensions": {
+        "width": 800,
+        "height": 800,
+        "bands": 4
+      },
+      "top_left_origin": [
+        86.35,
+        21.85
+      ],
+      "pixel_resolution_deg": 0.0001,
+      "target_counts": {
+        "burn scar": 2,
+        "unaffected forest": 3
+      },
+      "ground_truth_polygons": [
+        {
+          "type": "Feature",
+          "properties": {
+            "feature_class": "burn_scar",
+            "confidence": 1.0
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  86.35499999999999,
+                  21.84
+                ],
+                [
+                  86.425,
+                  21.838
+                ],
+                [
+                  86.41999999999999,
+                  21.802000000000003
+                ],
+                [
+                  86.36,
+                  21.794
+                ],
+                [
+                  86.35499999999999,
+                  21.84
+                ]
+              ]
+            ]
+          }
+        }
+      ],
+      "spectral_expected": {
+        "dominant_index": "NDWI",
+        "water_coverage_pct": 5.0
+      },
+      "sample_queries": [
+        "Show flooded areas in Simlipal Wildfire Burn Scar",
+        "Calculate water index and segment inundated zones",
+        "Highlight areas affected by waterlogging"
+      ]
+    },
+    {
+      "scene_id": "disaster_05_landslide_debris",
+      "track": "disaster",
+      "title": "Wayanad Hillside Landslide Debris",
+      "file_path": "data/benchmark_scenes\\disaster/disaster_05_landslide_debris.tif",
+      "crs": "EPSG:4326",
+      "dimensions": {
+        "width": 800,
+        "height": 800,
+        "bands": 4
+      },
+      "top_left_origin": [
+        76.13,
+        11.58
+      ],
+      "pixel_resolution_deg": 0.0001,
+      "target_counts": {
+        "landslide scar": 2,
+        "blocked stream": 1
+      },
+      "ground_truth_polygons": [
+        {
+          "type": "Feature",
+          "properties": {
+            "feature_class": "landslide",
+            "confidence": 1.0
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  76.13499999999999,
+                  11.57
+                ],
+                [
+                  76.205,
+                  11.568
+                ],
+                [
+                  76.19999999999999,
+                  11.532
+                ],
+                [
+                  76.14,
+                  11.524000000000001
+                ],
+                [
+                  76.13499999999999,
+                  11.57
+                ]
+              ]
+            ]
+          }
+        }
+      ],
+      "spectral_expected": {
+        "dominant_index": "NDWI",
+        "water_coverage_pct": 8.0
+      },
+      "sample_queries": [
+        "Show flooded areas in Wayanad Hillside Landslide Debris",
+        "Calculate water index and segment inundated zones",
+        "Highlight areas affected by waterlogging"
+      ]
+    },
+    {
+      "scene_id": "agri_01_punjab_wheat_ndvi",
+      "track": "agriculture",
+      "title": "Punjab High-Vigor Wheat Farm",
+      "file_path": "data/benchmark_scenes\\agriculture/agri_01_punjab_wheat_ndvi.tif",
+      "crs": "EPSG:4326",
+      "dimensions": {
+        "width": 800,
+        "height": 800,
+        "bands": 4
+      },
+      "top_left_origin": [
+        75.85,
+        30.9
+      ],
+      "pixel_resolution_deg": 0.0001,
+      "target_counts": {
+        "healthy crop parcel": 6,
+        "stressed parcel": 2
+      },
+      "ground_truth_polygons": [
+        {
+          "type": "Feature",
+          "properties": {
+            "parcel_id": "P_0_0",
+            "vigor_factor": 1.2
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  75.851,
+                  30.898999999999997
+                ],
+                [
+                  75.87559999999999,
+                  30.898999999999997
+                ],
+                [
+                  75.87559999999999,
+                  30.874399999999998
+                ],
+                [
+                  75.851,
+                  30.874399999999998
+                ],
+                [
+                  75.851,
+                  30.898999999999997
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "parcel_id": "P_0_1",
+            "vigor_factor": 0.6
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  75.8776,
+                  30.898999999999997
+                ],
+                [
+                  75.9022,
+                  30.898999999999997
+                ],
+                [
+                  75.9022,
+                  30.874399999999998
+                ],
+                [
+                  75.8776,
+                  30.874399999999998
+                ],
+                [
+                  75.8776,
+                  30.898999999999997
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "parcel_id": "P_0_2",
+            "vigor_factor": 1.2
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  75.90419999999999,
+                  30.898999999999997
+                ],
+                [
+                  75.9288,
+                  30.898999999999997
+                ],
+                [
+                  75.9288,
+                  30.874399999999998
+                ],
+                [
+                  75.90419999999999,
+                  30.874399999999998
+                ],
+                [
+                  75.90419999999999,
+                  30.898999999999997
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "parcel_id": "P_1_0",
+            "vigor_factor": 0.6
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  75.851,
+                  30.8724
+                ],
+                [
+                  75.87559999999999,
+                  30.8724
+                ],
+                [
+                  75.87559999999999,
+                  30.8478
+                ],
+                [
+                  75.851,
+                  30.8478
+                ],
+                [
+                  75.851,
+                  30.8724
+                ]
+              ]
+            ]
+          }
+        }
+      ],
+      "spectral_expected": {
+        "dominant_index": "NDVI",
+        "mean_ndvi": 0.68
+      },
+      "sample_queries": [
+        "Assess vegetation health in Punjab High-Vigor Wheat Farm",
+        "Calculate NDVI and highlight stressed agricultural parcels",
+        "Segment crop field boundaries and compute greenness index"
+      ]
+    },
+    {
+      "scene_id": "agri_02_maharashtra_drought_ndwi",
+      "track": "agriculture",
+      "title": "Marathwada Drought Crop Stress",
+      "file_path": "data/benchmark_scenes\\agriculture/agri_02_maharashtra_drought_ndwi.tif",
+      "crs": "EPSG:4326",
+      "dimensions": {
+        "width": 800,
+        "height": 800,
+        "bands": 4
+      },
+      "top_left_origin": [
+        76.55,
+        18.4
+      ],
+      "pixel_resolution_deg": 0.0001,
+      "target_counts": {
+        "moisture stressed parcel": 7,
+        "fallow land": 4
+      },
+      "ground_truth_polygons": [
+        {
+          "type": "Feature",
+          "properties": {
+            "parcel_id": "P_0_0",
+            "vigor_factor": 1.2
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  76.551,
+                  18.398999999999997
+                ],
+                [
+                  76.5756,
+                  18.398999999999997
+                ],
+                [
+                  76.5756,
+                  18.374399999999998
+                ],
+                [
+                  76.551,
+                  18.374399999999998
+                ],
+                [
+                  76.551,
+                  18.398999999999997
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "parcel_id": "P_0_1",
+            "vigor_factor": 0.6
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  76.5776,
+                  18.398999999999997
+                ],
+                [
+                  76.6022,
+                  18.398999999999997
+                ],
+                [
+                  76.6022,
+                  18.374399999999998
+                ],
+                [
+                  76.5776,
+                  18.374399999999998
+                ],
+                [
+                  76.5776,
+                  18.398999999999997
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "parcel_id": "P_0_2",
+            "vigor_factor": 1.2
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  76.60419999999999,
+                  18.398999999999997
+                ],
+                [
+                  76.6288,
+                  18.398999999999997
+                ],
+                [
+                  76.6288,
+                  18.374399999999998
+                ],
+                [
+                  76.60419999999999,
+                  18.374399999999998
+                ],
+                [
+                  76.60419999999999,
+                  18.398999999999997
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "parcel_id": "P_1_0",
+            "vigor_factor": 0.6
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  76.551,
+                  18.3724
+                ],
+                [
+                  76.5756,
+                  18.3724
+                ],
+                [
+                  76.5756,
+                  18.3478
+                ],
+                [
+                  76.551,
+                  18.3478
+                ],
+                [
+                  76.551,
+                  18.3724
+                ]
+              ]
+            ]
+          }
+        }
+      ],
+      "spectral_expected": {
+        "dominant_index": "NDVI",
+        "mean_ndvi": 0.22
+      },
+      "sample_queries": [
+        "Assess vegetation health in Marathwada Drought Crop Stress",
+        "Calculate NDVI and highlight stressed agricultural parcels",
+        "Segment crop field boundaries and compute greenness index"
+      ]
+    },
+    {
+      "scene_id": "agri_03_karnataka_crop_parcels",
+      "track": "agriculture",
+      "title": "Karnataka Multi-Crop Parcel Boundaries",
+      "file_path": "data/benchmark_scenes\\agriculture/agri_03_karnataka_crop_parcels.tif",
+      "crs": "EPSG:4326",
+      "dimensions": {
+        "width": 800,
+        "height": 800,
+        "bands": 4
+      },
+      "top_left_origin": [
+        76.92,
+        15.15
+      ],
+      "pixel_resolution_deg": 0.0001,
+      "target_counts": {
+        "crop parcel": 9,
+        "irrigation canal": 1
+      },
+      "ground_truth_polygons": [
+        {
+          "type": "Feature",
+          "properties": {
+            "parcel_id": "P_0_0",
+            "vigor_factor": 1.2
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  76.921,
+                  15.149000000000001
+                ],
+                [
+                  76.9456,
+                  15.149000000000001
+                ],
+                [
+                  76.9456,
+                  15.1244
+                ],
+                [
+                  76.921,
+                  15.1244
+                ],
+                [
+                  76.921,
+                  15.149000000000001
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "parcel_id": "P_0_1",
+            "vigor_factor": 0.6
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  76.94760000000001,
+                  15.149000000000001
+                ],
+                [
+                  76.9722,
+                  15.149000000000001
+                ],
+                [
+                  76.9722,
+                  15.1244
+                ],
+                [
+                  76.94760000000001,
+                  15.1244
+                ],
+                [
+                  76.94760000000001,
+                  15.149000000000001
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "parcel_id": "P_0_2",
+            "vigor_factor": 1.2
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  76.9742,
+                  15.149000000000001
+                ],
+                [
+                  76.9988,
+                  15.149000000000001
+                ],
+                [
+                  76.9988,
+                  15.1244
+                ],
+                [
+                  76.9742,
+                  15.1244
+                ],
+                [
+                  76.9742,
+                  15.149000000000001
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "parcel_id": "P_1_0",
+            "vigor_factor": 0.6
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  76.921,
+                  15.1224
+                ],
+                [
+                  76.9456,
+                  15.1224
+                ],
+                [
+                  76.9456,
+                  15.097800000000001
+                ],
+                [
+                  76.921,
+                  15.097800000000001
+                ],
+                [
+                  76.921,
+                  15.1224
+                ]
+              ]
+            ]
+          }
+        }
+      ],
+      "spectral_expected": {
+        "dominant_index": "NDVI",
+        "mean_ndvi": 0.49
+      },
+      "sample_queries": [
+        "Assess vegetation health in Karnataka Multi-Crop Parcel Boundaries",
+        "Calculate NDVI and highlight stressed agricultural parcels",
+        "Segment crop field boundaries and compute greenness index"
+      ]
+    },
+    {
+      "scene_id": "agri_04_gangetic_paddy_vigor",
+      "track": "agriculture",
+      "title": "Gangetic Basin Paddy Greenness",
+      "file_path": "data/benchmark_scenes\\agriculture/agri_04_gangetic_paddy_vigor.tif",
+      "crs": "EPSG:4326",
+      "dimensions": {
+        "width": 800,
+        "height": 800,
+        "bands": 4
+      },
+      "top_left_origin": [
+        85.12,
+        25.6
+      ],
+      "pixel_resolution_deg": 0.0001,
+      "target_counts": {
+        "paddy field": 8,
+        "drainage channel": 2
+      },
+      "ground_truth_polygons": [
+        {
+          "type": "Feature",
+          "properties": {
+            "parcel_id": "P_0_0",
+            "vigor_factor": 1.2
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  85.12100000000001,
+                  25.599
+                ],
+                [
+                  85.1456,
+                  25.599
+                ],
+                [
+                  85.1456,
+                  25.5744
+                ],
+                [
+                  85.12100000000001,
+                  25.5744
+                ],
+                [
+                  85.12100000000001,
+                  25.599
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "parcel_id": "P_0_1",
+            "vigor_factor": 0.6
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  85.14760000000001,
+                  25.599
+                ],
+                [
+                  85.1722,
+                  25.599
+                ],
+                [
+                  85.1722,
+                  25.5744
+                ],
+                [
+                  85.14760000000001,
+                  25.5744
+                ],
+                [
+                  85.14760000000001,
+                  25.599
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "parcel_id": "P_0_2",
+            "vigor_factor": 1.2
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  85.1742,
+                  25.599
+                ],
+                [
+                  85.1988,
+                  25.599
+                ],
+                [
+                  85.1988,
+                  25.5744
+                ],
+                [
+                  85.1742,
+                  25.5744
+                ],
+                [
+                  85.1742,
+                  25.599
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "parcel_id": "P_1_0",
+            "vigor_factor": 0.6
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  85.12100000000001,
+                  25.572400000000002
+                ],
+                [
+                  85.1456,
+                  25.572400000000002
+                ],
+                [
+                  85.1456,
+                  25.547800000000002
+                ],
+                [
+                  85.12100000000001,
+                  25.547800000000002
+                ],
+                [
+                  85.12100000000001,
+                  25.572400000000002
+                ]
+              ]
+            ]
+          }
+        }
+      ],
+      "spectral_expected": {
+        "dominant_index": "NDVI",
+        "mean_ndvi": 0.74
+      },
+      "sample_queries": [
+        "Assess vegetation health in Gangetic Basin Paddy Greenness",
+        "Calculate NDVI and highlight stressed agricultural parcels",
+        "Segment crop field boundaries and compute greenness index"
+      ]
+    },
+    {
+      "scene_id": "agri_05_deforestation_canopy",
+      "track": "agriculture",
+      "title": "Western Ghats Forest Clearing Patch",
+      "file_path": "data/benchmark_scenes\\agriculture/agri_05_deforestation_canopy.tif",
+      "crs": "EPSG:4326",
+      "dimensions": {
+        "width": 800,
+        "height": 800,
+        "bands": 4
+      },
+      "top_left_origin": [
+        75.4,
+        13.35
+      ],
+      "pixel_resolution_deg": 0.0001,
+      "target_counts": {
+        "cleared patch": 3,
+        "dense canopy": 4
+      },
+      "ground_truth_polygons": [
+        {
+          "type": "Feature",
+          "properties": {
+            "parcel_id": "P_0_0",
+            "vigor_factor": 1.2
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  75.40100000000001,
+                  13.349
+                ],
+                [
+                  75.4256,
+                  13.349
+                ],
+                [
+                  75.4256,
+                  13.324399999999999
+                ],
+                [
+                  75.40100000000001,
+                  13.324399999999999
+                ],
+                [
+                  75.40100000000001,
+                  13.349
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "parcel_id": "P_0_1",
+            "vigor_factor": 0.6
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  75.42760000000001,
+                  13.349
+                ],
+                [
+                  75.4522,
+                  13.349
+                ],
+                [
+                  75.4522,
+                  13.324399999999999
+                ],
+                [
+                  75.42760000000001,
+                  13.324399999999999
+                ],
+                [
+                  75.42760000000001,
+                  13.349
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "parcel_id": "P_0_2",
+            "vigor_factor": 1.2
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  75.4542,
+                  13.349
+                ],
+                [
+                  75.4788,
+                  13.349
+                ],
+                [
+                  75.4788,
+                  13.324399999999999
+                ],
+                [
+                  75.4542,
+                  13.324399999999999
+                ],
+                [
+                  75.4542,
+                  13.349
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "parcel_id": "P_1_0",
+            "vigor_factor": 0.6
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  75.40100000000001,
+                  13.3224
+                ],
+                [
+                  75.4256,
+                  13.3224
+                ],
+                [
+                  75.4256,
+                  13.2978
+                ],
+                [
+                  75.40100000000001,
+                  13.2978
+                ],
+                [
+                  75.40100000000001,
+                  13.3224
+                ]
+              ]
+            ]
+          }
+        }
+      ],
+      "spectral_expected": {
+        "dominant_index": "NDVI",
+        "mean_ndvi": 0.38
+      },
+      "sample_queries": [
+        "Assess vegetation health in Western Ghats Forest Clearing Patch",
+        "Calculate NDVI and highlight stressed agricultural parcels",
+        "Segment crop field boundaries and compute greenness index"
+      ]
+    },
+    {
+      "scene_id": "urban_01_delhi_airport_runway",
+      "track": "urban",
+      "title": "IGI Airport Runway & Aircraft Apron",
+      "file_path": "data/benchmark_scenes\\urban/urban_01_delhi_airport_runway.tif",
+      "crs": "EPSG:4326",
+      "dimensions": {
+        "width": 800,
+        "height": 800,
+        "bands": 3
+      },
+      "top_left_origin": [
+        77.085,
+        28.556
+      ],
+      "pixel_resolution_deg": 0.0001,
+      "target_counts": {
+        "plane": 6,
+        "hangar": 2
+      },
+      "ground_truth_polygons": [
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "plane",
+            "id": 1
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  77.10199999999999,
+                  28.5345
+                ],
+                [
+                  77.10799999999999,
+                  28.5345
+                ],
+                [
+                  77.10799999999999,
+                  28.5275
+                ],
+                [
+                  77.10199999999999,
+                  28.5275
+                ],
+                [
+                  77.10199999999999,
+                  28.5345
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "plane",
+            "id": 2
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  77.11699999999999,
+                  28.5345
+                ],
+                [
+                  77.12299999999999,
+                  28.5345
+                ],
+                [
+                  77.12299999999999,
+                  28.5275
+                ],
+                [
+                  77.11699999999999,
+                  28.5275
+                ],
+                [
+                  77.11699999999999,
+                  28.5345
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "plane",
+            "id": 3
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  77.13199999999999,
+                  28.5345
+                ],
+                [
+                  77.13799999999999,
+                  28.5345
+                ],
+                [
+                  77.13799999999999,
+                  28.5275
+                ],
+                [
+                  77.13199999999999,
+                  28.5275
+                ],
+                [
+                  77.13199999999999,
+                  28.5345
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "plane",
+            "id": 4
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  77.10199999999999,
+                  28.5145
+                ],
+                [
+                  77.10799999999999,
+                  28.5145
+                ],
+                [
+                  77.10799999999999,
+                  28.5075
+                ],
+                [
+                  77.10199999999999,
+                  28.5075
+                ],
+                [
+                  77.10199999999999,
+                  28.5145
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "plane",
+            "id": 5
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  77.11699999999999,
+                  28.5145
+                ],
+                [
+                  77.12299999999999,
+                  28.5145
+                ],
+                [
+                  77.12299999999999,
+                  28.5075
+                ],
+                [
+                  77.11699999999999,
+                  28.5075
+                ],
+                [
+                  77.11699999999999,
+                  28.5145
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "plane",
+            "id": 6
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  77.13199999999999,
+                  28.5145
+                ],
+                [
+                  77.13799999999999,
+                  28.5145
+                ],
+                [
+                  77.13799999999999,
+                  28.5075
+                ],
+                [
+                  77.13199999999999,
+                  28.5075
+                ],
+                [
+                  77.13199999999999,
+                  28.5145
+                ]
+              ]
+            ]
+          }
+        }
+      ],
+      "sample_queries": [
+        "How many planes are located in IGI Airport Runway & Aircraft Apron?",
+        "Detect and segment all planes",
+        "Export GeoJSON bounding boxes for strategic assets"
+      ]
+    },
+    {
+      "scene_id": "urban_02_mumbai_jnpt_port_ships",
+      "track": "urban",
+      "title": "JNPT Port Container Ships & Berth",
+      "file_path": "data/benchmark_scenes\\urban/urban_02_mumbai_jnpt_port_ships.tif",
+      "crs": "EPSG:4326",
+      "dimensions": {
+        "width": 800,
+        "height": 800,
+        "bands": 3
+      },
+      "top_left_origin": [
+        72.95,
+        18.95
+      ],
+      "pixel_resolution_deg": 0.0001,
+      "target_counts": {
+        "ship": 5,
+        "container crane": 4
+      },
+      "ground_truth_polygons": [
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "ship",
+            "id": 1
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  72.962,
+                  18.939999999999998
+                ],
+                [
+                  72.983,
+                  18.939999999999998
+                ],
+                [
+                  72.983,
+                  18.936
+                ],
+                [
+                  72.962,
+                  18.936
+                ],
+                [
+                  72.962,
+                  18.939999999999998
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "ship",
+            "id": 2
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  72.962,
+                  18.928
+                ],
+                [
+                  72.983,
+                  18.928
+                ],
+                [
+                  72.983,
+                  18.924
+                ],
+                [
+                  72.962,
+                  18.924
+                ],
+                [
+                  72.962,
+                  18.928
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "ship",
+            "id": 3
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  72.962,
+                  18.916
+                ],
+                [
+                  72.983,
+                  18.916
+                ],
+                [
+                  72.983,
+                  18.912
+                ],
+                [
+                  72.962,
+                  18.912
+                ],
+                [
+                  72.962,
+                  18.916
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "ship",
+            "id": 4
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  72.962,
+                  18.904
+                ],
+                [
+                  72.983,
+                  18.904
+                ],
+                [
+                  72.983,
+                  18.9
+                ],
+                [
+                  72.962,
+                  18.9
+                ],
+                [
+                  72.962,
+                  18.904
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "ship",
+            "id": 5
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  72.962,
+                  18.892
+                ],
+                [
+                  72.983,
+                  18.892
+                ],
+                [
+                  72.983,
+                  18.887999999999998
+                ],
+                [
+                  72.962,
+                  18.887999999999998
+                ],
+                [
+                  72.962,
+                  18.892
+                ]
+              ]
+            ]
+          }
+        }
+      ],
+      "sample_queries": [
+        "How many ships are located in JNPT Port Container Ships & Berth?",
+        "Detect and segment all ships",
+        "Export GeoJSON bounding boxes for strategic assets"
+      ]
+    },
+    {
+      "scene_id": "urban_03_refinery_storage_tanks",
+      "track": "urban",
+      "title": "Jamnagar Refinery Petroleum Tank Farm",
+      "file_path": "data/benchmark_scenes\\urban/urban_03_refinery_storage_tanks.tif",
+      "crs": "EPSG:4326",
+      "dimensions": {
+        "width": 800,
+        "height": 800,
+        "bands": 3
+      },
+      "top_left_origin": [
+        69.83,
+        22.35
+      ],
+      "pixel_resolution_deg": 0.0001,
+      "target_counts": {
+        "storage tank": 8,
+        "pipeline corridor": 1
+      },
+      "ground_truth_polygons": [
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "storage tank",
+            "id": 1,
+            "radius_m": 45
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  69.8455,
+                  22.334500000000002
+                ],
+                [
+                  69.8545,
+                  22.334500000000002
+                ],
+                [
+                  69.8545,
+                  22.3255
+                ],
+                [
+                  69.8455,
+                  22.3255
+                ],
+                [
+                  69.8455,
+                  22.334500000000002
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "storage tank",
+            "id": 2,
+            "radius_m": 45
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  69.8635,
+                  22.334500000000002
+                ],
+                [
+                  69.8725,
+                  22.334500000000002
+                ],
+                [
+                  69.8725,
+                  22.3255
+                ],
+                [
+                  69.8635,
+                  22.3255
+                ],
+                [
+                  69.8635,
+                  22.334500000000002
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "storage tank",
+            "id": 3,
+            "radius_m": 45
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  69.8815,
+                  22.334500000000002
+                ],
+                [
+                  69.8905,
+                  22.334500000000002
+                ],
+                [
+                  69.8905,
+                  22.3255
+                ],
+                [
+                  69.8815,
+                  22.3255
+                ],
+                [
+                  69.8815,
+                  22.334500000000002
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "storage tank",
+            "id": 4,
+            "radius_m": 45
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  69.8455,
+                  22.3165
+                ],
+                [
+                  69.8545,
+                  22.3165
+                ],
+                [
+                  69.8545,
+                  22.3075
+                ],
+                [
+                  69.8455,
+                  22.3075
+                ],
+                [
+                  69.8455,
+                  22.3165
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "storage tank",
+            "id": 5,
+            "radius_m": 45
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  69.8635,
+                  22.3165
+                ],
+                [
+                  69.8725,
+                  22.3165
+                ],
+                [
+                  69.8725,
+                  22.3075
+                ],
+                [
+                  69.8635,
+                  22.3075
+                ],
+                [
+                  69.8635,
+                  22.3165
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "storage tank",
+            "id": 6,
+            "radius_m": 45
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  69.8815,
+                  22.3165
+                ],
+                [
+                  69.8905,
+                  22.3165
+                ],
+                [
+                  69.8905,
+                  22.3075
+                ],
+                [
+                  69.8815,
+                  22.3075
+                ],
+                [
+                  69.8815,
+                  22.3165
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "storage tank",
+            "id": 7,
+            "radius_m": 45
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  69.8545,
+                  22.2985
+                ],
+                [
+                  69.8635,
+                  22.2985
+                ],
+                [
+                  69.8635,
+                  22.2895
+                ],
+                [
+                  69.8545,
+                  22.2895
+                ],
+                [
+                  69.8545,
+                  22.2985
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "storage tank",
+            "id": 8,
+            "radius_m": 45
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  69.8725,
+                  22.2985
+                ],
+                [
+                  69.8815,
+                  22.2985
+                ],
+                [
+                  69.8815,
+                  22.2895
+                ],
+                [
+                  69.8725,
+                  22.2895
+                ],
+                [
+                  69.8725,
+                  22.2985
+                ]
+              ]
+            ]
+          }
+        }
+      ],
+      "sample_queries": [
+        "How many storage tanks are located in Jamnagar Refinery Petroleum Tank Farm?",
+        "Detect and segment all storage tanks",
+        "Export GeoJSON bounding boxes for strategic assets"
+      ]
+    },
+    {
+      "scene_id": "urban_04_dense_building_footprints",
+      "track": "urban",
+      "title": "Bengaluru Electronic City Footprints",
+      "file_path": "data/benchmark_scenes\\urban/urban_04_dense_building_footprints.tif",
+      "crs": "EPSG:4326",
+      "dimensions": {
+        "width": 800,
+        "height": 800,
+        "bands": 3
+      },
+      "top_left_origin": [
+        77.67,
+        12.84
+      ],
+      "pixel_resolution_deg": 0.0001,
+      "target_counts": {
+        "building": 12,
+        "courtyard": 3
+      },
+      "ground_truth_polygons": [
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "building",
+            "id": 1
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  77.678,
+                  12.83
+                ],
+                [
+                  77.688,
+                  12.83
+                ],
+                [
+                  77.688,
+                  12.817
+                ],
+                [
+                  77.678,
+                  12.817
+                ],
+                [
+                  77.678,
+                  12.83
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "building",
+            "id": 2
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  77.694,
+                  12.83
+                ],
+                [
+                  77.70400000000001,
+                  12.83
+                ],
+                [
+                  77.70400000000001,
+                  12.817
+                ],
+                [
+                  77.694,
+                  12.817
+                ],
+                [
+                  77.694,
+                  12.83
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "building",
+            "id": 3
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  77.71000000000001,
+                  12.83
+                ],
+                [
+                  77.72,
+                  12.83
+                ],
+                [
+                  77.72,
+                  12.817
+                ],
+                [
+                  77.71000000000001,
+                  12.817
+                ],
+                [
+                  77.71000000000001,
+                  12.83
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "building",
+            "id": 4
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  77.726,
+                  12.83
+                ],
+                [
+                  77.736,
+                  12.83
+                ],
+                [
+                  77.736,
+                  12.817
+                ],
+                [
+                  77.726,
+                  12.817
+                ],
+                [
+                  77.726,
+                  12.83
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "building",
+            "id": 5
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  77.678,
+                  12.81
+                ],
+                [
+                  77.688,
+                  12.81
+                ],
+                [
+                  77.688,
+                  12.797
+                ],
+                [
+                  77.678,
+                  12.797
+                ],
+                [
+                  77.678,
+                  12.81
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "building",
+            "id": 6
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  77.694,
+                  12.81
+                ],
+                [
+                  77.70400000000001,
+                  12.81
+                ],
+                [
+                  77.70400000000001,
+                  12.797
+                ],
+                [
+                  77.694,
+                  12.797
+                ],
+                [
+                  77.694,
+                  12.81
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "building",
+            "id": 7
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  77.71000000000001,
+                  12.81
+                ],
+                [
+                  77.72,
+                  12.81
+                ],
+                [
+                  77.72,
+                  12.797
+                ],
+                [
+                  77.71000000000001,
+                  12.797
+                ],
+                [
+                  77.71000000000001,
+                  12.81
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "building",
+            "id": 8
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  77.726,
+                  12.81
+                ],
+                [
+                  77.736,
+                  12.81
+                ],
+                [
+                  77.736,
+                  12.797
+                ],
+                [
+                  77.726,
+                  12.797
+                ],
+                [
+                  77.726,
+                  12.81
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "building",
+            "id": 9
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  77.678,
+                  12.79
+                ],
+                [
+                  77.688,
+                  12.79
+                ],
+                [
+                  77.688,
+                  12.777
+                ],
+                [
+                  77.678,
+                  12.777
+                ],
+                [
+                  77.678,
+                  12.79
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "building",
+            "id": 10
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  77.694,
+                  12.79
+                ],
+                [
+                  77.70400000000001,
+                  12.79
+                ],
+                [
+                  77.70400000000001,
+                  12.777
+                ],
+                [
+                  77.694,
+                  12.777
+                ],
+                [
+                  77.694,
+                  12.79
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "building",
+            "id": 11
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  77.71000000000001,
+                  12.79
+                ],
+                [
+                  77.72,
+                  12.79
+                ],
+                [
+                  77.72,
+                  12.777
+                ],
+                [
+                  77.71000000000001,
+                  12.777
+                ],
+                [
+                  77.71000000000001,
+                  12.79
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "building",
+            "id": 12
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  77.726,
+                  12.79
+                ],
+                [
+                  77.736,
+                  12.79
+                ],
+                [
+                  77.736,
+                  12.777
+                ],
+                [
+                  77.726,
+                  12.777
+                ],
+                [
+                  77.726,
+                  12.79
+                ]
+              ]
+            ]
+          }
+        }
+      ],
+      "sample_queries": [
+        "How many buildings are located in Bengaluru Electronic City Footprints?",
+        "Detect and segment all buildings",
+        "Export GeoJSON bounding boxes for strategic assets"
+      ]
+    },
+    {
+      "scene_id": "urban_05_highway_infra_expansion",
+      "track": "urban",
+      "title": "Delhi-Mumbai Expressway Interchange",
+      "file_path": "data/benchmark_scenes\\urban/urban_05_highway_infra_expansion.tif",
+      "crs": "EPSG:4326",
+      "dimensions": {
+        "width": 800,
+        "height": 800,
+        "bands": 3
+      },
+      "top_left_origin": [
+        76.85,
+        27.95
+      ],
+      "pixel_resolution_deg": 0.0001,
+      "target_counts": {
+        "bridge": 2,
+        "overpass": 1,
+        "toll plaza": 1
+      },
+      "ground_truth_polygons": [
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "building",
+            "id": 1
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  76.85799999999999,
+                  27.939999999999998
+                ],
+                [
+                  76.868,
+                  27.939999999999998
+                ],
+                [
+                  76.868,
+                  27.927
+                ],
+                [
+                  76.85799999999999,
+                  27.927
+                ],
+                [
+                  76.85799999999999,
+                  27.939999999999998
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "building",
+            "id": 2
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  76.874,
+                  27.939999999999998
+                ],
+                [
+                  76.884,
+                  27.939999999999998
+                ],
+                [
+                  76.884,
+                  27.927
+                ],
+                [
+                  76.874,
+                  27.927
+                ],
+                [
+                  76.874,
+                  27.939999999999998
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "building",
+            "id": 3
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  76.89,
+                  27.939999999999998
+                ],
+                [
+                  76.89999999999999,
+                  27.939999999999998
+                ],
+                [
+                  76.89999999999999,
+                  27.927
+                ],
+                [
+                  76.89,
+                  27.927
+                ],
+                [
+                  76.89,
+                  27.939999999999998
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "building",
+            "id": 4
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  76.90599999999999,
+                  27.939999999999998
+                ],
+                [
+                  76.916,
+                  27.939999999999998
+                ],
+                [
+                  76.916,
+                  27.927
+                ],
+                [
+                  76.90599999999999,
+                  27.927
+                ],
+                [
+                  76.90599999999999,
+                  27.939999999999998
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "building",
+            "id": 5
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  76.85799999999999,
+                  27.919999999999998
+                ],
+                [
+                  76.868,
+                  27.919999999999998
+                ],
+                [
+                  76.868,
+                  27.907
+                ],
+                [
+                  76.85799999999999,
+                  27.907
+                ],
+                [
+                  76.85799999999999,
+                  27.919999999999998
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "building",
+            "id": 6
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  76.874,
+                  27.919999999999998
+                ],
+                [
+                  76.884,
+                  27.919999999999998
+                ],
+                [
+                  76.884,
+                  27.907
+                ],
+                [
+                  76.874,
+                  27.907
+                ],
+                [
+                  76.874,
+                  27.919999999999998
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "building",
+            "id": 7
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  76.89,
+                  27.919999999999998
+                ],
+                [
+                  76.89999999999999,
+                  27.919999999999998
+                ],
+                [
+                  76.89999999999999,
+                  27.907
+                ],
+                [
+                  76.89,
+                  27.907
+                ],
+                [
+                  76.89,
+                  27.919999999999998
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "building",
+            "id": 8
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  76.90599999999999,
+                  27.919999999999998
+                ],
+                [
+                  76.916,
+                  27.919999999999998
+                ],
+                [
+                  76.916,
+                  27.907
+                ],
+                [
+                  76.90599999999999,
+                  27.907
+                ],
+                [
+                  76.90599999999999,
+                  27.919999999999998
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "building",
+            "id": 9
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  76.85799999999999,
+                  27.9
+                ],
+                [
+                  76.868,
+                  27.9
+                ],
+                [
+                  76.868,
+                  27.887
+                ],
+                [
+                  76.85799999999999,
+                  27.887
+                ],
+                [
+                  76.85799999999999,
+                  27.9
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "building",
+            "id": 10
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  76.874,
+                  27.9
+                ],
+                [
+                  76.884,
+                  27.9
+                ],
+                [
+                  76.884,
+                  27.887
+                ],
+                [
+                  76.874,
+                  27.887
+                ],
+                [
+                  76.874,
+                  27.9
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "building",
+            "id": 11
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  76.89,
+                  27.9
+                ],
+                [
+                  76.89999999999999,
+                  27.9
+                ],
+                [
+                  76.89999999999999,
+                  27.887
+                ],
+                [
+                  76.89,
+                  27.887
+                ],
+                [
+                  76.89,
+                  27.9
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "target": "building",
+            "id": 12
+          },
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  76.90599999999999,
+                  27.9
+                ],
+                [
+                  76.916,
+                  27.9
+                ],
+                [
+                  76.916,
+                  27.887
+                ],
+                [
+                  76.90599999999999,
+                  27.887
+                ],
+                [
+                  76.90599999999999,
+                  27.9
+                ]
+              ]
+            ]
+          }
+        }
+      ],
+      "sample_queries": [
+        "How many bridges are located in Delhi-Mumbai Expressway Interchange?",
+        "Detect and segment all bridges",
+        "Export GeoJSON bounding boxes for strategic assets"
+      ]
+    }
+  ]
+}

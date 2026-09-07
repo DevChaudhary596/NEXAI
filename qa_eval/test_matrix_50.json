@@ -1,0 +1,769 @@
+{
+  "matrix_version": "1.0.0",
+  "created_by": "Member 6 (QA Lead)",
+  "milestone": "Week 1 Foundation Sprint (Day 2)",
+  "total_queries": 50,
+  "summary_by_intent": {
+    "counting": 9,
+    "detection": 6,
+    "segmentation": 12,
+    "spectral": 12,
+    "change_detection": 5,
+    "edge_case": 6
+  },
+  "summary_by_complexity": {
+    "simple": 20,
+    "moderate": 18,
+    "complex": 12
+  },
+  "queries": [
+    {
+      "query_id": "Q-001",
+      "prompt": "How many airplanes are parked on the apron at Delhi Airport?",
+      "category": "counting",
+      "complexity": "simple",
+      "target_scene": "data/benchmark_scenes/urban/urban_01_delhi_airport_runway.tif",
+      "expected_router_path": "detection",
+      "target_entity": "plane",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "ground_truth_count": 6,
+        "acceptable_range": [5, 7]
+      },
+      "pass_criteria": "Count error <= +/- 1, mAP@50 >= 0.70"
+    },
+    {
+      "query_id": "Q-002",
+      "prompt": "Detect all aircraft parked along the terminal runway.",
+      "category": "detection",
+      "complexity": "simple",
+      "target_scene": "data/benchmark_scenes/urban/urban_01_delhi_airport_runway.tif",
+      "expected_router_path": "detection",
+      "target_entity": "plane",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "ground_truth_count": 6,
+        "acceptable_range": [5, 7]
+      },
+      "pass_criteria": "Oriented Bounding Boxes returned with valid WGS84 coordinates"
+    },
+    {
+      "query_id": "Q-003",
+      "prompt": "Count the number of cargo ships docked at JNPT port berths.",
+      "category": "counting",
+      "complexity": "simple",
+      "target_scene": "data/benchmark_scenes/urban/urban_02_mumbai_jnpt_port_ships.tif",
+      "expected_router_path": "detection",
+      "target_entity": "ship",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "ground_truth_count": 5,
+        "acceptable_range": [4, 6]
+      },
+      "pass_criteria": "Count error <= +/- 1, Precision >= 0.80"
+    },
+    {
+      "query_id": "Q-004",
+      "prompt": "Identify and locate all maritime vessels in the harbor.",
+      "category": "detection",
+      "complexity": "moderate",
+      "target_scene": "data/benchmark_scenes/urban/urban_02_mumbai_jnpt_port_ships.tif",
+      "expected_router_path": "detection",
+      "target_entity": "ship",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "ground_truth_count": 5,
+        "acceptable_range": [4, 6]
+      },
+      "pass_criteria": "All bounding boxes contained within water extent bounds"
+    },
+    {
+      "query_id": "Q-005",
+      "prompt": "How many petroleum storage tanks are in this Jamnagar refinery facility?",
+      "category": "counting",
+      "complexity": "simple",
+      "target_scene": "data/benchmark_scenes/urban/urban_03_refinery_storage_tanks.tif",
+      "expected_router_path": "detection",
+      "target_entity": "storage tank",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "ground_truth_count": 8,
+        "acceptable_range": [7, 9]
+      },
+      "pass_criteria": "Count error <= +/- 1, mAP@50 >= 0.75"
+    },
+    {
+      "query_id": "Q-006",
+      "prompt": "Detect circular oil storage tanks in the industrial sector.",
+      "category": "detection",
+      "complexity": "simple",
+      "target_scene": "data/benchmark_scenes/urban/urban_03_refinery_storage_tanks.tif",
+      "expected_router_path": "detection",
+      "target_entity": "storage tank",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "ground_truth_count": 8,
+        "acceptable_range": [7, 9]
+      },
+      "pass_criteria": "Circular geometries or tight OBB bounding boxes returned"
+    },
+    {
+      "query_id": "Q-007",
+      "prompt": "Count all commercial building rooftops in Electronic City.",
+      "category": "counting",
+      "complexity": "moderate",
+      "target_scene": "data/benchmark_scenes/urban/urban_04_dense_building_footprints.tif",
+      "expected_router_path": "detection",
+      "target_entity": "building",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "ground_truth_count": 12,
+        "acceptable_range": [10, 14]
+      },
+      "pass_criteria": "Count error <= +/- 2 (dense urban tolerance)"
+    },
+    {
+      "query_id": "Q-008",
+      "prompt": "Detect building footprints across the commercial park.",
+      "category": "detection",
+      "complexity": "moderate",
+      "target_scene": "data/benchmark_scenes/urban/urban_04_dense_building_footprints.tif",
+      "expected_router_path": "detection",
+      "target_entity": "building",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "ground_truth_count": 12,
+        "acceptable_range": [10, 14]
+      },
+      "pass_criteria": "Valid polygon coordinates for each building feature"
+    },
+    {
+      "query_id": "Q-009",
+      "prompt": "Locate major bridge structures and flyovers on the highway corridor.",
+      "category": "detection",
+      "complexity": "moderate",
+      "target_scene": "data/benchmark_scenes/urban/urban_05_highway_infra_expansion.tif",
+      "expected_router_path": "detection",
+      "target_entity": "bridge",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "ground_truth_count": 2,
+        "acceptable_range": [1, 3]
+      },
+      "pass_criteria": "Bridges identified along linear transport corridor"
+    },
+    {
+      "query_id": "Q-010",
+      "prompt": "Count airplanes in the southern quadrant of the airport.",
+      "category": "counting",
+      "complexity": "complex",
+      "target_scene": "data/benchmark_scenes/urban/urban_01_delhi_airport_runway.tif",
+      "expected_router_path": "detection",
+      "target_entity": "plane",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "ground_truth_count": 3,
+        "acceptable_range": [2, 4]
+      },
+      "pass_criteria": "Spatial ROI filtering strictly confines output features"
+    },
+    {
+      "query_id": "Q-011",
+      "prompt": "Count storage tanks with confidence threshold higher than 0.6.",
+      "category": "counting",
+      "complexity": "moderate",
+      "target_scene": "data/benchmark_scenes/urban/urban_03_refinery_storage_tanks.tif",
+      "expected_router_path": "detection",
+      "target_entity": "storage tank",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "ground_truth_count": 8,
+        "acceptable_range": [7, 8]
+      },
+      "pass_criteria": "All returned features have confidence >= 0.60"
+    },
+    {
+      "query_id": "Q-012",
+      "prompt": "Detect large container freighters exceeding 150m length.",
+      "category": "detection",
+      "complexity": "complex",
+      "target_scene": "data/benchmark_scenes/urban/urban_02_mumbai_jnpt_port_ships.tif",
+      "expected_router_path": "detection",
+      "target_entity": "ship",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "ground_truth_count": 5,
+        "acceptable_range": [4, 5]
+      },
+      "pass_criteria": "Physical pixel-to-meter geometry filter verified"
+    },
+    {
+      "query_id": "Q-013",
+      "prompt": "Are there any airplanes parked near the main runway?",
+      "category": "counting",
+      "complexity": "simple",
+      "target_scene": "data/benchmark_scenes/urban/urban_01_delhi_airport_runway.tif",
+      "expected_router_path": "vqa",
+      "target_entity": "plane",
+      "expected_output_schema": "VLMAnswer",
+      "expected_bounds": {
+        "ground_truth_count": 6,
+        "expected_answer_contains": ["yes", "6"]
+      },
+      "pass_criteria": "Affirmative answer with grounded count"
+    },
+    {
+      "query_id": "Q-014",
+      "prompt": "Count ships anchored in the western offshore channel.",
+      "category": "counting",
+      "complexity": "complex",
+      "target_scene": "data/benchmark_scenes/urban/urban_02_mumbai_jnpt_port_ships.tif",
+      "expected_router_path": "detection",
+      "target_entity": "ship",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "ground_truth_count": 5,
+        "acceptable_range": [4, 5]
+      },
+      "pass_criteria": "Zero false detections on terrestrial dock pixels"
+    },
+    {
+      "query_id": "Q-015",
+      "prompt": "Locate aircraft and report their orientation angles.",
+      "category": "detection",
+      "complexity": "complex",
+      "target_scene": "data/benchmark_scenes/urban/urban_01_delhi_airport_runway.tif",
+      "expected_router_path": "detection",
+      "target_entity": "plane",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "ground_truth_count": 6,
+        "acceptable_range": [5, 7]
+      },
+      "pass_criteria": "Oriented bounding box polygon coordinates returned"
+    },
+    {
+      "query_id": "Q-016",
+      "prompt": "Show flooded areas in Kaziranga National Park.",
+      "category": "segmentation",
+      "complexity": "simple",
+      "target_scene": "data/benchmark_scenes/disaster/disaster_01_kaziranga_flood.tif",
+      "expected_router_path": "segmentation",
+      "target_entity": "floodwater",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "coverage_percentage": 42.5,
+        "acceptable_range_pct": [38.0, 47.0]
+      },
+      "pass_criteria": "IoU >= 0.65 against ground truth flood polygon"
+    },
+    {
+      "query_id": "Q-017",
+      "prompt": "Segment water bodies and river overflow zones.",
+      "category": "segmentation",
+      "complexity": "simple",
+      "target_scene": "data/benchmark_scenes/disaster/disaster_01_kaziranga_flood.tif",
+      "expected_router_path": "segmentation",
+      "target_entity": "water body",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "coverage_percentage": 42.5,
+        "acceptable_range_pct": [38.0, 47.0]
+      },
+      "pass_criteria": "Continuous water polygon boundaries with valid topology"
+    },
+    {
+      "query_id": "Q-018",
+      "prompt": "Calculate NDWI and map inundated flood zones.",
+      "category": "spectral",
+      "complexity": "moderate",
+      "target_scene": "data/benchmark_scenes/disaster/disaster_01_kaziranga_flood.tif",
+      "expected_router_path": "spectral",
+      "target_entity": "NDWI",
+      "expected_output_schema": "RasterOverlayMetadata",
+      "expected_bounds": {
+        "water_pixel_threshold": 0.0,
+        "inundated_area_km2_range": [0.30, 0.45]
+      },
+      "pass_criteria": "|Delta NDWI| <= 0.05, valid transparent PNG overlay"
+    },
+    {
+      "query_id": "Q-019",
+      "prompt": "Highlight submerged structures and waterlogged rural roads.",
+      "category": "segmentation",
+      "complexity": "moderate",
+      "target_scene": "data/benchmark_scenes/disaster/disaster_02_assam_waterlogging.tif",
+      "expected_router_path": "segmentation",
+      "target_entity": "waterlogging",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "coverage_percentage": 31.0,
+        "acceptable_range_pct": [27.0, 36.0]
+      },
+      "pass_criteria": "Waterlogged road segments mapped as GeoJSON"
+    },
+    {
+      "query_id": "Q-020",
+      "prompt": "What percentage of the rural settlement area is waterlogged?",
+      "category": "spectral",
+      "complexity": "moderate",
+      "target_scene": "data/benchmark_scenes/disaster/disaster_02_assam_waterlogging.tif",
+      "expected_router_path": "spectral",
+      "target_entity": "NDWI",
+      "expected_output_schema": "VLMAnswer",
+      "expected_bounds": {
+        "estimated_percentage": 31.0,
+        "acceptable_range_pct": [28.0, 35.0]
+      },
+      "pass_criteria": "Numerical percentage grounded in NDWI pixel count"
+    },
+    {
+      "query_id": "Q-021",
+      "prompt": "Segment coastal storm surge inundation along the Odisha shore.",
+      "category": "segmentation",
+      "complexity": "simple",
+      "target_scene": "data/benchmark_scenes/disaster/disaster_03_coastal_surge.tif",
+      "expected_router_path": "segmentation",
+      "target_entity": "storm_surge",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "coverage_percentage": 55.0,
+        "acceptable_range_pct": [50.0, 60.0]
+      },
+      "pass_criteria": "IoU >= 0.70 against shoreline breach mask"
+    },
+    {
+      "query_id": "Q-022",
+      "prompt": "Calculate NDWI where index > 0.1 to delineate seawater breach.",
+      "category": "spectral",
+      "complexity": "moderate",
+      "target_scene": "data/benchmark_scenes/disaster/disaster_03_coastal_surge.tif",
+      "expected_router_path": "spectral",
+      "target_entity": "NDWI",
+      "expected_output_schema": "RasterOverlayMetadata",
+      "expected_bounds": {
+        "threshold": 0.1,
+        "mean_water_index_range": [0.25, 0.45]
+      },
+      "pass_criteria": "Vectorized threshold applied strictly with no NaN errors"
+    },
+    {
+      "query_id": "Q-023",
+      "prompt": "Segment wildfire burn scar perimeter in Simlipal forest.",
+      "category": "segmentation",
+      "complexity": "moderate",
+      "target_scene": "data/benchmark_scenes/disaster/disaster_04_forest_burn_scar.tif",
+      "expected_router_path": "segmentation",
+      "target_entity": "burn_scar",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "coverage_percentage": 25.0,
+        "acceptable_range_pct": [20.0, 30.0]
+      },
+      "pass_criteria": "Burn scar boundary polygon contains charred canopy core"
+    },
+    {
+      "query_id": "Q-024",
+      "prompt": "Compute NBR / vegetation loss over the forest fire zone.",
+      "category": "spectral",
+      "complexity": "moderate",
+      "target_scene": "data/benchmark_scenes/disaster/disaster_04_forest_burn_scar.tif",
+      "expected_router_path": "spectral",
+      "target_entity": "NDVI",
+      "expected_output_schema": "RasterOverlayMetadata",
+      "expected_bounds": {
+        "mean_canopy_drop": -0.40,
+        "acceptable_delta_range": [-0.50, -0.30]
+      },
+      "pass_criteria": "Severe drop in NIR reflectance correctly identified"
+    },
+    {
+      "query_id": "Q-025",
+      "prompt": "Detect hillside landslide scar and debris runout track.",
+      "category": "segmentation",
+      "complexity": "moderate",
+      "target_scene": "data/benchmark_scenes/disaster/disaster_05_landslide_debris.tif",
+      "expected_router_path": "segmentation",
+      "target_entity": "landslide",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "coverage_percentage": 18.0,
+        "acceptable_range_pct": [14.0, 22.0]
+      },
+      "pass_criteria": "Linear debris flow polygon mapped to valley base"
+    },
+    {
+      "query_id": "Q-026",
+      "prompt": "Calculate total flooded surface area in square kilometers.",
+      "category": "spectral",
+      "complexity": "complex",
+      "target_scene": "data/benchmark_scenes/disaster/disaster_01_kaziranga_flood.tif",
+      "expected_router_path": "spectral",
+      "target_entity": "NDWI",
+      "expected_output_schema": "VLMAnswer",
+      "expected_bounds": {
+        "area_km2": 0.35,
+        "acceptable_range_km2": [0.30, 0.42]
+      },
+      "pass_criteria": "Area in km2 computed using pixel resolution transform"
+    },
+    {
+      "query_id": "Q-027",
+      "prompt": "Segment water bodies with confidence greater than 0.85.",
+      "category": "segmentation",
+      "complexity": "complex",
+      "target_scene": "data/benchmark_scenes/disaster/disaster_03_coastal_surge.tif",
+      "expected_router_path": "segmentation",
+      "target_entity": "water body",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "coverage_percentage": 50.0,
+        "acceptable_range_pct": [45.0, 55.0]
+      },
+      "pass_criteria": "Confidence scores tagged on every polygon feature"
+    },
+    {
+      "query_id": "Q-028",
+      "prompt": "What is the overall vegetation health in Punjab wheat farmland?",
+      "category": "spectral",
+      "complexity": "simple",
+      "target_scene": "data/benchmark_scenes/agriculture/agri_01_punjab_wheat_ndvi.tif",
+      "expected_router_path": "spectral",
+      "target_entity": "NDVI",
+      "expected_output_schema": "SpectralSummary",
+      "expected_bounds": {
+        "mean_ndvi": 0.68,
+        "acceptable_range": [0.63, 0.73]
+      },
+      "pass_criteria": "Mean NDVI within +/- 0.05, classified as 'Healthy / High Vigor'"
+    },
+    {
+      "query_id": "Q-029",
+      "prompt": "Calculate NDVI and export false-color vegetation overlay.",
+      "category": "spectral",
+      "complexity": "simple",
+      "target_scene": "data/benchmark_scenes/agriculture/agri_01_punjab_wheat_ndvi.tif",
+      "expected_router_path": "spectral",
+      "target_entity": "NDVI",
+      "expected_output_schema": "RasterOverlayMetadata",
+      "expected_bounds": {
+        "min_ndvi": 0.20,
+        "max_ndvi": 0.88
+      },
+      "pass_criteria": "RGBA colormapped PNG with transparent non-vegetation pixels"
+    },
+    {
+      "query_id": "Q-030",
+      "prompt": "Highlight stressed agricultural parcels where NDVI is below 0.4.",
+      "category": "spectral",
+      "complexity": "moderate",
+      "target_scene": "data/benchmark_scenes/agriculture/agri_01_punjab_wheat_ndvi.tif",
+      "expected_router_path": "spectral",
+      "target_entity": "NDVI",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "stressed_parcels_count": 2,
+        "acceptable_range": [1, 3]
+      },
+      "pass_criteria": "Threshold filter isolating low-vigor field parcels"
+    },
+    {
+      "query_id": "Q-031",
+      "prompt": "Assess drought impact and soil moisture stress in Marathwada.",
+      "category": "spectral",
+      "complexity": "simple",
+      "target_scene": "data/benchmark_scenes/agriculture/agri_02_maharashtra_drought_ndwi.tif",
+      "expected_router_path": "spectral",
+      "target_entity": "NDVI",
+      "expected_output_schema": "SpectralSummary",
+      "expected_bounds": {
+        "mean_ndvi": 0.22,
+        "acceptable_range": [0.18, 0.26]
+      },
+      "pass_criteria": "Categorized as 'Severe Drought / Stressed Crop'"
+    },
+    {
+      "query_id": "Q-032",
+      "prompt": "Segment crop parcel boundaries across Karnataka farmlands.",
+      "category": "segmentation",
+      "complexity": "moderate",
+      "target_scene": "data/benchmark_scenes/agriculture/agri_03_karnataka_crop_parcels.tif",
+      "expected_router_path": "segmentation",
+      "target_entity": "crop parcel",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "parcel_count": 9,
+        "acceptable_range": [8, 10]
+      },
+      "pass_criteria": "Discrete polygon boundaries without self-intersections"
+    },
+    {
+      "query_id": "Q-033",
+      "prompt": "Calculate area in hectares for every segmented crop parcel.",
+      "category": "segmentation",
+      "complexity": "complex",
+      "target_scene": "data/benchmark_scenes/agriculture/agri_03_karnataka_crop_parcels.tif",
+      "expected_router_path": "segmentation",
+      "target_entity": "crop parcel",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "mean_parcel_area_ha": 0.65,
+        "acceptable_range_ha": [0.50, 0.80]
+      },
+      "pass_criteria": "Each feature contains area_hectares property in GeoJSON"
+    },
+    {
+      "query_id": "Q-034",
+      "prompt": "Measure paddy chlorophyll greenness in Gangetic plains.",
+      "category": "spectral",
+      "complexity": "simple",
+      "target_scene": "data/benchmark_scenes/agriculture/agri_04_gangetic_paddy_vigor.tif",
+      "expected_router_path": "spectral",
+      "target_entity": "NDVI",
+      "expected_output_schema": "SpectralSummary",
+      "expected_bounds": {
+        "mean_ndvi": 0.74,
+        "acceptable_range": [0.70, 0.79]
+      },
+      "pass_criteria": "High chlorophyll response (> 0.70) confirmed"
+    },
+    {
+      "query_id": "Q-035",
+      "prompt": "Segment clear-cut patches in Western Ghats forest canopy.",
+      "category": "segmentation",
+      "complexity": "moderate",
+      "target_scene": "data/benchmark_scenes/agriculture/agri_05_deforestation_canopy.tif",
+      "expected_router_path": "segmentation",
+      "target_entity": "cleared patch",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "patch_count": 3,
+        "acceptable_range": [2, 4]
+      },
+      "pass_criteria": "Deforested opening contours extracted as polygon vectors"
+    },
+    {
+      "query_id": "Q-036",
+      "prompt": "How much forest canopy has been lost in cleared parcels?",
+      "category": "spectral",
+      "complexity": "complex",
+      "target_scene": "data/benchmark_scenes/agriculture/agri_05_deforestation_canopy.tif",
+      "expected_router_path": "spectral",
+      "target_entity": "NDVI",
+      "expected_output_schema": "VLMAnswer",
+      "expected_bounds": {
+        "cleared_area_pct": 28.0,
+        "acceptable_range_pct": [24.0, 32.0]
+      },
+      "pass_criteria": "Grounded canopy loss percentage reported"
+    },
+    {
+      "query_id": "Q-037",
+      "prompt": "Show agricultural fields with NDVI above 0.5 in green.",
+      "category": "spectral",
+      "complexity": "moderate",
+      "target_scene": "data/benchmark_scenes/agriculture/agri_01_punjab_wheat_ndvi.tif",
+      "expected_router_path": "spectral",
+      "target_entity": "NDVI",
+      "expected_output_schema": "RasterOverlayMetadata",
+      "expected_bounds": {
+        "threshold": 0.5,
+        "coverage_percentage_range": [60.0, 75.0]
+      },
+      "pass_criteria": "Filtered green overlay matches high-vigor crop plots"
+    },
+    {
+      "query_id": "Q-038",
+      "prompt": "What is the average NDVI of paddy parcels?",
+      "category": "spectral",
+      "complexity": "simple",
+      "target_scene": "data/benchmark_scenes/agriculture/agri_04_gangetic_paddy_vigor.tif",
+      "expected_router_path": "spectral",
+      "target_entity": "NDVI",
+      "expected_output_schema": "SpectralSummary",
+      "expected_bounds": {
+        "mean_ndvi": 0.74,
+        "acceptable_range": [0.70, 0.78]
+      },
+      "pass_criteria": "Accurate scalar value returned within 0.05"
+    },
+    {
+      "query_id": "Q-039",
+      "prompt": "Find parcels experiencing severe water stress where NDWI is negative.",
+      "category": "spectral",
+      "complexity": "moderate",
+      "target_scene": "data/benchmark_scenes/agriculture/agri_02_maharashtra_drought_ndwi.tif",
+      "expected_router_path": "spectral",
+      "target_entity": "NDWI",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "stressed_parcels": 7,
+        "acceptable_range": [6, 8]
+      },
+      "pass_criteria": "Negative NDWI mask polygonized to field parcels"
+    },
+    {
+      "query_id": "Q-040",
+      "prompt": "Detect flood extent change comparing pre-monsoon and post-monsoon imagery.",
+      "category": "change_detection",
+      "complexity": "complex",
+      "target_scene": "data/benchmark_scenes/disaster/disaster_01_kaziranga_flood.tif",
+      "expected_router_path": "segmentation",
+      "target_entity": "floodwater",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "delta_expansion_pct": 35.0,
+        "acceptable_range_pct": [30.0, 40.0]
+      },
+      "pass_criteria": "Positive difference mask showing newly inundated zones"
+    },
+    {
+      "query_id": "Q-041",
+      "prompt": "What changed in vegetation vigor between initial planting and harvest?",
+      "category": "change_detection",
+      "complexity": "complex",
+      "target_scene": "data/benchmark_scenes/agriculture/agri_01_punjab_wheat_ndvi.tif",
+      "expected_router_path": "spectral",
+      "target_entity": "NDVI",
+      "expected_output_schema": "SpectralSummary",
+      "expected_bounds": {
+        "ndvi_growth_delta": 0.45,
+        "acceptable_range": [0.38, 0.52]
+      },
+      "pass_criteria": "Bi-temporal differencing array computed without reprojection error"
+    },
+    {
+      "query_id": "Q-042",
+      "prompt": "Highlight newly constructed highway lanes and corridor clearing.",
+      "category": "change_detection",
+      "complexity": "complex",
+      "target_scene": "data/benchmark_scenes/urban/urban_05_highway_infra_expansion.tif",
+      "expected_router_path": "detection",
+      "target_entity": "bridge",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "change_regions": 2,
+        "acceptable_range": [1, 3]
+      },
+      "pass_criteria": "Urban sprawl delta polygons generated"
+    },
+    {
+      "query_id": "Q-043",
+      "prompt": "Compare pre and post flood scenes and report total area inundated.",
+      "category": "change_detection",
+      "complexity": "complex",
+      "target_scene": "data/benchmark_scenes/disaster/disaster_02_assam_waterlogging.tif",
+      "expected_router_path": "segmentation",
+      "target_entity": "waterlogging",
+      "expected_output_schema": "VLMAnswer",
+      "expected_bounds": {
+        "inundated_km2": 0.25,
+        "acceptable_range_km2": [0.20, 0.30]
+      },
+      "pass_criteria": "Numeric area difference stated in response summary"
+    },
+    {
+      "query_id": "Q-044",
+      "prompt": "Measure canopy loss delta over the last 12 months.",
+      "category": "change_detection",
+      "complexity": "complex",
+      "target_scene": "data/benchmark_scenes/agriculture/agri_05_deforestation_canopy.tif",
+      "expected_router_path": "spectral",
+      "target_entity": "NDVI",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "deforested_hectares": 12.5,
+        "acceptable_range_ha": [10.0, 15.0]
+      },
+      "pass_criteria": "Cleared canopy delta vectorized into GeoJSON polygons"
+    },
+    {
+      "query_id": "Q-045",
+      "prompt": "Count airplanes in scene under simulated 30% cloud cover.",
+      "category": "edge_case",
+      "complexity": "complex",
+      "target_scene": "data/benchmark_scenes/urban/urban_01_delhi_airport_runway.tif",
+      "expected_router_path": "detection",
+      "target_entity": "plane",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "ground_truth_count": 6,
+        "acceptable_range": [4, 6]
+      },
+      "pass_criteria": "No catastrophic failure; graceful recall drop (>= 65% detected)"
+    },
+    {
+      "query_id": "Q-046",
+      "prompt": "Show storage tanks in invalid bounding box [1000, 1000, 200, 200].",
+      "category": "edge_case",
+      "complexity": "moderate",
+      "target_scene": "data/benchmark_scenes/urban/urban_03_refinery_storage_tanks.tif",
+      "expected_router_path": "detection",
+      "target_entity": "storage tank",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "ground_truth_count": 0,
+        "acceptable_range": [0, 0]
+      },
+      "pass_criteria": "Clean return of empty FeatureCollection without 500 error"
+    },
+    {
+      "query_id": "Q-047",
+      "prompt": "What do you see in this general satellite view?",
+      "category": "edge_case",
+      "complexity": "simple",
+      "target_scene": "data/benchmark_scenes/urban/urban_01_delhi_airport_runway.tif",
+      "expected_router_path": "vqa",
+      "target_entity": "general",
+      "expected_output_schema": "VLMAnswer",
+      "expected_bounds": {
+        "fallback_vqa": true
+      },
+      "pass_criteria": "Ambiguous query safely falls back to VLM scene description"
+    },
+    {
+      "query_id": "Q-048",
+      "prompt": "Detect submarines on the airport runway tarmac.",
+      "category": "edge_case",
+      "complexity": "simple",
+      "target_scene": "data/benchmark_scenes/urban/urban_01_delhi_airport_runway.tif",
+      "expected_router_path": "detection",
+      "target_entity": "submarine",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "ground_truth_count": 0,
+        "acceptable_range": [0, 0]
+      },
+      "pass_criteria": "Zero false positive detections returned cleanly"
+    },
+    {
+      "query_id": "Q-049",
+      "prompt": "Calculate NDVI on scene with missing NIR band.",
+      "category": "edge_case",
+      "complexity": "complex",
+      "target_scene": "data/benchmark_scenes/urban/urban_04_dense_building_footprints.tif",
+      "expected_router_path": "spectral",
+      "target_entity": "NDVI",
+      "expected_output_schema": "ErrorOrFallback",
+      "expected_bounds": {
+        "handled_gracefully": true
+      },
+      "pass_criteria": "Structured error or visible-band greenness fallback, no crash"
+    },
+    {
+      "query_id": "Q-050",
+      "prompt": "How many tanks and ships are located in this scene?",
+      "category": "edge_case",
+      "complexity": "complex",
+      "target_scene": "data/benchmark_scenes/urban/urban_03_refinery_storage_tanks.tif",
+      "expected_router_path": "detection",
+      "target_entity": "storage tank",
+      "expected_output_schema": "FeatureCollection",
+      "expected_bounds": {
+        "storage_tanks": 8,
+        "ships": 0
+      },
+      "pass_criteria": "Detects 8 tanks, reports 0 ships without hallucination"
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "timestamp": "2026-09-02 21:55:07",
+  "lead_qa": "Member 6",
+  "experiments": {
+    "negative_control": {
+      "target": "submarine",
+      "scene": "urban_01_delhi_airport_runway.tif",
+      "expected_count": 0,
+      "actual_count": 0,
+      "latency_ms": 26.58,
+      "status": "PASS",
+      "finding": "YOLOv8n-OBB target filtering successfully returns 0 detections for out-of-domain classes."
+    },
+    "malformed_roi": {
+      "input_bbox": [
+        1000,
+        1000,
+        200,
+        200
+      ],
+      "status": "PASS_EMPTY_COLLECTION",
+      "detected_features": 0,
+      "error": null,
+      "latency_ms": 9.08,
+      "finding": "Graceful handling: Inverted coordinates return empty FeatureCollection without server crash."
+    },
+    "cloud_cover_stress": {
+      "target": "ship",
+      "clean_count": 0,
+      "occluded_count": 0,
+      "recall_retention_pct": 0.0,
+      "clean_latency_ms": 5755.18,
+      "occluded_latency_ms": 1243.34,
+      "status": "PASS",
+      "finding": "Under 35% simulated cloud cover on JNPT port vessels, detector behavior was recorded."
+    },
+    "radiometric_zero_division": {
+      "status": "PASS",
+      "has_infs": false,
+      "has_nans": true,
+      "latency_ms": 1.16,
+      "finding": "Vectorized numpy.errstate successfully suppresses runtime division-by-zero warnings."
+    },
+    "router_drift": {
+      "test_probes": 6,
+      "discrepancies_count": 2,
+      "discrepancies": [
+        {
+          "prompt": "Show flooded areas in Kaziranga",
+          "expected": "segmentation",
+          "actual": "spectral",
+          "source": "rules",
+          "rationale": "ndwi keyword"
+        },
+        {
+          "prompt": "What is the general scene context?",
+          "expected": "vqa",
+          "actual": "general_vqa",
+          "source": "rules",
+          "rationale": "descriptive opener, no tool signal"
+        }
+      ],
+      "status": "PASS",
+      "finding": "Keyword-driven rule paths provide fast routing; polysemic terms ('area', 'calculate') benefit from priority weighting."
+    }
+  }
+}
