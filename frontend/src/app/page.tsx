@@ -176,6 +176,12 @@ export default function Home() {
       height: project.coordinates.height,
       pitch: -50,
     });
+    if (project.sceneId) {
+      setSceneId(project.sceneId);
+    }
+    if (project.bounds) {
+      setSceneBounds(project.bounds);
+    }
     setPrefillQuery(project.sampleQuery);
   }, []);
 
@@ -191,6 +197,8 @@ export default function Home() {
       setActiveTab("analysis");
     } else if (key === "track_infrastructure") {
       setActiveTab("detections");
+    } else if (key === "upload_scene") {
+      setActiveTab("data-library");
     } else if (key === "custom_query") {
       setPrefillQuery("Generate an executive remote sensing intelligence overview of this region.");
       document.querySelector<HTMLInputElement>(".native-chat-input-field")?.focus();
@@ -227,7 +235,9 @@ export default function Home() {
             onSearchSubmit={handleGlobalSearch}
             onNavClick={(sec) => {
               setActiveSection(sec);
-              if (sec === "explore" || sec === "analyze" || sec === "monitor" || sec === "reports") {
+              if (sec === "upload") {
+                setActiveTab("data-library");
+              } else if (sec === "explore" || sec === "analyze" || sec === "monitor" || sec === "reports") {
                 setActiveTab(sec === "analyze" ? "analysis" : (sec as NavItemKey));
               }
             }}
@@ -257,6 +267,7 @@ export default function Home() {
                   sceneId={sceneId}
                   sceneBounds={sceneBounds}
                   geojson={geojson}
+                  overlays={overlays}
                   flyToTarget={flyToTarget}
                   onTargetReached={() => setFlyToTarget(null)}
                   onFallbackTo2D={() => setViewMode("2d")}
@@ -319,6 +330,11 @@ export default function Home() {
         onApplyOverlay={(newOverlays) => setOverlays(newOverlays)}
         onUploadSuccess={handleUploadComplete}
         onAskAI={(prompt) => setPrefillQuery(prompt)}
+        onSelectScene={(scId, scBounds, filename) => {
+          setSceneId(scId);
+          if (scBounds) setSceneBounds(scBounds);
+          if (filename) setSceneName(filename);
+        }}
         currentSceneId={sceneId}
         roi={roi}
       />

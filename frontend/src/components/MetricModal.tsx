@@ -25,6 +25,15 @@ export default function MetricModal({
   onClose,
   onOpenWorkspace,
 }: MetricModalProps) {
+  React.useEffect(() => {
+    if (!metricKey) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [metricKey, onClose]);
+
   if (!metricKey) return null;
 
   return (
@@ -86,6 +95,8 @@ export default function MetricModal({
             type="button"
             onClick={onClose}
             className="workspace-modal-close-btn"
+            title="Close View (Esc)"
+            aria-label="Close View"
           >
             <X size={18} />
           </button>
@@ -324,6 +335,17 @@ export default function MetricModal({
               </div>
             </div>
           )}
+        </div>
+
+        {/* Modal Footer */}
+        <div className="metric-modal-footer">
+          <button
+            type="button"
+            onClick={onClose}
+            className="metric-modal-footer-close-btn"
+          >
+            Close View (Esc)
+          </button>
         </div>
       </div>
     </div>

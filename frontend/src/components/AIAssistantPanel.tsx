@@ -17,6 +17,7 @@ import {
   Check,
   Trash2,
   Download,
+  UploadCloud,
 } from "lucide-react";
 import VoiceInputButton from "./VoiceInputButton";
 import { queryScene, createWatch, uploadScene } from "@/lib/api";
@@ -75,24 +76,9 @@ export default function AIAssistantPanel({
     {
       id: "welcome",
       role: "assistant",
-      content: "What can I help you with?",
-      timestamp: new Date(),
-    },
-    {
-      id: "demo-user",
-      role: "user",
-      content: "Show me recent deforestation near the Amazon with area estimate.",
-      timestamp: new Date(),
-    },
-    {
-      id: "demo-bot",
-      role: "assistant",
       content:
-        "I've analyzed recent satellite imagery. Here's the detected deforestation in the Amazon region (since May 2024), with an estimated area of ~ **312 km²**. Would you like a detailed report?",
+        "**SatQuery Intelligence Copilot Online**\n\nI can analyze multispectral satellite rasters, run YOLOv8 target detection (planes, ships, storage tanks), compute spectral vegetation & water indices (NDVI, NDWI, NBR), or ingest live Sentinel-2 passes.\n\n*Type any remote sensing query, speak into the mic, or select a workspace tool.*",
       timestamp: new Date(),
-      detectedAreaKm2: 312,
-      areaChangePct: "+18%",
-      thumbnailUrl: "/images/amazon_deforest_hd.jpg",
     },
   ]);
 
@@ -594,6 +580,19 @@ export default function AIAssistantPanel({
               </div>
             </div>
           )}
+        </div>
+
+        {/* Quick Upload / Action Chip */}
+        <div className="native-chat-quick-chips">
+          <button
+            type="button"
+            onClick={() => onOpenWorkspace?.("data-library")}
+            className="native-chat-upload-chip"
+            title="Upload custom GeoTIFF satellite raster"
+          >
+            <UploadCloud size={12} />
+            <span>Upload GeoTIFF / Scene</span>
+          </button>
         </div>
 
         {/* Input Bar */}

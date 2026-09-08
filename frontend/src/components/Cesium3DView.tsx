@@ -19,7 +19,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import type { FeatureCollection, FeatureSource } from "@/types";
+import type { FeatureCollection, FeatureSource, RasterOverlay } from "@/types";
 import { getTileUrl } from "@/lib/api";
 import { searchPlaces, GeocodeResult } from "@/lib/geocode";
 
@@ -39,6 +39,7 @@ interface Cesium3DViewProps {
   sceneId: string | null;
   sceneBounds: number[] | null;
   geojson: FeatureCollection | null;
+  overlays?: RasterOverlay[] | null;
   flyToTarget?: FlyToTarget | null;
   onTargetReached?: () => void;
   onFallbackTo2D?: () => void;
@@ -177,6 +178,7 @@ export default function Cesium3DView({
   sceneId,
   sceneBounds,
   geojson,
+  overlays,
   flyToTarget,
   onTargetReached,
   onFallbackTo2D,
@@ -191,6 +193,7 @@ export default function Cesium3DView({
   const sceneFrameEntityRef = useRef<Cesium.Entity | null>(null);
   const resultsDataSourceRef = useRef<Cesium.CustomDataSource | null>(null);
   const satellitesDataSourceRef = useRef<Cesium.CustomDataSource | null>(null);
+  const overlayLayersRef = useRef<Cesium.ImageryLayer[]>([]);
 
   const [ready, setReady] = useState(false);
   const [webglError, setWebglError] = useState(false);
@@ -214,6 +217,7 @@ export default function Cesium3DView({
     const d = new Date();
     return d.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
   });
+  const [isHeroDismissed, setIsHeroDismissed] = useState(false);
 
   // ── Initialize the Cesium 3D Globe with Web Mercator High-Res Tiling ──
   useEffect(() => {
@@ -583,10 +587,11 @@ export default function Cesium3DView({
     if (!geojson || geojson.features.length === 0) return;
 
     for (const feature of geojson.features) {
-      const source = feature.properties.source;
-      const score = feature.properties.score ?? 0.5;
-      const [r, g, b] = SOURCE_COLOR[source] ?? [255, 255, 255];
-      const height = EXTRUSION_HEIGHT[source] * Math.max(score, 0.2);
+      const source = (feature.properties?.source || "detection") as FeatureSource;
+      const score = typeof feature.properties?.score === "number" ? feature.properties.score : 0.75;
+      const [r, g, b] = SOURCE_COLOR[source] ?? [251, 146, 60];
+      const baseHeight = EXTRUSION_HEIGHT[source] ?? 35;
+      const height = Math.max(10, baseHeight * Math.max(score, 0.2));
       const color = Cesium.Color.fromBytes(r, g, b, 210);
 
       const { geometry } = feature;
@@ -626,6 +631,50 @@ export default function Cesium3DView({
       }
     }
   }, [ready, geojson]);
+
+  // ── Drape Georeferenced Spectral Raster Overlays (NDVI/NDWI/NBR) ──────
+  useEffect(() => {
+    if (!ready || !viewerRef.current) return;
+    const viewer = viewerRef.current;
+
+    // Clear previously active overlay layers
+    for (const layer of overlayLayersRef.current) {
+      viewer.imageryLayers.remove(layer);
+    }
+    overlayLayersRef.current = [];
+
+    if (!overlays || overlays.length === 0) return;
+
+    for (const ov of overlays) {
+      if (!ov.bounds || ov.bounds.length !== 4) continue;
+      const [west, south, east, north] = ov.bounds;
+      const fullUrl = ov.url.startsWith("http")
+        ? ov.url
+        : `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}${ov.url}`;
+
+      try {
+        const provider = new Cesium.SingleTileImageryProvider({
+          url: fullUrl,
+          rectangle: Cesium.Rectangle.fromDegrees(west, south, east, north),
+        });
+        const layer = viewer.imageryLayers.addImageryProvider(provider);
+        layer.alpha = ov.opacity ?? 0.8;
+        overlayLayersRef.current.push(layer);
+
+        // Fly camera to spectral overlay
+        const centerLon = (west + east) / 2;
+        const centerLat = (south + north) / 2;
+        const span = Math.max(Math.abs(east - west), Math.abs(north - south));
+        const flyHeight = Math.max(2500, span * 111000 * 1.5);
+        viewer.camera.flyTo({
+          destination: Cesium.Cartesian3.fromDegrees(centerLon, centerLat, flyHeight),
+          duration: 1.8,
+        });
+      } catch (err) {
+        console.warn("Failed to drape raster overlay onto Cesium:", err);
+      }
+    }
+  }, [ready, overlays]);
 
   // ── Fly to Target Effect (triggered from Global Search, Recent Projects, Quick Actions) ──
   useEffect(() => {
@@ -797,33 +846,58 @@ export default function Cesium3DView({
 
       {/* ── Top-Left: Hero Overlay (Only when NOT in fullscreen) ──────── */}
       {!isFullScreen && (
-        <div className="globe-hud__hero">
-          <div className="globe-hud__tag">
+        isHeroDismissed ? (
+          <button
+            type="button"
+            onClick={() => setIsHeroDismissed(false)}
+            className="globe-hud__hero-restore-chip"
+            title="Expand Satellite Intelligence Overview"
+            aria-label="Expand Satellite Intelligence Overview"
+          >
             <span className="globe-hud__tag-line" />
             <span>SATELLITE INTELLIGENCE</span>
-          </div>
-          <h1 className="globe-hud__title">A clearer planet.</h1>
-          <p className="globe-hud__subtitle">
-            Turn satellite data into real-world decisions.
-          </p>
-
-          {/* Airport & Location Fast-Jump Chips */}
-          <div className="globe-hud__quick-targets">
-            <span className="globe-hud__chips-label">Quick Zoom:</span>
-            {QUICK_PRESETS.slice(1).map((preset) => (
+            <span className="globe-hud__restore-text">Show</span>
+          </button>
+        ) : (
+          <div className="globe-hud__hero">
+            <div className="globe-hud__hero-top-row">
+              <div className="globe-hud__tag">
+                <span className="globe-hud__tag-line" />
+                <span>SATELLITE INTELLIGENCE</span>
+              </div>
               <button
-                key={preset.name}
                 type="button"
-                onClick={() => flyToPreset(preset)}
-                className="globe-hud__target-chip"
-                title={`Zoom directly to ${preset.name}`}
+                onClick={() => setIsHeroDismissed(true)}
+                className="globe-hud__hero-close-btn"
+                title="Hide Satellite Intelligence Overlay"
+                aria-label="Close Satellite Intelligence overlay"
               >
-                {preset.isAirport ? <Plane size={11} color="#38bdf8" /> : <Sparkles size={10} color="#22d3ee" />}
-                <span>{preset.name}</span>
+                <X size={13} />
               </button>
-            ))}
+            </div>
+            <h1 className="globe-hud__title">A clearer planet.</h1>
+            <p className="globe-hud__subtitle">
+              Turn satellite data into real-world decisions.
+            </p>
+
+            {/* Airport & Location Fast-Jump Chips */}
+            <div className="globe-hud__quick-targets">
+              <span className="globe-hud__chips-label">Quick Zoom:</span>
+              {QUICK_PRESETS.slice(1).map((preset) => (
+                <button
+                  key={preset.name}
+                  type="button"
+                  onClick={() => flyToPreset(preset)}
+                  className="globe-hud__target-chip"
+                  title={`Zoom directly to ${preset.name}`}
+                >
+                  {preset.isAirport ? <Plane size={11} color="#38bdf8" /> : <Sparkles size={10} color="#22d3ee" />}
+                  <span>{preset.name}</span>
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )
       )}
 
       {/* ── Top-Right: Coordinates & Minimal Controls ────────────────── */}

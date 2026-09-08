@@ -12,6 +12,8 @@ export interface ProjectItem {
   image: string;
   coordinates: { lon: number; lat: number; height: number };
   sampleQuery: string;
+  sceneId?: string;
+  bounds?: number[];
 }
 
 interface RecentProjectsProps {
@@ -21,34 +23,40 @@ interface RecentProjectsProps {
 
 export const RECENT_PROJECTS: ProjectItem[] = [
   {
-    id: "mumbai-infra",
-    title: "Coastal Infrastructure Mapping",
-    location: "Mumbai, India",
-    date: "Aug 28, 2024",
+    id: "sfo-aviation",
+    title: "Aviation Fleet Distribution",
+    location: "SFO Airport, California",
+    date: "Sep 03, 2026",
     status: "Completed",
-    image: "/images/exact_proj_mumbai.jpg",
-    coordinates: { lon: 72.95, lat: 18.95, height: 14000 },
-    sampleQuery: "Detect all vessels and container cranes in Mumbai JNPT maritime port",
+    image: "/images/metric_plane_hd.jpg",
+    coordinates: { lon: -122.370, lat: 37.615, height: 3500 },
+    sceneId: "043267413b48_20260903T034939",
+    bounds: [-122.375, 37.60776, -122.36476, 37.618],
+    sampleQuery: "Detect and count all commercial planes and aircraft at SFO runway corridor.",
   },
   {
-    id: "california-wildfire",
-    title: "Wildfire Impact Assessment",
-    location: "California, USA",
-    date: "Aug 24, 2024",
-    status: "In Progress",
-    image: "/images/exact_proj_wildfire.jpg",
-    coordinates: { lon: -120.45, lat: 37.62, height: 28000 },
-    sampleQuery: "Analyze wildfire smoke plume extent and estimate burn scar area",
+    id: "singapore-port",
+    title: "Maritime Vessel Traffic & Corridors",
+    location: "Singapore Harbor",
+    date: "Sep 03, 2026",
+    status: "Completed",
+    image: "/images/exact_proj_mumbai.jpg",
+    coordinates: { lon: 103.776, lat: 1.278, height: 6000 },
+    sceneId: "023e8117a308_20260903T054525",
+    bounds: [103.7501, 1.2549, 103.8019, 1.3013],
+    sampleQuery: "Detect and classify maritime vessels, cargo ships, and container traffic.",
   },
   {
     id: "punjab-agriculture",
-    title: "Crop Health Analysis",
+    title: "Crop Health Analysis & NDVI",
     location: "Punjab, India",
-    date: "Aug 20, 2024",
+    date: "Sep 03, 2026",
     status: "Completed",
     image: "/images/exact_proj_crops.jpg",
-    coordinates: { lon: 75.83, lat: 30.78, height: 16000 },
-    sampleQuery: "Calculate NDVI spectral crop vigor index and classify healthy vegetation parcels",
+    coordinates: { lon: 75.840, lat: 30.789, height: 12000 },
+    sceneId: "d1f2e30941c2_20260903T094411",
+    bounds: [75.79326, 30.74317, 75.88644, 30.83553],
+    sampleQuery: "Compute NDVI vegetation index and map healthy cropland zones in square kilometers.",
   },
 ];
 

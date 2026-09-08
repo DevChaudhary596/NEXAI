@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   X,
   Bell,
@@ -18,6 +18,7 @@ import {
   Key,
 } from "lucide-react";
 import type { FlyToTarget } from "./Cesium3DView";
+import { listAlerts, markAlertSeen } from "@/lib/api";
 
 // ── Notifications Drawer ──────────────────────────────────────────
 export interface NotificationItem {
@@ -77,14 +78,48 @@ export function NotificationsDrawer({
 }: NotificationsDrawerProps) {
   const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (isOpen) {
+      listAlerts("analyst@satquery.io")
+        .then((res) => {
+          if (res.alerts && res.alerts.length > 0) {
+            const mapped: NotificationItem[] = res.alerts.map((a) => ({
+              id: a.id,
+              title: `Watch Alert: ${a.message.slice(0, 36)}…`,
+              desc: a.message,
+              time: new Date(a.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+              type: "alert",
+              read: a.seen,
+            }));
+            setNotifications(mapped);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isOpen]);
 
   const markAllRead = () => {
+    notifications.forEach((n) => {
+      markAlertSeen(n.id).catch(() => {});
+    });
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   };
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
   return (
-    <div className="workspace-modal-overlay" onClick={onClose}>
+    <div className="workspace-modal-overlay workspace-modal-overlay--drawer" onClick={onClose}>
       <div
         className="notifications-drawer"
         onClick={(e) => e.stopPropagation()}
@@ -92,7 +127,10 @@ export function NotificationsDrawer({
         <div className="notifications-drawer__header">
           <div className="notifications-drawer__title-group">
             <Bell size={18} color="#22d3ee" />
-            <h3 className="notifications-drawer__title">Surveillance Notifications</h3>
+            <div>
+              <h3 className="notifications-drawer__title">Surveillance Intelligence</h3>
+              <p className="notifications-drawer__sub">Active Sentinel Alerts & Pass Logs</p>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -107,6 +145,8 @@ export function NotificationsDrawer({
               type="button"
               onClick={onClose}
               className="workspace-modal-close-btn"
+              title="Close Drawer (Esc)"
+              aria-label="Close Surveillance Intelligence"
             >
               <X size={16} />
             </button>
@@ -144,6 +184,17 @@ export function NotificationsDrawer({
             </div>
           ))}
         </div>
+
+        <div className="notifications-drawer__footer">
+          <button
+            type="button"
+            onClick={onClose}
+            className="notifications-drawer-footer-btn"
+          >
+            <X size={14} />
+            <span>Close Surveillance Panel (Esc)</span>
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -156,6 +207,15 @@ interface ProfileModalProps {
 }
 
 export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
@@ -177,6 +237,8 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
             type="button"
             onClick={onClose}
             className="workspace-modal-close-btn"
+            title="Close Profile (Esc)"
+            aria-label="Close"
           >
             <X size={16} />
           </button>
@@ -268,6 +330,15 @@ export function CommandPalette({
   onOpenWorkspace,
 }: CommandPaletteProps) {
   const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 

@@ -12,6 +12,7 @@ import {
   MoreVertical,
   MapPin,
   Calendar,
+  UploadCloud,
 } from "lucide-react";
 import { QuickActionKey } from "./QuickActions";
 import { ProjectItem } from "./RecentProjects";
@@ -56,34 +57,40 @@ const METRICS_DATA = [
 
 const PROJECTS_DATA: ProjectItem[] = [
   {
-    id: "mumbai-port",
-    title: "Coastal Infrastructure Mapping",
-    location: "Mumbai, India",
-    date: "Aug 28, 2024",
+    id: "sfo-aviation",
+    title: "Aviation Fleet Distribution",
+    location: "SFO Airport, California",
+    date: "Sep 03, 2026",
     status: "Completed",
-    image: "/images/mumbai_port_hd.jpg",
-    coordinates: { lon: 72.8777, lat: 19.0760, height: 18000 },
-    sampleQuery: "Detect and classify maritime vessels, cargo docks, and coastal structures in Mumbai Port.",
+    image: "/images/metric_plane_hd.jpg",
+    coordinates: { lon: -122.370, lat: 37.615, height: 3500 },
+    sceneId: "043267413b48_20260903T034939",
+    bounds: [-122.375, 37.60776, -122.36476, 37.618],
+    sampleQuery: "Detect and count all commercial planes and aircraft at SFO runway corridor.",
   },
   {
-    id: "cal-fire",
-    title: "Wildfire Impact Assessment",
-    location: "California, USA",
-    date: "Aug 24, 2024",
-    status: "In Progress",
-    image: "/images/california_wildfire_hd.jpg",
-    coordinates: { lon: -121.4944, lat: 38.5816, height: 25000 },
-    sampleQuery: "Analyze wildfire burn scars, smoke dispersion, and damaged terrain in Northern California.",
+    id: "singapore-port",
+    title: "Maritime Vessel Traffic & Corridors",
+    location: "Singapore Harbor",
+    date: "Sep 03, 2026",
+    status: "Completed",
+    image: "/images/mumbai_port_hd.jpg",
+    coordinates: { lon: 103.776, lat: 1.278, height: 6000 },
+    sceneId: "023e8117a308_20260903T054525",
+    bounds: [103.7501, 1.2549, 103.8019, 1.3013],
+    sampleQuery: "Detect and classify maritime vessels, cargo ships, and container traffic.",
   },
   {
     id: "punjab-crops",
-    title: "Crop Health Analysis",
+    title: "Crop Health Analysis & NDVI",
     location: "Punjab, India",
-    date: "Aug 20, 2024",
+    date: "Sep 03, 2026",
     status: "Completed",
     image: "/images/punjab_crops_hd.jpg",
-    coordinates: { lon: 75.3412, lat: 31.1471, height: 20000 },
-    sampleQuery: "Evaluate NDVI vegetative health, crop stress index, and irrigation patterns across Punjab farmland.",
+    coordinates: { lon: 75.840, lat: 30.789, height: 12000 },
+    sceneId: "d1f2e30941c2_20260903T094411",
+    bounds: [75.79326, 30.74317, 75.88644, 30.83553],
+    sampleQuery: "Compute NDVI vegetation index and map healthy cropland zones in square kilometers.",
   },
 ];
 
@@ -92,12 +99,12 @@ const QUICK_ACTIONS_DATA: {
   label: string;
   icon: React.ComponentType<{ size?: number; className?: string }>;
 }[] = [
+  { key: "upload_scene", label: "Upload Scene", icon: UploadCloud },
   { key: "count_objects", label: "Count Objects", icon: Scan },
   { key: "detect_changes", label: "Detect Changes", icon: GitCompare },
   { key: "analyze_terrain", label: "Analyze Terrain", icon: Mountain },
   { key: "ndvi_vegetation", label: "NDVI Vegetation", icon: Leaf },
-  { key: "track_infrastructure", label: "Track Infrastructure", icon: Building2 },
-  { key: "custom_query", label: "Custom Query", icon: Sparkles },
+  { key: "track_infrastructure", label: "Track Infra", icon: Building2 },
 ];
 
 export default function CenterUnderGlobe({
@@ -153,7 +160,18 @@ export default function CenterUnderGlobe({
         {/* Left: Recent Projects Section */}
         <div className="native-recent-projects">
           <div className="native-deck-header">
-            <h3 className="native-deck-title">Recent Projects</h3>
+            <div className="flex items-center gap-3">
+              <h3 className="native-deck-title">Recent Projects</h3>
+              <button
+                type="button"
+                onClick={() => onQuickAction("upload_scene")}
+                className="native-deck-upload-pill"
+                title="Upload Custom GeoTIFF Raster"
+              >
+                <UploadCloud size={13} />
+                <span>Upload GeoTIFF</span>
+              </button>
+            </div>
             <button
               type="button"
               onClick={onViewAll}

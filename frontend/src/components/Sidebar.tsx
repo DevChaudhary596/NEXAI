@@ -11,6 +11,7 @@ import {
   Folder,
   Database,
   FileText,
+  UploadCloud,
 } from "lucide-react";
 
 export type NavItemKey =
@@ -41,7 +42,7 @@ const NAV_ITEMS: {
   { key: "compare", label: "Compare", icon: GitCompare },
   { key: "monitor", label: "Monitor", icon: Clock },
   { key: "projects", label: "Projects", icon: Folder },
-  { key: "data-library", label: "Data Library", icon: Database },
+  { key: "data-library", label: "Upload & Data", icon: UploadCloud },
   { key: "reports", label: "Reports", icon: FileText },
 ];
 
@@ -77,6 +78,17 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
             <span className="native-sidebar__brand-title">SatQuery</span>
             <span className="native-sidebar__brand-sub">SEE A CLEARER TOMORROW</span>
           </div>
+        </button>
+
+        {/* Primary Upload CTA Button */}
+        <button
+          type="button"
+          onClick={() => onTabChange("data-library")}
+          className="native-sidebar__upload-cta"
+          title="Upload GeoTIFF / Ingest Satellite Imagery"
+        >
+          <UploadCloud size={16} />
+          <span>Upload Scene</span>
         </button>
 
         {/* Navigation Items List */}

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Search, Globe, X, Maximize2, Minimize2 } from "lucide-react";
+import { Search, Globe, X, Maximize2, Minimize2, UploadCloud } from "lucide-react";
 
 interface TopNavProps {
   onSearchSubmit: (query: string) => void;
@@ -45,7 +45,7 @@ export default function TopNav({
     <header className="theme-topnav">
       {/* Section Navigation Links */}
       <div className="theme-topnav__links">
-        {["EXPLORE", "ANALYZE", "MONITOR", "REPORTS"].map((item) => (
+        {["EXPLORE", "ANALYZE", "UPLOAD", "MONITOR", "REPORTS"].map((item) => (
           <button
             key={item}
             onClick={() => onNavClick(item.toLowerCase())}
@@ -81,8 +81,19 @@ export default function TopNav({
         <kbd className="theme-topnav__kbd">⌘K</kbd>
       </form>
 
-      {/* Right Controls: Globe & Fullscreen */}
+      {/* Right Controls: Upload, Globe & Fullscreen */}
       <div className="theme-topnav__right">
+        {/* Upload GeoTIFF Button */}
+        <button
+          type="button"
+          onClick={() => onNavClick("upload")}
+          className="theme-topnav__upload-btn"
+          title="Upload Custom GeoTIFF / Ingest Scene"
+        >
+          <UploadCloud size={14} />
+          <span>Upload</span>
+        </button>
+
         {/* Reset to Global Space Orbit */}
         {onResetGlobe && (
           <button

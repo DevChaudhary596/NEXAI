@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Scan, GitCompare, Mountain, Leaf, Building2, Search } from "lucide-react";
+import { Scan, GitCompare, Mountain, Leaf, Building2, Search, UploadCloud } from "lucide-react";
 
 export type QuickActionKey =
   | "count_objects"
@@ -9,6 +9,7 @@ export type QuickActionKey =
   | "analyze_terrain"
   | "ndvi_vegetation"
   | "track_infrastructure"
+  | "upload_scene"
   | "custom_query";
 
 interface QuickActionsProps {
@@ -21,12 +22,12 @@ const ACTIONS: {
   subLabel?: string;
   icon: React.ComponentType<{ size?: number; className?: string }>;
 }[] = [
+  { key: "upload_scene", label: "Upload", subLabel: "GeoTIFF", icon: UploadCloud },
   { key: "count_objects", label: "Count", subLabel: "Objects", icon: Scan },
   { key: "detect_changes", label: "Detect", subLabel: "Changes", icon: GitCompare },
   { key: "analyze_terrain", label: "Analyze", subLabel: "Terrain", icon: Mountain },
   { key: "ndvi_vegetation", label: "NDVI", subLabel: "Vegetation", icon: Leaf },
   { key: "track_infrastructure", label: "Track", subLabel: "Infrastructure", icon: Building2 },
-  { key: "custom_query", label: "Custom", subLabel: "Query", icon: Search },
 ];
 
 export default function QuickActions({ onActionClick }: QuickActionsProps) {
