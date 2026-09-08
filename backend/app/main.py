@@ -19,7 +19,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.errors import register_error_handlers
-from app.api.routes import health, query, tasks, tiles, upload, watches
+from app.api.routes import health, query, tasks, tiles, transcribe, upload, watches
 from app.core.config import get_settings
 from app.core.schemas.common import CONTRACT_VERSION
 
@@ -86,3 +86,4 @@ app.include_router(upload.router)      # POST /api/v1/upload, GET /api/v1/scenes
 app.include_router(tasks.router)       # POST /api/v1/tasks, GET /api/v1/tasks/{id}
 app.include_router(tiles.router)       # GET  /api/v1/tiles/{scene_id}/{z}/{x}/{y}.png
 app.include_router(watches.router)     # POST /api/v1/watches, GET /api/v1/alerts
+app.include_router(transcribe.router)  # POST /api/v1/transcribe

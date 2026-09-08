@@ -1,11 +1,26 @@
-"""The /api/v1/query contract. This is the schema frozen on Day 7."""
+"""The /api/v1/query contract. This is the schema frozen on Day 7.
+
+Day 8 adds `history` as an additive, optional field - old clients that never
+send it keep working unchanged, so no CONTRACT_VERSION bump."""
 from __future__ import annotations
+
+from typing import Literal
 
 from pydantic import Field, model_validator
 
 from .common import CONTRACT_VERSION, ROI, Strict
 from .geo import FeatureCollection, RasterOverlay
 from .routing import RoutingDecision
+
+
+class ConversationTurn(Strict):
+    """One prior turn in the chat. Text-only, deliberately - re-attaching the
+    image on every turn is what Day 8 exists to avoid, and the VLM backends
+    only ever bind the image to the *current* turn (see vlm.py's `_build`/`_run`).
+    """
+
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=2000)
 
 
 class QueryRequest(Strict):
@@ -16,6 +31,16 @@ class QueryRequest(Strict):
     )
     scene_id_b: str | None = Field(
         default=None, description="Second scene for bi-temporal change detection."
+    )
+    history: list[ConversationTurn] = Field(
+        default_factory=list,
+        max_length=20,
+        description=(
+            "Prior turns, oldest first, for follow-up questions ('how many of "
+            "those ships are docked near the eastern pier?'). The server also "
+            "trims this to `max_history_turns` - the wire cap here is just a "
+            "sanity ceiling against an unbounded payload."
+        ),
     )
 
 

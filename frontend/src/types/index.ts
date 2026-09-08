@@ -106,11 +106,18 @@ export interface RasterOverlay {
 
 /* ── Query ──────────────────────────────────────────────────── */
 
+/** One prior turn, text-only (Day 8 - the image is never re-sent). */
+export interface ConversationTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
 export interface QueryRequest {
   prompt: string;
   scene_id: string;
   roi?: ROI | null;
   scene_id_b?: string | null;
+  history?: ConversationTurn[];
 }
 
 export interface Timings {
@@ -129,6 +136,13 @@ export interface QueryResponse {
   stats: Record<string, number>;
   timings: Timings;
   peak_vram_gb: number | null;
+}
+
+/* ── Voice input (Day 10) ──────────────────────────────────────── */
+
+export interface TranscribeResponse {
+  text: string;
+  backend: string;
 }
 
 /* ── Error ──────────────────────────────────────────────────── */
