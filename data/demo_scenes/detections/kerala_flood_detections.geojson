@@ -1,0 +1,108 @@
+{
+  "type": "FeatureCollection",
+  "name": "kerala_flood_detections",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:OGC:1.3:CRS84"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "target": "ship",
+        "class_id": 1,
+        "confidence": 0.884,
+        "cluster_id": 0,
+        "is_hotspot": true,
+        "scene_id": "kerala_flood",
+        "description": "Rescue motor vessel operating along inundated river canal"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [76.3214, 9.9812],
+            [76.3221, 9.9815],
+            [76.3219, 9.9821],
+            [76.3212, 9.9818],
+            [76.3214, 9.9812]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "target": "ship",
+        "class_id": 1,
+        "confidence": 0.812,
+        "cluster_id": 0,
+        "is_hotspot": true,
+        "scene_id": "kerala_flood",
+        "description": "Evacuation dinghy moored near relief staging area"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [76.3225, 9.9819],
+            [76.3231, 9.9822],
+            [76.3228, 9.9827],
+            [76.3222, 9.9824],
+            [76.3225, 9.9819]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "target": "ship",
+        "class_id": 1,
+        "confidence": 0.795,
+        "cluster_id": 0,
+        "is_hotspot": true,
+        "scene_id": "kerala_flood",
+        "description": "NDRF patrol vessel transiting flooded roadway"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [76.3232, 9.9826],
+            [76.3239, 9.9829],
+            [76.3236, 9.9835],
+            [76.3229, 9.9832],
+            [76.3232, 9.9826]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "target": "large vehicle",
+        "class_id": 9,
+        "confidence": 0.742,
+        "cluster_id": null,
+        "is_hotspot": false,
+        "scene_id": "kerala_flood",
+        "description": "Emergency supply truck stranded on elevated road embankment"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [76.3310, 9.9890],
+            [76.3315, 9.9892],
+            [76.3313, 9.9896],
+            [76.3308, 9.9894],
+            [76.3310, 9.9890]
+          ]
+        ]
+      }
+    }
+  ]
+}

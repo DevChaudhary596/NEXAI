@@ -66,12 +66,62 @@ def polygon_iou(poly1_coords: List[List[float]], poly2_coords: List[List[float]]
         return 0.0
 
 
+def polygon_containment(poly1_coords: List[List[float]], poly2_coords: List[List[float]]) -> float:
+    """
+    Compute intersection over minimum area (containment ratio).
+    Detects if one detection is largely a sub-part or partial slice artifact of another.
+    """
+    try:
+        p1 = Polygon(poly1_coords)
+        p2 = Polygon(poly2_coords)
+        if not p1.is_valid:
+            p1 = p1.buffer(0)
+        if not p2.is_valid:
+            p2 = p2.buffer(0)
+        if p1.is_empty or p2.is_empty:
+            return 0.0
+        inter = p1.intersection(p2).area
+        min_area = min(p1.area, p2.area)
+        if min_area <= 0:
+            return 0.0
+        return inter / min_area
+    except Exception:
+        return 0.0
+
+
+def merge_obb_polygons(poly1_coords: List[List[float]], poly2_coords: List[List[float]]) -> List[List[float]]:
+    """
+    Merge two overlapping or boundary-split oriented bounding boxes into a cohesive
+    minimum rotated rectangle that covers both parts.
+    """
+    try:
+        p1 = Polygon(poly1_coords)
+        p2 = Polygon(poly2_coords)
+        if not p1.is_valid:
+            p1 = p1.buffer(0)
+        if not p2.is_valid:
+            p2 = p2.buffer(0)
+        union_poly = p1.union(p2)
+        mrr = union_poly.minimum_rotated_rectangle
+        coords = list(mrr.exterior.coords)[:-1]  # 4 corners
+        if len(coords) == 4:
+            return [[float(x), float(y)] for x, y in coords]
+    except Exception:
+        pass
+    return poly1_coords
+
+
 def nms_obb(
     detections: List[Dict[str, Any]],
-    iou_threshold: float = 0.4
+    iou_threshold: float = 0.4,
+    containment_threshold: float = 0.65,
+    boundary_overlap_threshold: float = 0.15,
+    smooth_boundaries: bool = True
 ) -> List[Dict[str, Any]]:
     """
-    Non-Maximum Suppression (NMS) for oriented bounding box detections.
+    Non-Maximum Suppression (NMS) and Cross-Tile Boundary Artifact Smoothing
+    for oriented bounding box detections.
+
     Each detection dict contains:
         - "coords": 4-corner [[x, y], ...] in image coordinates
         - "confidence": float
@@ -83,18 +133,50 @@ def nms_obb(
 
     # Sort descending by confidence
     detections = sorted(detections, key=lambda d: d["confidence"], reverse=True)
-    kept = []
+    kept: List[Dict[str, Any]] = []
 
     for det in detections:
         should_keep = True
-        for kept_det in kept:
-            # Only suppress within same target class
-            if det["class_name"] == kept_det["class_name"]:
-                iou = polygon_iou(det["coords"], kept_det["coords"])
-                if iou >= iou_threshold:
-                    should_keep = False
-                    break
+
+        for idx, kept_det in enumerate(kept):
+            # Only compare within the same target class
+            if det["class_name"] != kept_det["class_name"]:
+                continue
+
+            iou = polygon_iou(det["coords"], kept_det["coords"])
+            containment = polygon_containment(det["coords"], kept_det["coords"])
+
+            # 1. Standard IoU suppression
+            if iou >= iou_threshold:
+                if smooth_boundaries and iou < 0.85:
+                    merged_coords = merge_obb_polygons(kept_det["coords"], det["coords"])
+                    kept[idx]["coords"] = merged_coords
+                    kept[idx]["confidence"] = max(kept_det["confidence"], det["confidence"])
+                    kept[idx]["merged"] = True
+                should_keep = False
+                break
+
+            # 2. Containment suppression (sub-box slice artifacts)
+            if containment >= containment_threshold:
+                if smooth_boundaries:
+                    merged_coords = merge_obb_polygons(kept_det["coords"], det["coords"])
+                    kept[idx]["coords"] = merged_coords
+                    kept[idx]["confidence"] = max(kept_det["confidence"], det["confidence"])
+                    kept[idx]["merged"] = True
+                should_keep = False
+                break
+
+            # 3. Cross-tile boundary artifact smoothing (merging adjacent split slices)
+            if smooth_boundaries and (iou >= boundary_overlap_threshold or containment >= 0.30):
+                merged_coords = merge_obb_polygons(kept_det["coords"], det["coords"])
+                kept[idx]["coords"] = merged_coords
+                kept[idx]["confidence"] = max(kept_det["confidence"], det["confidence"])
+                kept[idx]["merged"] = True
+                should_keep = False
+                break
+
         if should_keep:
-            kept.append(det)
+            kept.append(dict(det))
 
     return kept
+

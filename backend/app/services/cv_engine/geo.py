@@ -182,3 +182,96 @@ def geo_bbox_to_pixel(bbox: Any, transform: Any) -> Tuple[int, int, int, int]:
     corners = [(w, s), (w, n), (e, s), (e, n)]
     cols, rows = zip(*(inv * (lon, lat) for lon, lat in corners))
     return int(round(min(cols))), int(round(min(rows))), int(round(max(cols))), int(round(max(rows)))
+
+
+def get_feature_centroid(feature: Any) -> Tuple[float, float]:
+    """Extract (x, y) centroid from a GeoJSON Feature or dict."""
+    try:
+        if hasattr(feature, "geometry"):
+            coords = feature.geometry.coordinates
+            gtype = feature.geometry.type
+        elif isinstance(feature, dict) and "geometry" in feature:
+            coords = feature["geometry"]["coordinates"]
+            gtype = feature["geometry"]["type"]
+        else:
+            return 0.0, 0.0
+
+        if gtype == "Polygon" and coords and len(coords[0]) > 0:
+            ring = coords[0]
+            xs = [pt[0] for pt in ring]
+            ys = [pt[1] for pt in ring]
+            return float(sum(xs) / len(xs)), float(sum(ys) / len(ys))
+        elif gtype == "MultiPolygon" and coords and len(coords[0]) > 0 and len(coords[0][0]) > 0:
+            ring = coords[0][0]
+            xs = [pt[0] for pt in ring]
+            ys = [pt[1] for pt in ring]
+            return float(sum(xs) / len(xs)), float(sum(ys) / len(ys))
+        elif gtype == "Point" and len(coords) >= 2:
+            return float(coords[0]), float(coords[1])
+    except Exception:
+        pass
+    return 0.0, 0.0
+
+
+def filter_features_by_spatial_constraint(
+    features: List[Any],
+    bounds: Tuple[float, float, float, float],
+    direction: str,
+    is_pixel_space: bool = False
+) -> List[Any]:
+    """
+    Filter detected features according to directional/quadrant constraints (Day 10).
+    Supported direction tokens:
+        - "north", "northern"
+        - "south", "southern"
+        - "east", "eastern"
+        - "west", "western"
+        - "northeast", "northwest", "southeast", "southwest"
+
+    bounds: (min_x, min_y, max_x, max_y)
+    is_pixel_space: True if Y increases downwards (image coordinates).
+    """
+    if not features or not direction:
+        return features
+
+    norm_dir = direction.strip().lower()
+    min_x, min_y, max_x, max_y = bounds
+    mid_x = (min_x + max_x) / 2.0
+    mid_y = (min_y + max_y) / 2.0
+
+    filtered = []
+    for feat in features:
+        cx, cy = get_feature_centroid(feat)
+
+        # In geographic CRS: North is +Y (higher lat). In pixel coords: North is -Y (smaller row).
+        is_north = (cy <= mid_y) if is_pixel_space else (cy >= mid_y)
+        is_south = not is_north
+        is_east = cx >= mid_x
+        is_west = not is_east
+
+        match = False
+        if norm_dir in ("north", "northern"):
+            match = is_north
+        elif norm_dir in ("south", "southern"):
+            match = is_south
+        elif norm_dir in ("east", "eastern"):
+            match = is_east
+        elif norm_dir in ("west", "western"):
+            match = is_west
+        elif norm_dir in ("northeast", "north-east"):
+            match = is_north and is_east
+        elif norm_dir in ("northwest", "north-west"):
+            match = is_north and is_west
+        elif norm_dir in ("southeast", "south-east"):
+            match = is_south and is_east
+        elif norm_dir in ("southwest", "south-west"):
+            match = is_south and is_west
+        else:
+            # Unrecognized direction token -> do not discard
+            match = True
+
+        if match:
+            filtered.append(feat)
+
+    return filtered
+

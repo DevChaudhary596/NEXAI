@@ -20,7 +20,7 @@ WatchableToolCall = DetectionCall | SegmentationCall | SpectralCall
 class CreateWatchRequest(Strict):
     """POST /api/v1/watches request body."""
 
-    email: EmailStr
+    email: str = Field(..., description="Notification target email address")
     label: str | None = Field(default=None, max_length=120)
     bbox: BBox
     tool_call: WatchableToolCall = Field(discriminator="action")

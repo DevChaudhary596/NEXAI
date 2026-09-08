@@ -60,6 +60,100 @@ MACRO_CATEGORIES: Dict[str, List[str]] = {
     "fields": ["soccer ball field", "ground track field", "baseball diamond"],
 }
 
+# Calibrated class-specific confidence thresholds for satellite / aerial domain (Day 9)
+CLASS_CONFIDENCE_THRESHOLDS: Dict[str, float] = {
+    "ship": 0.35,            # Filters out sea surface noise and whitecap waves
+    "plane": 0.40,           # Distinguishes aircraft from runway paint marks and taxiways
+    "storage tank": 0.30,    # Circular shapes in industrial zones
+    "harbor": 0.25,          # Large port/pier structures
+    "large vehicle": 0.45,   # Drastically suppresses building shadow false alarms
+    "small vehicle": 0.45,   # Suppresses small asphalt patches and vehicle shadows
+    "bridge": 0.30,          # Linear infrastructure
+    "baseball diamond": 0.35,
+    "tennis court": 0.35,
+    "basketball court": 0.35,
+    "ground track field": 0.35,
+    "soccer ball field": 0.35,
+    "swimming pool": 0.35,
+    "roundabout": 0.35,
+    "helicopter": 0.40,
+}
+
+
+def calculate_obb_properties(coords: List[List[float]]) -> Tuple[float, float, float]:
+    """
+    Calculate (length, width, area) from 4 corner coordinates [[x0, y0], [x1, y1], [x2, y2], [x3, y3]].
+    Returns (length, width, area).
+    """
+    try:
+        pts = np.array(coords, dtype=np.float32)
+        d01 = float(np.linalg.norm(pts[0] - pts[1]))
+        d12 = float(np.linalg.norm(pts[1] - pts[2]))
+        length = max(d01, d12)
+        width = min(d01, d12)
+        area = length * width
+        return length, width, area
+    except Exception:
+        return 0.0, 0.0, 0.0
+
+
+def prune_false_positives(
+    detections: List[Dict[str, Any]],
+    img_w: int,
+    img_h: int,
+    cloud_mask: Optional[np.ndarray] = None
+) -> List[Dict[str, Any]]:
+    """
+    Rule-based false-positive pruning for satellite/aerial detections (Day 13):
+      1. Vessel aspect-ratio verification: real ships have length/width ratio between 1.8 and 16.0.
+      2. Pixel area sanity bounds: reject tiny noise (< 25px²) or massive scene artifacts (> 25% of image).
+      3. Cloud/shadow mask rejection: reject objects that lie > 50% within cloud or shadow areas.
+    """
+    valid: List[Dict[str, Any]] = []
+    total_scene_area = float(img_w * img_h)
+
+    for det in detections:
+        coords = det.get("coords", [])
+        if len(coords) < 4:
+            continue
+
+        length, width, area = calculate_obb_properties(coords)
+
+        # 1. Area sanity filter
+        if area < 25.0:
+            continue
+        if total_scene_area > 0 and (area / total_scene_area) > 0.25:
+            continue
+
+        # 2. Aspect-ratio filter for vessels
+        cls_name = det.get("class_name", "").lower()
+        if cls_name == "ship" and width > 0:
+            aspect_ratio = length / width
+            # Very round blobs (< 1.5) are waves/buoys; needle artifacts (> 18) are edge errors
+            if aspect_ratio < 1.5 or aspect_ratio > 18.0:
+                continue
+
+        # 3. Cloud/shadow mask check
+        if cloud_mask is not None and cloud_mask.size > 0:
+            xs = [p[0] for p in coords]
+            ys = [p[1] for p in coords]
+            min_x = max(0, int(min(xs)))
+            max_x = min(cloud_mask.shape[1], int(max(xs)) + 1)
+            min_y = max(0, int(min(ys)))
+            max_y = min(cloud_mask.shape[0], int(max(ys)) + 1)
+
+            if max_x > min_x and max_y > min_y:
+                sub_mask = cloud_mask[min_y:max_y, min_x:max_x]
+                if sub_mask.size > 0:
+                    cloud_ratio = float(np.count_nonzero(sub_mask)) / float(sub_mask.size)
+                    if cloud_ratio > 0.50:
+                        continue  # More than 50% contaminated by cloud/shadow
+
+        valid.append(det)
+
+    return valid
+
+
 # Sentinel-2 10m/px Resolution Feasibility Mapping
 # Objects smaller than 30m (approx 3 pixels) are not reliably detectable.
 # [WARNING]: These are purely theoretical physics estimates. 
@@ -147,12 +241,15 @@ class RealOBBDetector:
         self,
         image_np: np.ndarray,
         target: str,
-        confidence_threshold: float = 0.5,
+        confidence_threshold: Optional[float] = None,
         tile_size: int = 640,
-        overlap_ratio: float = 0.2
+        overlap_ratio: float = 0.2,
+        cloud_mask: Optional[np.ndarray] = None,
+        smooth_boundaries: bool = True
     ) -> Tuple[List[Dict[str, Any]], Dict[str, float]]:
         """
-        Run real CPU detection on image array using SAHI slicing and confidence filtering.
+        Run real CPU detection on image array using SAHI slicing, class-calibrated confidence
+        filtering, boundary artifact smoothing, and rule-based false positive pruning.
         Returns (detections, benchmark_metrics).
         """
         metrics = {
@@ -179,8 +276,6 @@ class RealOBBDetector:
                 logging.debug("Target '%s' may be small for 10m resolution, proceeding with detector.", cls)
             elif cls in SENTINEL2_RELIABLE_CLASSES:
                 logging.info("Target '%s' is standard class for detection.", cls)
-
-
 
         img_h, img_w = image_np.shape[:2]
 
@@ -224,8 +319,15 @@ class RealOBBDetector:
 
                     for box_corners, conf, cls_id in zip(obb_boxes, confs, cls_ids):
                         cls_name = self.class_names.get(cls_id, str(cls_id)).lower()
+
+                        # Determine effective threshold: override if passed, else calibrated default
+                        if confidence_threshold is not None:
+                            effective_thresh = float(confidence_threshold)
+                        else:
+                            effective_thresh = CLASS_CONFIDENCE_THRESHOLDS.get(cls_name, 0.35)
+
                         # Strict confidence filtering
-                        if float(conf) < float(confidence_threshold):
+                        if float(conf) < effective_thresh:
                             continue
                         # Target class filtering
                         if cls_name not in target_classes:
@@ -245,13 +347,26 @@ class RealOBBDetector:
 
             total_post_time += (time.perf_counter() - t_post_start) * 1000.0
 
-        # 3. Merge overlapping detections across tiles with NMS
+        # 3. Merge overlapping detections across tiles with boundary smoothing NMS (Day 8)
         t_nms_start = time.perf_counter()
-        merged_detections = nms_obb(raw_detections, iou_threshold=0.4)
+        merged_detections = nms_obb(
+            raw_detections,
+            iou_threshold=0.4,
+            containment_threshold=0.65,
+            smooth_boundaries=smooth_boundaries
+        )
+
+        # 4. Rule-based false-positive pruning (Day 13)
+        pruned_detections = prune_false_positives(
+            merged_detections,
+            img_w=img_w,
+            img_h=img_h,
+            cloud_mask=cloud_mask
+        )
         total_post_time += (time.perf_counter() - t_nms_start) * 1000.0
 
         metrics["inference_time_ms"] = total_infer_time
         metrics["postprocess_time_ms"] = total_post_time
         metrics["total_time_ms"] = (time.perf_counter() - start_total) * 1000.0
 
-        return merged_detections, metrics
+        return pruned_detections, metrics

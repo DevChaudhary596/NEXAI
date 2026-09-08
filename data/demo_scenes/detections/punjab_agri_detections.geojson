@@ -1,0 +1,108 @@
+{
+  "type": "FeatureCollection",
+  "name": "punjab_agri_detections",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:OGC:1.3:CRS84"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "target": "storage tank",
+        "class_id": 2,
+        "confidence": 0.865,
+        "cluster_id": 0,
+        "is_hotspot": true,
+        "scene_id": "punjab_agri",
+        "description": "Grain silo cluster unit 1 in agricultural mandi complex"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [75.8410, 30.9020],
+            [75.8415, 30.9020],
+            [75.8415, 30.9025],
+            [75.8410, 30.9025],
+            [75.8410, 30.9020]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "target": "storage tank",
+        "class_id": 2,
+        "confidence": 0.841,
+        "cluster_id": 0,
+        "is_hotspot": true,
+        "scene_id": "punjab_agri",
+        "description": "Grain silo cluster unit 2"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [75.8418, 30.9020],
+            [75.8423, 30.9020],
+            [75.8423, 30.9025],
+            [75.8418, 30.9025],
+            [75.8418, 30.9020]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "target": "storage tank",
+        "class_id": 2,
+        "confidence": 0.819,
+        "cluster_id": 0,
+        "is_hotspot": true,
+        "scene_id": "punjab_agri",
+        "description": "Grain silo cluster unit 3"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [75.8426, 30.9020],
+            [75.8431, 30.9020],
+            [75.8431, 30.9025],
+            [75.8426, 30.9025],
+            [75.8426, 30.9020]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "target": "large vehicle",
+        "class_id": 9,
+        "confidence": 0.768,
+        "cluster_id": null,
+        "is_hotspot": false,
+        "scene_id": "punjab_agri",
+        "description": "Grain transport truck near harvesting parcel"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [75.8480, 30.9080],
+            [75.8485, 30.9082],
+            [75.8483, 30.9087],
+            [75.8478, 30.9085],
+            [75.8480, 30.9080]
+          ]
+        ]
+      }
+    }
+  ]
+}

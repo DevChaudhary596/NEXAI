@@ -1,0 +1,108 @@
+{
+  "type": "FeatureCollection",
+  "name": "vizag_port_detections",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:OGC:1.3:CRS84"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "target": "ship",
+        "class_id": 1,
+        "confidence": 0.942,
+        "cluster_id": 0,
+        "is_hotspot": true,
+        "scene_id": "vizag_port",
+        "description": "Capesize bulk carrier docked at northern ore berth"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [83.2940, 17.6910],
+            [83.2965, 17.6912],
+            [83.2963, 17.6922],
+            [83.2938, 17.6920],
+            [83.2940, 17.6910]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "target": "ship",
+        "class_id": 1,
+        "confidence": 0.918,
+        "cluster_id": 0,
+        "is_hotspot": true,
+        "scene_id": "vizag_port",
+        "description": "Container vessel berthed at western container terminal"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [83.2970, 17.6914],
+            [83.2990, 17.6915],
+            [83.2988, 17.6923],
+            [83.2968, 17.6922],
+            [83.2970, 17.6914]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "target": "ship",
+        "class_id": 1,
+        "confidence": 0.895,
+        "cluster_id": 0,
+        "is_hotspot": true,
+        "scene_id": "vizag_port",
+        "description": "Petroleum product tanker at inner harbor mooring"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [83.2995, 17.6916],
+            [83.3012, 17.6917],
+            [83.3010, 17.6924],
+            [83.2993, 17.6923],
+            [83.2995, 17.6916]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "target": "harbor",
+        "class_id": 7,
+        "confidence": 0.873,
+        "cluster_id": null,
+        "is_hotspot": false,
+        "scene_id": "vizag_port",
+        "description": "General cargo quay and harbor infrastructure"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [83.2930, 17.6895],
+            [83.3025, 17.6900],
+            [83.3020, 17.6910],
+            [83.2925, 17.6905],
+            [83.2930, 17.6895]
+          ]
+        ]
+      }
+    }
+  ]
+}
