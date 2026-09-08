@@ -51,7 +51,6 @@ def resolve_scene(scene_id: str) -> Path:
         return Path(s.scenes_dir) / f"{scene_id}.tif"
 
 
-def _summarise(tool_call, stats: dict[str, float], fc: FeatureCollection, has_roi: bool = False) -> str:
 def _get_scene_or_roi_crop(scene: Path, roi: Any) -> Path | None:
     """If scene exists and an ROI is specified, crop the image to the ROI
     so the VLM answers about the user's selected area rather than the full scene.
@@ -109,7 +108,7 @@ def _get_scene_or_roi_crop(scene: Path, roi: Any) -> Path | None:
     return scene
 
 
-def _summarise(tool_call, stats: dict[str, float], fc: FeatureCollection) -> str:
+def _summarise(tool_call, stats: dict[str, float], fc: FeatureCollection, has_roi: bool = False) -> str:
     """Deterministic factual context handed to the VLM for phrasing.
 
     The numbers are computed here, never generated. The VLM only turns them
