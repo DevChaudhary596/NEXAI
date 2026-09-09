@@ -9,12 +9,15 @@ from __future__ import annotations
 
 from pydantic import EmailStr, Field
 
+from typing import Literal
+
 from .common import BBox, Strict
 from .routing import DetectionCall, SegmentationCall, SpectralCall
 
 # VQA has no stats to diff against a previous pass, so it's excluded from
 # the watchable tool-call union (unlike the general ToolCall type).
 WatchableToolCall = DetectionCall | SegmentationCall | SpectralCall
+AlertStatus = Literal["open", "investigating", "resolved"]
 
 
 class CreateWatchRequest(Strict):
@@ -37,6 +40,13 @@ class WatchResponse(Strict):
     active: bool
 
 
+class UpdateAlertRequest(Strict):
+    status: AlertStatus | None = None
+    assigned_uid: str | None = None
+    triage_notes: str | None = None
+    seen: bool | None = None
+
+
 class AlertResponse(Strict):
     id: str
     watch_id: str
@@ -45,6 +55,9 @@ class AlertResponse(Strict):
     stats_before: dict[str, float]
     stats_after: dict[str, float]
     seen: bool
+    status: AlertStatus = "open"
+    assigned_uid: str | None = None
+    triage_notes: str | None = None
 
 
 class WatchListResponse(Strict):
@@ -53,3 +66,4 @@ class WatchListResponse(Strict):
 
 class AlertListResponse(Strict):
     alerts: list[AlertResponse]
+

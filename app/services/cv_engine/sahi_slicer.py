@@ -77,24 +77,41 @@ def nms_obb(
         - "confidence": float
         - "class_name": str
         - "class_id": int
+    Accelerated with AABB bounding-box overlap pruning to run in O(k) polygon tests.
     """
     if not detections:
         return []
 
     # Sort descending by confidence
     detections = sorted(detections, key=lambda d: d["confidence"], reverse=True)
-    kept = []
-
+    
+    # Pre-calculate AABBs for ultra-fast candidate rejection
+    aabbs = []
     for det in detections:
+        coords = det["coords"]
+        xs = [pt[0] for pt in coords]
+        ys = [pt[1] for pt in coords]
+        aabbs.append((min(xs), min(ys), max(xs), max(ys)))
+
+    kept: List[Dict[str, Any]] = []
+    kept_aabbs: List[Tuple[float, float, float, float]] = []
+
+    for det, (x1, y1, x2, y2) in zip(detections, aabbs):
         should_keep = True
-        for kept_det in kept:
+        for kept_det, (kx1, ky1, kx2, ky2) in zip(kept, kept_aabbs):
             # Only suppress within same target class
             if det["class_name"] == kept_det["class_name"]:
+                # Fast AABB disjoint test - if bounding boxes do not overlap, IoU is strictly 0
+                if x2 < kx1 or x1 > kx2 or y2 < ky1 or y1 > ky2:
+                    continue
+
                 iou = polygon_iou(det["coords"], kept_det["coords"])
                 if iou >= iou_threshold:
                     should_keep = False
                     break
         if should_keep:
             kept.append(det)
+            kept_aabbs.append((x1, y1, x2, y2))
 
     return kept
+
