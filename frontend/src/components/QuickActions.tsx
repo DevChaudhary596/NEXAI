@@ -8,6 +8,7 @@ export type QuickActionKey =
   | "detect_changes"
   | "analyze_terrain"
   | "ndvi_vegetation"
+  | "ndwi_flood_extent"
   | "track_infrastructure"
   | "upload_scene"
   | "custom_query";
@@ -27,6 +28,7 @@ const ACTIONS: {
   { key: "detect_changes", label: "Detect", subLabel: "Changes", icon: GitCompare },
   { key: "analyze_terrain", label: "Analyze", subLabel: "Terrain", icon: Mountain },
   { key: "ndvi_vegetation", label: "NDVI", subLabel: "Vegetation", icon: Leaf },
+  { key: "ndwi_flood_extent", label: "Flood", subLabel: "NDWI Extent", icon: Scan },
   { key: "track_infrastructure", label: "Track", subLabel: "Infrastructure", icon: Building2 },
 ];
 

@@ -1,24 +1,35 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Search, Globe, X, Maximize2, Minimize2, UploadCloud } from "lucide-react";
+import { Search, X, Sun, Moon, Bell } from "lucide-react";
+import type { Classification, WorkspaceResponse } from "@/types";
+import type { NavItemKey } from "@/components/Sidebar";
 
 interface TopNavProps {
   onSearchSubmit: (query: string) => void;
-  onNavClick: (section: string) => void;
-  activeSection: string;
-  isFullScreen?: boolean;
-  onToggleFullScreen?: () => void;
-  onResetGlobe?: () => void;
+  activeTab?: NavItemKey;
+  onTabChange?: (tab: NavItemKey) => void;
+  workspaces?: WorkspaceResponse[];
+  activeWorkspaceId?: string | null;
+  onWorkspaceSelect?: (workspaceId: string) => void;
+  onWorkspaceCreate?: (name: string, classification: Classification) => Promise<void>;
+  isLightMode?: boolean;
+  onToggleTheme?: () => void;
+  onOpenNotifications?: () => void;
+  onOpenProfile?: () => void;
 }
 
 export default function TopNav({
   onSearchSubmit,
-  onNavClick,
-  activeSection,
-  isFullScreen = false,
-  onToggleFullScreen,
-  onResetGlobe,
+  activeTab = "dashboard",
+  onTabChange,
+  workspaces = [],
+  activeWorkspaceId,
+  onWorkspaceSelect,
+  isLightMode = false,
+  onToggleTheme,
+  onOpenNotifications,
+  onOpenProfile,
 }: TopNavProps) {
   const [query, setQuery] = useState("");
 
@@ -43,28 +54,50 @@ export default function TopNav({
 
   return (
     <header className="theme-topnav">
-      {/* Section Navigation Links */}
-      <div className="theme-topnav__links">
-        {["EXPLORE", "ANALYZE", "UPLOAD", "MONITOR", "REPORTS"].map((item) => (
-          <button
-            key={item}
-            onClick={() => onNavClick(item.toLowerCase())}
-            className={`theme-topnav__link ${
-              activeSection === item.toLowerCase() ? "theme-topnav__link--active" : ""
-            }`}
-          >
-            {item}
-          </button>
-        ))}
+      {/* Left: Subtle divider slash matching theme.jpg */}
+      <div className="theme-topnav__left">
+        <span className="theme-topnav__slash select-none">/</span>
       </div>
+
+      {/* Centered Navigation Tabs (Matching theme.jpg) */}
+      <nav className="theme-topnav__links" aria-label="Main sections">
+        <button
+          type="button"
+          onClick={() => onTabChange?.("explore")}
+          className={`theme-topnav__link ${activeTab === "explore" ? "theme-topnav__link--active" : ""}`}
+        >
+          EXPLORE
+        </button>
+        <button
+          type="button"
+          onClick={() => onTabChange?.("analysis")}
+          className={`theme-topnav__link ${activeTab === "analysis" ? "theme-topnav__link--active" : ""}`}
+        >
+          ANALYZE
+        </button>
+        <button
+          type="button"
+          onClick={() => onTabChange?.("monitor")}
+          className={`theme-topnav__link ${activeTab === "monitor" ? "theme-topnav__link--active" : ""}`}
+        >
+          MONITOR
+        </button>
+        <button
+          type="button"
+          onClick={() => onTabChange?.("reports")}
+          className={`theme-topnav__link ${activeTab === "reports" ? "theme-topnav__link--active" : ""}`}
+        >
+          REPORTS
+        </button>
+      </nav>
 
       {/* Global Search Bar (Matching theme.jpg) */}
       <form onSubmit={handleSubmit} className="theme-topnav__search">
-        <Search size={15} className="theme-topnav__search-icon" />
+        <Search size={14} className="theme-topnav__search-icon" />
         <input
           id="top-search-input"
           type="text"
-          placeholder="Search any airport, city, or coordinates..."
+          placeholder="Search for a location, asset, or ask anything..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="theme-topnav__search-input"
@@ -74,6 +107,7 @@ export default function TopNav({
             type="button"
             className="theme-topnav__search-clear"
             onClick={() => setQuery("")}
+            title="Clear search"
           >
             <X size={12} />
           </button>
@@ -81,42 +115,51 @@ export default function TopNav({
         <kbd className="theme-topnav__kbd">⌘K</kbd>
       </form>
 
-      {/* Right Controls: Upload, Globe & Fullscreen */}
+      {/* Right Controls matching theme.jpg: Sun, Bell, Avatar, Slogan */}
       <div className="theme-topnav__right">
-        {/* Upload GeoTIFF Button */}
+        {/* Day / Night Theme Toggle */}
         <button
           type="button"
-          onClick={() => onNavClick("upload")}
-          className="theme-topnav__upload-btn"
-          title="Upload Custom GeoTIFF / Ingest Scene"
+          className="theme-topnav__circle-btn"
+          onClick={onToggleTheme}
+          title={isLightMode ? "Switch to Dark Orbit Mode" : "Switch to Daylight Mode"}
+          aria-label="Toggle theme"
         >
-          <UploadCloud size={14} />
-          <span>Upload</span>
+          {isLightMode ? <Moon size={14} color="#f59e0b" /> : <Sun size={14} />}
         </button>
 
-        {/* Reset to Global Space Orbit */}
-        {onResetGlobe && (
-          <button
-            type="button"
-            onClick={onResetGlobe}
-            className="theme-topnav__icon-btn"
-            title="Reset Global Earth Orbit View"
-          >
-            <Globe size={16} />
-          </button>
-        )}
+        {/* Notifications Trigger */}
+        <button
+          type="button"
+          className="theme-topnav__circle-btn"
+          onClick={onOpenNotifications}
+          title="Notifications & Live Sentinel Passes"
+          aria-label="Notifications"
+        >
+          <Bell size={14} />
+          <span className="theme-topnav__circle-dot" />
+        </button>
 
-        {/* Maximize Globe to Full Screen */}
-        {onToggleFullScreen && (
-          <button
-            type="button"
-            onClick={onToggleFullScreen}
-            className="theme-topnav__icon-btn theme-topnav__icon-btn--fullscreen"
-            title={isFullScreen ? "Exit Fullscreen (ESC)" : "Maximize 3D Globe Fullscreen"}
-          >
-            <Maximize2 size={16} />
-          </button>
-        )}
+        {/* User Profile Avatar "A" */}
+        <div
+          className="theme-topnav__avatar"
+          onClick={onOpenProfile}
+          title="Account Profile & Settings"
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") onOpenProfile?.();
+          }}
+        >
+          A
+        </div>
+
+        {/* Top-right Slogan */}
+        <div className="theme-topnav__slogan select-none">
+          <span>PLANET</span>
+          <span>PEOPLE</span>
+          <span>POSSIBILITIES</span>
+        </div>
       </div>
     </header>
   );

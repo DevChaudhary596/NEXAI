@@ -18,8 +18,9 @@ import {
   Layers,
   Sparkles,
   X,
+  SquareDashed,
 } from "lucide-react";
-import type { FeatureCollection, FeatureSource, RasterOverlay } from "@/types";
+import type { FeatureCollection, FeatureSource, RasterOverlay, ROI } from "@/types";
 import { getTileUrl } from "@/lib/api";
 import { searchPlaces, GeocodeResult } from "@/lib/geocode";
 
@@ -35,9 +36,17 @@ export interface FlyToTarget {
   pitch?: number;
 }
 
+export interface LiveViewportCapture {
+  image_base64: string;
+  bounds: number[];
+  label?: string;
+  is_roi: boolean;
+}
+
 interface Cesium3DViewProps {
   sceneId: string | null;
   sceneBounds: number[] | null;
+  sceneName?: string | null;
   geojson: FeatureCollection | null;
   overlays?: RasterOverlay[] | null;
   flyToTarget?: FlyToTarget | null;
@@ -45,6 +54,10 @@ interface Cesium3DViewProps {
   onFallbackTo2D?: () => void;
   isFullScreen?: boolean;
   onToggleFullScreen?: () => void;
+  onUnmountScene?: () => void;
+  roi?: ROI | null;
+  onROIChange?: (roi: ROI | null) => void;
+  onRegisterCapture?: (fn: () => Promise<LiveViewportCapture | null>) => void;
 }
 
 /** Low Earth Orbit Satellite Specification */
@@ -126,15 +139,15 @@ const EXTRUSION_HEIGHT: Record<FeatureSource, number> = {
 
 const QUICK_PRESETS = [
   { name: "Space Orbit", lon: 77.2090, lat: 28.6139, height: 16000000, pitch: -90, isAirport: false },
-  { name: "SFO Airport", lon: -122.375, lat: 37.619, height: 1600, pitch: -45, isAirport: true },
-  { name: "JFK Runway", lon: -73.7781, lat: 40.6413, height: 1800, pitch: -45, isAirport: true },
-  { name: "Heathrow (LHR)", lon: -0.4543, lat: 51.4700, height: 1400, pitch: -45, isAirport: true },
-  { name: "Tokyo Haneda", lon: 139.7798, lat: 35.5494, height: 1500, pitch: -45, isAirport: true },
-  { name: "Dubai Intl", lon: 55.3644, lat: 25.2532, height: 1600, pitch: -45, isAirport: true },
-  { name: "Delhi IGI Airport", lon: 77.1000, lat: 28.5562, height: 1800, pitch: -45, isAirport: true },
-  { name: "Suez Canal", lon: 32.3425, lat: 30.5852, height: 3500, pitch: -50, isAirport: false },
-  { name: "Mumbai Port", lon: 72.95, lat: 18.95, height: 4500, pitch: -50, isAirport: false },
-  { name: "Kaziranga Basin", lon: 93.17, lat: 26.58, height: 8000, pitch: -60, isAirport: false },
+  { name: "SFO Airport", lon: -122.375, lat: 37.619, height: 1600, pitch: -90, isAirport: true },
+  { name: "JFK Runway", lon: -73.7781, lat: 40.6413, height: 1800, pitch: -90, isAirport: true },
+  { name: "Heathrow (LHR)", lon: -0.4543, lat: 51.4700, height: 1400, pitch: -90, isAirport: true },
+  { name: "Tokyo Haneda", lon: 139.7798, lat: 35.5494, height: 1500, pitch: -90, isAirport: true },
+  { name: "Dubai Intl", lon: 55.3644, lat: 25.2532, height: 1600, pitch: -90, isAirport: true },
+  { name: "Delhi IGI Airport", lon: 77.1000, lat: 28.5562, height: 1800, pitch: -90, isAirport: true },
+  { name: "Suez Canal", lon: 32.3425, lat: 30.5852, height: 3500, pitch: -90, isAirport: false },
+  { name: "Mumbai Port", lon: 72.95, lat: 18.95, height: 4500, pitch: -90, isAirport: false },
+  { name: "Kaziranga Basin", lon: 93.17, lat: 26.58, height: 8000, pitch: -90, isAirport: false },
 ];
 
 const SATELLITE_SVG = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
@@ -143,8 +156,8 @@ const SATELLITE_SVG = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/200
   <line x1="2" y1="26.5" x2="16" y2="26.5" stroke="%2338bdf8" stroke-width="0.8"/>
   <line x1="9" y1="16" x2="9" y2="32" stroke="%2338bdf8" stroke-width="0.8"/>
   <line x1="16" y1="24" x2="20" y2="24" stroke="%23cbd5e1" stroke-width="2.2"/>
-  <rect x="20" y="16" width="8" height="16" rx="2" fill="%23f8fafc" stroke="%23475569" stroke-width="1.2"/>
-  <circle cx="24" cy="24" r="2.5" fill="%2322d3ee"/>
+  <rect x="20" y="14" width="8" height="20" rx="2" fill="%23e2e8f0" stroke="%230284c7" stroke-width="1.2"/>
+  <circle cx="24" cy="24" r="2.5" fill="%230284c7"/>
   <line x1="28" y1="24" x2="32" y2="24" stroke="%23cbd5e1" stroke-width="2.2"/>
   <rect x="32" y="16" width="14" height="16" rx="1.5" fill="%231e3a8a" stroke="%2338bdf8" stroke-width="1.2"/>
   <line x1="32" y1="21.5" x2="46" y2="21.5" stroke="%2338bdf8" stroke-width="0.8"/>
@@ -177,6 +190,7 @@ function computeOrbitCartesian(
 export default function Cesium3DView({
   sceneId,
   sceneBounds,
+  sceneName,
   geojson,
   overlays,
   flyToTarget,
@@ -184,6 +198,10 @@ export default function Cesium3DView({
   onFallbackTo2D,
   isFullScreen = false,
   onToggleFullScreen,
+  onUnmountScene,
+  roi,
+  onROIChange,
+  onRegisterCapture,
 }: Cesium3DViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Cesium.Viewer | null>(null);
@@ -195,6 +213,12 @@ export default function Cesium3DView({
   const satellitesDataSourceRef = useRef<Cesium.CustomDataSource | null>(null);
   const overlayLayersRef = useRef<Cesium.ImageryLayer[]>([]);
 
+  // ROI drawing & persistent visualization refs
+  const roiEntityRef = useRef<Cesium.Entity | null>(null);
+  const drawHandlerRef = useRef<Cesium.ScreenSpaceEventHandler | null>(null);
+  const drawingEntityRef = useRef<Cesium.Entity | null>(null);
+  const [isDrawingAOI, setIsDrawingAOI] = useState(false);
+
   const [ready, setReady] = useState(false);
   const [webglError, setWebglError] = useState(false);
   const [coords, setCoords] = useState({
@@ -204,7 +228,8 @@ export default function Cesium3DView({
   });
   const [autoRotate, setAutoRotate] = useState(false);
   const [feedExpanded, setFeedExpanded] = useState(false);
-  const [activeBasemap, setActiveBasemap] = useState<"google" | "esri">("google");
+  const [activeBasemap, setActiveBasemap] = useState<"google" | "esri" | "clarity">("google");
+  const [showBasemapMenu, setShowBasemapMenu] = useState(false);
   const [showLabels, setShowLabels] = useState(false);
 
   // Search state
@@ -235,11 +260,11 @@ export default function Cesium3DView({
       // Web Mercator tiling scheme is crucial so zoom levels 18-21 align correctly
       const webMercator = new Cesium.WebMercatorTilingScheme();
 
-      // Google Satellite Tiles (Level 0 - 21) — Sub-meter high-res down to individual airplanes
+      // Google Satellite Tiles (Level 0 - 19 with GPU upsampling for closer zooms)
       const googleImagery = new Cesium.UrlTemplateImageryProvider({
         url: "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
         tilingScheme: webMercator,
-        maximumLevel: 21,
+        maximumLevel: 19,
         credit: new Cesium.Credit("Satellite Imagery © Google"),
       });
 
@@ -250,7 +275,7 @@ export default function Cesium3DView({
             depth: true,
             stencil: false,
             antialias: true,
-            preserveDrawingBuffer: false,
+            preserveDrawingBuffer: true,
             failIfMajorPerformanceCaveat: false,
           },
         },
@@ -285,9 +310,9 @@ export default function Cesium3DView({
       return;
     }
 
-    // ── Camera Controller Zoom Optimization (Allowing close-up airport zoom) ──
+    // ── Camera Controller Zoom Optimization (Allowing close-up airport & port zoom) ──
     const controller = viewer.scene.screenSpaceCameraController;
-    controller.minimumZoomDistance = 20.0; // allows zooming in right down to 20 meters!
+    controller.minimumZoomDistance = 10.0; // allows zooming in right down to 10 meters!
     controller.maximumZoomDistance = 45000000.0;
     controller.inertiaZoom = 0.85;
     controller.enableCollisionDetection = false; // Prevents getting locked above ground
@@ -317,7 +342,7 @@ export default function Cesium3DView({
       destination: Cesium.Cartesian3.fromDegrees(78.9629, 20.5937, 16000000),
       orientation: {
         heading: Cesium.Math.toRadians(0),
-        pitch: Cesium.Math.toRadians(-88),
+        pitch: Cesium.Math.toRadians(-90),
         roll: 0.0,
       },
     });
@@ -475,26 +500,29 @@ export default function Cesium3DView({
     return () => clearTimeout(timer);
   }, [isFullScreen]);
 
-  // ── Switch Basemap Provider (Google vs Esri) ─────────────────────────
-  const switchBasemap = useCallback((type: "google" | "esri") => {
+  // ── Switch Basemap Provider (Google vs Esri vs Clarity) ──────────────
+  const switchBasemap = useCallback((type: "google" | "esri" | "clarity") => {
     if (!viewerRef.current) return;
     const viewer = viewerRef.current;
     const webMercator = new Cesium.WebMercatorTilingScheme();
 
-    const provider =
-      type === "google"
-        ? new Cesium.UrlTemplateImageryProvider({
-            url: "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
-            tilingScheme: webMercator,
-            maximumLevel: 21,
-            credit: new Cesium.Credit("Satellite Imagery © Google"),
-          })
-        : new Cesium.UrlTemplateImageryProvider({
-            url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-            tilingScheme: webMercator,
-            maximumLevel: 19,
-            credit: new Cesium.Credit("Tiles © Esri"),
-          });
+    let url = "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}";
+    let credit = "Satellite Imagery © Google";
+
+    if (type === "esri") {
+      url = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+      credit = "Tiles © Esri World Imagery";
+    } else if (type === "clarity") {
+      url = "https://clarity.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+      credit = "Tiles © Esri Clarity Archive";
+    }
+
+    const provider = new Cesium.UrlTemplateImageryProvider({
+      url,
+      tilingScheme: webMercator,
+      maximumLevel: 19, // Level 19 avoids "Map data not yet available" 404s and enables GPU upsampling
+      credit: new Cesium.Credit(credit),
+    });
 
     if (baseImageryLayerRef.current) {
       viewer.imageryLayers.remove(baseImageryLayerRef.current, true);
@@ -502,6 +530,7 @@ export default function Cesium3DView({
     const newBase = viewer.imageryLayers.addImageryProvider(provider, 0);
     baseImageryLayerRef.current = newBase;
     setActiveBasemap(type);
+    setShowBasemapMenu(false);
   }, []);
 
   // Toggle Labels Layer
@@ -511,6 +540,251 @@ export default function Cesium3DView({
     labelsImageryLayerRef.current.show = next;
     setShowLabels(next);
   }, [showLabels]);
+
+  // ── Render Persistent Drawn ROI Box on Globe ──────────────────────
+  useEffect(() => {
+    if (!ready || !viewerRef.current) return;
+    const viewer = viewerRef.current;
+
+    if (roiEntityRef.current) {
+      viewer.entities.remove(roiEntityRef.current);
+      roiEntityRef.current = null;
+    }
+
+    if (!roi || !roi.bbox) return;
+
+    const { west, south, east, north } = roi.bbox;
+    const rect = Cesium.Rectangle.fromDegrees(west, south, east, north);
+
+    const entity = viewer.entities.add({
+      id: "active-user-roi",
+      name: "Selected Analysis Area (AOI)",
+      rectangle: {
+        coordinates: rect,
+        material: Cesium.Color.fromCssColorString("#22d3ee").withAlpha(0.2),
+        outline: true,
+        outlineColor: Cesium.Color.fromCssColorString("#00f2fe"),
+        outlineWidth: 3,
+      },
+    });
+    roiEntityRef.current = entity;
+  }, [ready, roi]);
+
+  // ── Interactive AOI Drawing on 3D Earth Surface ───────────────────
+  const startDrawingAOI = useCallback(() => {
+    if (!viewerRef.current) return;
+    const viewer = viewerRef.current;
+
+    if (roiEntityRef.current) {
+      viewer.entities.remove(roiEntityRef.current);
+      roiEntityRef.current = null;
+    }
+    if (drawingEntityRef.current) {
+      viewer.entities.remove(drawingEntityRef.current);
+      drawingEntityRef.current = null;
+    }
+    if (drawHandlerRef.current) {
+      drawHandlerRef.current.destroy();
+      drawHandlerRef.current = null;
+    }
+
+    setIsDrawingAOI(true);
+    viewer.scene.screenSpaceCameraController.enableInputs = false;
+
+    const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+    drawHandlerRef.current = handler;
+
+    let startLon = 0;
+    let startLat = 0;
+    let currLon = 0;
+    let currLat = 0;
+    let isMouseDown = false;
+
+    handler.setInputAction((click: { position: Cesium.Cartesian2 }) => {
+      const ray = viewer.camera.getPickRay(click.position);
+      if (!ray) return;
+      const cartesian = viewer.scene.globe.pick(ray, viewer.scene);
+      if (!cartesian) return;
+
+      const carto = Cesium.Cartographic.fromCartesian(cartesian);
+      startLon = Cesium.Math.toDegrees(carto.longitude);
+      startLat = Cesium.Math.toDegrees(carto.latitude);
+      currLon = startLon;
+      currLat = startLat;
+      isMouseDown = true;
+
+      const dynamicCallback = new Cesium.CallbackProperty(() => {
+        const minLon = Math.min(startLon, currLon);
+        const maxLon = Math.max(startLon, currLon);
+        const minLat = Math.min(startLat, currLat);
+        const maxLat = Math.max(startLat, currLat);
+        return Cesium.Rectangle.fromDegrees(minLon, minLat, maxLon, maxLat);
+      }, false);
+
+      drawingEntityRef.current = viewer.entities.add({
+        id: "temp-drawing-aoi",
+        rectangle: {
+          coordinates: dynamicCallback,
+          material: Cesium.Color.fromCssColorString("#22d3ee").withAlpha(0.24),
+          outline: true,
+          outlineColor: Cesium.Color.fromCssColorString("#00f2fe"),
+          outlineWidth: 2.5,
+        },
+      });
+    }, Cesium.ScreenSpaceEventType.LEFT_DOWN);
+
+    handler.setInputAction((movement: { endPosition: Cesium.Cartesian2 }) => {
+      if (!isMouseDown) return;
+      const ray = viewer.camera.getPickRay(movement.endPosition);
+      if (!ray) return;
+      const cartesian = viewer.scene.globe.pick(ray, viewer.scene);
+      if (!cartesian) return;
+
+      const carto = Cesium.Cartographic.fromCartesian(cartesian);
+      currLon = Cesium.Math.toDegrees(carto.longitude);
+      currLat = Cesium.Math.toDegrees(carto.latitude);
+    }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+
+    handler.setInputAction(() => {
+      if (!isMouseDown) return;
+      isMouseDown = false;
+
+      const west = Math.min(startLon, currLon);
+      const east = Math.max(startLon, currLon);
+      const south = Math.min(startLat, currLat);
+      const north = Math.max(startLat, currLat);
+
+      if (drawingEntityRef.current) {
+        viewer.entities.remove(drawingEntityRef.current);
+        drawingEntityRef.current = null;
+      }
+      handler.destroy();
+      drawHandlerRef.current = null;
+      viewer.scene.screenSpaceCameraController.enableInputs = true;
+      setIsDrawingAOI(false);
+
+      if (Math.abs(east - west) > 0.0001 && Math.abs(north - south) > 0.0001) {
+        const newRoi: ROI = {
+          type: "bbox",
+          bbox: { west, south, east, north },
+          crs: "EPSG:4326",
+        };
+        onROIChange?.(newRoi);
+      }
+    }, Cesium.ScreenSpaceEventType.LEFT_UP);
+  }, [onROIChange]);
+
+  const cancelDrawingAOI = useCallback(() => {
+    if (!viewerRef.current) return;
+    const viewer = viewerRef.current;
+    if (drawingEntityRef.current) {
+      viewer.entities.remove(drawingEntityRef.current);
+      drawingEntityRef.current = null;
+    }
+    if (drawHandlerRef.current) {
+      drawHandlerRef.current.destroy();
+      drawHandlerRef.current = null;
+    }
+    viewer.scene.screenSpaceCameraController.enableInputs = true;
+    setIsDrawingAOI(false);
+  }, []);
+
+  // Cancel drawing on Esc key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isDrawingAOI) {
+        cancelDrawingAOI();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isDrawingAOI, cancelDrawingAOI]);
+
+  // ── Live Viewport & AOI Canvas Snapshot Capture ────────────────────
+  const captureSnapshot = useCallback(async (): Promise<LiveViewportCapture | null> => {
+    if (!viewerRef.current) return null;
+    const viewer = viewerRef.current;
+
+    viewer.render();
+    const canvas = viewer.scene.canvas;
+    if (!canvas) return null;
+
+    // 1. If an active drawn ROI exists, crop the canvas to it
+    if (roi && roi.bbox) {
+      const { west, south, east, north } = roi.bbox;
+      const c1 = Cesium.Cartesian3.fromDegrees(west, north);
+      const c2 = Cesium.Cartesian3.fromDegrees(east, south);
+      const w1 = Cesium.SceneTransforms.worldToWindowCoordinates(viewer.scene, c1);
+      const w2 = Cesium.SceneTransforms.worldToWindowCoordinates(viewer.scene, c2);
+
+      if (w1 && w2) {
+        const minX = Math.max(0, Math.min(w1.x, w2.x));
+        const maxX = Math.min(canvas.width, Math.max(w1.x, w2.x));
+        const minY = Math.max(0, Math.min(w1.y, w2.y));
+        const maxY = Math.min(canvas.height, Math.max(w1.y, w2.y));
+        const cropW = maxX - minX;
+        const cropH = maxY - minY;
+
+        if (cropW > 30 && cropH > 30) {
+          const offscreen = document.createElement("canvas");
+          offscreen.width = cropW;
+          offscreen.height = cropH;
+          const ctx = offscreen.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(canvas, minX, minY, cropW, cropH, 0, 0, cropW, cropH);
+            const dataUrl = offscreen.toDataURL("image/jpeg", 0.90);
+            return {
+              image_base64: dataUrl,
+              bounds: [west, south, east, north],
+              label: `Drawn AOI (${((south + north) / 2).toFixed(3)}°N, ${((west + east) / 2).toFixed(3)}°E)`,
+              is_roi: true,
+            };
+          }
+        }
+      }
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.88);
+      return {
+        image_base64: dataUrl,
+        bounds: [west, south, east, north],
+        label: `Drawn AOI (${((south + north) / 2).toFixed(3)}°N, ${((west + east) / 2).toFixed(3)}°E)`,
+        is_roi: true,
+      };
+    }
+
+    // 2. Full visible viewport capture
+    const rect = viewer.camera.computeViewRectangle(viewer.scene.globe.ellipsoid);
+    let west = -180, south = -90, east = 180, north = 90;
+    if (rect) {
+      west = Cesium.Math.toDegrees(rect.west);
+      south = Cesium.Math.toDegrees(rect.south);
+      east = Cesium.Math.toDegrees(rect.east);
+      north = Cesium.Math.toDegrees(rect.north);
+    } else {
+      const pos = viewer.camera.positionCartographic;
+      const lon = Cesium.Math.toDegrees(pos.longitude);
+      const lat = Cesium.Math.toDegrees(pos.latitude);
+      const h = pos.height;
+      const delta = Math.min(1.0, Math.max(0.005, (h / 111000) * 0.5));
+      west = lon - delta;
+      east = lon + delta;
+      south = lat - delta;
+      north = lat + delta;
+    }
+
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.88);
+    return {
+      image_base64: dataUrl,
+      bounds: [west, south, east, north],
+      label: `Live Map View (${((south + north) / 2).toFixed(3)}°N, ${((west + east) / 2).toFixed(3)}°E)`,
+      is_roi: false,
+    };
+  }, [roi]);
+
+  useEffect(() => {
+    if (onRegisterCapture) {
+      onRegisterCapture(captureSnapshot);
+    }
+  }, [captureSnapshot, onRegisterCapture]);
 
   // ── Drape Scene when loaded ──────────────────────────────────────────
   useEffect(() => {
@@ -539,25 +813,13 @@ export default function Cesium3DView({
 
     sceneLayerRef.current = viewer.imageryLayers.addImageryProvider(sceneProvider);
 
-    // 3D display frame around the raster
-    const wallHeight = 22;
-    const corners: [number, number][] = [
-      [west, south],
-      [east, south],
-      [east, north],
-      [west, north],
-      [west, south],
-    ];
-    const positions = corners.flatMap(([lon, lat]) => [lon, lat]);
-
+    // Clean display boundary around the raster on the terrain surface
     const frameEntity = viewer.entities.add({
-      wall: {
-        positions: Cesium.Cartesian3.fromDegreesArray(positions),
-        maximumHeights: corners.map(() => wallHeight),
-        minimumHeights: corners.map(() => 0),
-        material: Cesium.Color.fromBytes(34, 211, 238, 90),
+      rectangle: {
+        coordinates: rectangle,
+        material: Cesium.Color.fromBytes(34, 211, 238, 15),
         outline: true,
-        outlineColor: Cesium.Color.fromBytes(34, 211, 238, 255),
+        outlineColor: Cesium.Color.fromBytes(34, 211, 238, 220),
         outlineWidth: 2,
       },
     });
@@ -566,13 +828,13 @@ export default function Cesium3DView({
     const sw = Cesium.Cartesian3.fromDegrees(west, south);
     const ne = Cesium.Cartesian3.fromDegrees(east, north);
     const sceneDiagonal = Cesium.Cartesian3.distance(sw, ne);
-    const range = Math.max(sceneDiagonal * 2.0, 350);
+    const range = Math.max(sceneDiagonal * 1.6, 350);
 
     viewer.flyTo(frameEntity, {
       duration: 1.8,
       offset: new Cesium.HeadingPitchRange(
-        Cesium.Math.toRadians(-20),
-        Cesium.Math.toRadians(-40),
+        0,
+        Cesium.Math.toRadians(-89.9),
         range
       ),
     });
@@ -679,7 +941,7 @@ export default function Cesium3DView({
   // ── Fly to Target Effect (triggered from Global Search, Recent Projects, Quick Actions) ──
   useEffect(() => {
     if (!ready || !viewerRef.current || !flyToTarget) return;
-    const { lon, lat, height, pitch = -45 } = flyToTarget;
+    const { lon, lat, height, pitch = -90 } = flyToTarget;
     viewerRef.current.camera.flyTo({
       destination: Cesium.Cartesian3.fromDegrees(lon, lat, Math.max(height, 50)),
       orientation: {
@@ -729,7 +991,7 @@ export default function Cesium3DView({
         destination: Cesium.Cartesian3.fromDegrees(result.lon, result.lat, 1600),
         orientation: {
           heading: Cesium.Math.toRadians(0),
-          pitch: Cesium.Math.toRadians(-45),
+          pitch: Cesium.Math.toRadians(-90),
           roll: 0.0,
         },
         duration: 1.8,
@@ -753,16 +1015,18 @@ export default function Cesium3DView({
 
   const handleZoomIn = () => {
     if (!viewerRef.current) return;
-    const h = viewerRef.current.camera.positionCartographic.height;
-    const step = h > 50000 ? h * 0.5 : h > 5000 ? h * 0.4 : Math.max(h * 0.35, 80);
-    viewerRef.current.camera.zoomIn(step);
+    const camera = viewerRef.current.camera;
+    const h = camera.positionCartographic.height;
+    const step = h > 50000 ? h * 0.5 : h > 5000 ? h * 0.4 : h > 500 ? h * 0.35 : Math.max(h * 0.3, 10);
+    camera.zoomIn(step);
   };
 
   const handleZoomOut = () => {
     if (!viewerRef.current) return;
-    const h = viewerRef.current.camera.positionCartographic.height;
-    const step = h > 50000 ? h * 0.6 : h > 5000 ? h * 0.5 : Math.max(h * 0.45, 120);
-    viewerRef.current.camera.zoomOut(step);
+    const camera = viewerRef.current.camera;
+    const h = camera.positionCartographic.height;
+    const step = h > 50000 ? h * 0.6 : h > 5000 ? h * 0.5 : h > 500 ? h * 0.4 : Math.max(h * 0.35, 20);
+    camera.zoomOut(step);
   };
 
   const handleResetSpaceView = () => {
@@ -843,6 +1107,26 @@ export default function Cesium3DView({
       {/* 3D Cesium Earth Canvas */}
       <div ref={containerRef} className="globe-canvas" />
 
+      {/* ── Top-Center: Mounted Scene Banner with Unmount Action ──────── */}
+      {sceneId && (
+        <div className="globe-mounted-scene-banner">
+          <span className="globe-pill__dot globe-pill__dot--live" />
+          <span className="globe-mounted-scene-banner__label">Mounted Scene:</span>
+          <span className="globe-mounted-scene-banner__name">{sceneName || sceneId.slice(0, 20)}</span>
+          {onUnmountScene && (
+            <button
+              type="button"
+              onClick={onUnmountScene}
+              className="globe-mounted-scene-banner__btn"
+              title="Unmount scene overlay from globe"
+            >
+              <X size={13} />
+              <span>Unmount</span>
+            </button>
+          )}
+        </div>
+      )}
+
 
       {/* ── Top-Left: Hero Overlay (Only when NOT in fullscreen) ──────── */}
       {!isFullScreen && (
@@ -865,50 +1149,25 @@ export default function Cesium3DView({
                 <span className="globe-hud__tag-line" />
                 <span>SATELLITE INTELLIGENCE</span>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsHeroDismissed(true)}
-                className="globe-hud__hero-close-btn"
-                title="Hide Satellite Intelligence Overlay"
-                aria-label="Close Satellite Intelligence overlay"
-              >
-                <X size={13} />
-              </button>
             </div>
-            <h1 className="globe-hud__title">A clearer planet.</h1>
+            <h1 className="globe-hud__title">
+              A clearer<br />planet.
+            </h1>
             <p className="globe-hud__subtitle">
               Turn satellite data into real-world decisions.
             </p>
-
-            {/* Airport & Location Fast-Jump Chips */}
-            <div className="globe-hud__quick-targets">
-              <span className="globe-hud__chips-label">Quick Zoom:</span>
-              {QUICK_PRESETS.slice(1).map((preset) => (
-                <button
-                  key={preset.name}
-                  type="button"
-                  onClick={() => flyToPreset(preset)}
-                  className="globe-hud__target-chip"
-                  title={`Zoom directly to ${preset.name}`}
-                >
-                  {preset.isAirport ? <Plane size={11} color="#38bdf8" /> : <Sparkles size={10} color="#22d3ee" />}
-                  <span>{preset.name}</span>
-                </button>
-              ))}
-            </div>
           </div>
         )
       )}
 
-      {/* ── Top-Right: Coordinates & Minimal Controls ────────────────── */}
+      {/* ── Top-Right: Coordinates & Minimal Controls (Matching theme.jpg) ── */}
       <div className="globe-hud__telemetry">
         <div className="globe-hud__coords">
           <Navigation size={13} className="globe-hud__compass-icon" />
-          <span className="globe-hud__date">{todayDate}</span>
-          <span className="globe-hud__coords-divider">•</span>
-          <span className="globe-hud__coords-val">{coords.lat}, {coords.lon}</span>
-          <span className="globe-hud__coords-divider">•</span>
-          <span className="globe-hud__alt">{coords.heightKm}</span>
+          <div className="globe-hud__coords-block">
+            <span className="globe-hud__date">Sep 04, 2024</span>
+            <span className="globe-hud__coords-val">28.6139° N, 77.2090° E</span>
+          </div>
         </div>
         {!isFullScreen && (
           <div className="globe-hud__pills">
@@ -927,6 +1186,39 @@ export default function Cesium3DView({
           </div>
         )}
       </div>
+
+      {/* Active Drawing Guide Banner */}
+      {isDrawingAOI && (
+        <div className="globe-drawing-banner">
+          <span className="globe-drawing-banner__pulse" />
+          <span>Click and drag on Earth to frame an area of interest. Press <strong>Esc</strong> to cancel.</span>
+          <button
+            type="button"
+            onClick={cancelDrawingAOI}
+            className="globe-drawing-banner__cancel"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {/* Persistent AOI Badge */}
+      {roi && roi.bbox && (
+        <div className="globe-roi-badge">
+          <span className="globe-roi-badge__dot" />
+          <span className="globe-roi-badge__text">
+            Drawn AOI Active ({((roi.bbox.south + roi.bbox.north) / 2).toFixed(3)}°N, {((roi.bbox.west + roi.bbox.east) / 2).toFixed(3)}°E)
+          </span>
+          <button
+            type="button"
+            onClick={() => onROIChange?.(null)}
+            className="globe-roi-badge__clear"
+            title="Clear Drawn AOI"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      )}
 
       {/* Minimal Floating Exit Button in Fullscreen Mode */}
       {isFullScreen && onToggleFullScreen && (
@@ -950,7 +1242,7 @@ export default function Cesium3DView({
               <div className="globe-hud__feed-title">Live Satellite Feed</div>
               <div className="globe-hud__feed-sub">
                 <span className="globe-pill__dot globe-pill__dot--live" />
-                <span>4 satellites active in orbit</span>
+                <span>3 satellites active</span>
               </div>
             </div>
             <button
@@ -964,17 +1256,17 @@ export default function Cesium3DView({
 
           <div className="globe-hud__feed-preview">
             <img
-              src="/images/exact_live_feed.jpg"
-              alt="Real-time Satellite Feed"
-              className="globe-hud__feed-img"
+              src="/images/theme_live_feed.jpg"
+              alt="Live Satellite Earth Horizon"
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
             />
             <div className="globe-hud__feed-scanline" />
             <div className="globe-hud__feed-badge">
-              <span className="globe-hud__feed-sat-name">Sentinel-2A</span>
+              <span className="globe-hud__feed-sat-name">Sentinel-2</span>
               <span className="globe-hud__feed-dot">•</span>
               <span>10:24 UTC</span>
               <span className="globe-hud__feed-dot">•</span>
-              <span>10 m GSD</span>
+              <span>10 m</span>
               <div className="globe-hud__feed-signal" title="Signal: 98% Strong">
                 <span className="signal-bar signal-bar--1" />
                 <span className="signal-bar signal-bar--2" />
@@ -1018,6 +1310,14 @@ export default function Cesium3DView({
           <Compass size={16} />
         </button>
         <button
+          onClick={isDrawingAOI ? cancelDrawingAOI : startDrawingAOI}
+          className={`globe-ctrl-btn ${isDrawingAOI ? "globe-ctrl-btn--active" : ""}`}
+          title={isDrawingAOI ? "Cancel AOI Drawing (Esc)" : "Draw Area of Interest (AOI) Box on Earth"}
+          aria-label="Draw Area of Interest"
+        >
+          <SquareDashed size={15} />
+        </button>
+        <button
           onClick={() => setAutoRotate(!autoRotate)}
           className={`globe-ctrl-btn ${autoRotate ? "globe-ctrl-btn--active" : ""}`}
           title={autoRotate ? "Pause Earth Rotation" : "Auto-Rotate Earth"}
@@ -1025,13 +1325,46 @@ export default function Cesium3DView({
           <RotateCw size={15} />
         </button>
         <div className="globe-ctrl-divider" />
-        <button
-          onClick={() => switchBasemap(activeBasemap === "google" ? "esri" : "google")}
-          className={`globe-ctrl-btn ${activeBasemap === "google" ? "globe-ctrl-btn--active" : ""}`}
-          title={`Active: ${activeBasemap === "google" ? "Google Satellite HD" : "Esri Satellite"} (Click to toggle)`}
-        >
-          <Layers size={15} />
-        </button>
+        <div className="relative">
+          <button
+            onClick={() => setShowBasemapMenu(!showBasemapMenu)}
+            className={`globe-ctrl-btn ${showBasemapMenu ? "globe-ctrl-btn--active" : ""}`}
+            title="Switch Satellite Imagery Layer (Google, Esri, Clarity)"
+            aria-label="Switch Satellite Imagery Layer"
+          >
+            <Layers size={15} />
+          </button>
+
+          {showBasemapMenu && (
+            <div className="globe-basemap-menu">
+              <div className="globe-basemap-menu__header">Imagery Providers</div>
+              <button
+                type="button"
+                onClick={() => switchBasemap("google")}
+                className={`globe-basemap-menu__option ${activeBasemap === "google" ? "globe-basemap-menu__option--active" : ""}`}
+              >
+                <div className="globe-basemap-menu__opt-title">Google Satellite HD</div>
+                <div className="globe-basemap-menu__opt-desc">Ultra-high resolution optical photography</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => switchBasemap("esri")}
+                className={`globe-basemap-menu__option ${activeBasemap === "esri" ? "globe-basemap-menu__option--active" : ""}`}
+              >
+                <div className="globe-basemap-menu__opt-title">Esri World Imagery</div>
+                <div className="globe-basemap-menu__opt-desc">Color-balanced seamless mosaic (No seamlines)</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => switchBasemap("clarity")}
+                className={`globe-basemap-menu__option ${activeBasemap === "clarity" ? "globe-basemap-menu__option--active" : ""}`}
+              >
+                <div className="globe-basemap-menu__opt-title">Esri Clarity Archive</div>
+                <div className="globe-basemap-menu__opt-desc">Cloud-free high clarity historical archive</div>
+              </button>
+            </div>
+          )}
+        </div>
         <button
           onClick={toggleLabels}
           className={`globe-ctrl-btn ${showLabels ? "globe-ctrl-btn--active" : ""}`}

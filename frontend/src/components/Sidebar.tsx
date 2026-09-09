@@ -42,7 +42,7 @@ const NAV_ITEMS: {
   { key: "compare", label: "Compare", icon: GitCompare },
   { key: "monitor", label: "Monitor", icon: Clock },
   { key: "projects", label: "Projects", icon: Folder },
-  { key: "data-library", label: "Upload & Data", icon: UploadCloud },
+  { key: "data-library", label: "Data Library", icon: Database },
   { key: "reports", label: "Reports", icon: FileText },
 ];
 
@@ -56,7 +56,7 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
           type="button"
           onClick={() => onTabChange("dashboard")}
           className="native-sidebar__brand-btn"
-          title="SatQuery"
+          title="SatQuery AI"
         >
           <div className="native-sidebar__logo-icon">
             <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
@@ -75,20 +75,9 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
             </svg>
           </div>
           <div className="native-sidebar__brand-meta">
-            <span className="native-sidebar__brand-title">SatQuery</span>
+            <span className="native-sidebar__brand-title">SatQuery AI</span>
             <span className="native-sidebar__brand-sub">SEE A CLEARER TOMORROW</span>
           </div>
-        </button>
-
-        {/* Primary Upload CTA Button */}
-        <button
-          type="button"
-          onClick={() => onTabChange("data-library")}
-          className="native-sidebar__upload-cta"
-          title="Upload GeoTIFF / Ingest Satellite Imagery"
-        >
-          <UploadCloud size={16} />
-          <span>Upload Scene</span>
         </button>
 
         {/* Navigation Items List */}
@@ -112,13 +101,12 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
         </nav>
       </div>
 
-      {/* ── Bottom Mountain Hiker Card ──────────────────────────── */}
+      {/* ── Bottom Hiker Ridge Perspective Card ───────────────── */}
       <div className="native-sidebar__bottom-card">
         <img
           src="/images/sidebar_clean_hiker.png"
-          alt="SatQuery Perspective"
+          alt="Hiker on mountain ridge"
           className="native-sidebar__bottom-img"
-          draggable={false}
         />
         <div className="native-sidebar__bottom-gradient" />
         <div className="native-sidebar__bottom-motto">

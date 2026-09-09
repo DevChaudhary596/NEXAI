@@ -12,13 +12,15 @@ import {
   Cpu,
   Shield,
   Layers,
-  Sparkles,
   ArrowRight,
   ExternalLink,
-  Key,
+  Lock,
+  ShieldCheck,
 } from "lucide-react";
 import type { FlyToTarget } from "./Cesium3DView";
-import { listAlerts, markAlertSeen } from "@/lib/api";
+import { listAlerts, markAlertSeen, updateAlert } from "@/lib/api";
+import type { AlertStatus } from "@/types";
+import { useAuth } from "@/components/AuthProvider";
 
 // ── Notifications Drawer ──────────────────────────────────────────
 export interface NotificationItem {
@@ -28,7 +30,9 @@ export interface NotificationItem {
   time: string;
   type: "alert" | "info" | "success";
   read: boolean;
+  status?: AlertStatus;
 }
+
 
 const INITIAL_NOTIFICATIONS: NotificationItem[] = [
   {
@@ -90,6 +94,7 @@ export function NotificationsDrawer({
               time: new Date(a.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
               type: "alert",
               read: a.seen,
+              status: a.status ?? "open",
             }));
             setNotifications(mapped);
           }
@@ -103,6 +108,18 @@ export function NotificationsDrawer({
       markAlertSeen(n.id).catch(() => {});
     });
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  };
+
+  const handleTriage = async (e: React.MouseEvent, alertId: string, nextStatus: AlertStatus) => {
+    e.stopPropagation();
+    try {
+      await updateAlert(alertId, { status: nextStatus, seen: true });
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === alertId ? { ...n, status: nextStatus, read: true } : n))
+      );
+    } catch {
+      // ignore
+    }
   };
 
   useEffect(() => {
@@ -180,10 +197,46 @@ export function NotificationsDrawer({
                   <span className="notification-card__time">{n.time}</span>
                 </div>
                 <p className="notification-card__desc">{n.desc}</p>
+                {n.status && (
+                  <div className="flex items-center justify-between mt-2 pt-1 border-t border-slate-800/60" onClick={(e) => e.stopPropagation()}>
+                    <span className={`text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded ${
+                      n.status === "resolved"
+                        ? "bg-emerald-950/80 text-emerald-400 border border-emerald-800/50"
+                        : n.status === "investigating"
+                        ? "bg-sky-950/80 text-sky-400 border border-sky-800/50"
+                        : "bg-amber-950/80 text-amber-400 border border-amber-800/50"
+                    }`}>
+                      {n.status}
+                    </span>
+                    {n.type === "alert" && (
+                      <div className="flex items-center gap-1.5">
+                        {n.status === "open" && (
+                          <button
+                            type="button"
+                            className="text-[11px] font-semibold text-sky-400 hover:text-sky-300 hover:underline px-2 py-0.5"
+                            onClick={(e) => handleTriage(e, n.id, "investigating")}
+                          >
+                            Investigate
+                          </button>
+                        )}
+                        {n.status === "investigating" && (
+                          <button
+                            type="button"
+                            className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 hover:underline px-2 py-0.5"
+                            onClick={(e) => handleTriage(e, n.id, "resolved")}
+                          >
+                            Resolve
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           ))}
         </div>
+
 
         <div className="notifications-drawer__footer">
           <button
@@ -207,6 +260,7 @@ interface ProfileModalProps {
 }
 
 export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
+  const { user } = useAuth();
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -228,8 +282,10 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
           <div className="flex items-center gap-3">
             <div className="profile-avatar-large">SQ</div>
             <div>
-              <h3 className="profile-modal-name">SatQuery Enterprise Operations</h3>
-              <p className="profile-modal-sub">Enterprise Plan • Dedicated GPU Cluster</p>
+              <h3 className="profile-modal-name">{user?.displayName || "SatQuery Intelligence Operator"}</h3>
+              <p className="profile-modal-sub">
+                {user?.email ? `${user.email} • RBAC Analyst Access` : "Sovereign Operations • Dedicated Local Engine"}
+              </p>
             </div>
           </div>
 
@@ -245,66 +301,88 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
         </div>
 
         <div className="profile-modal-body">
-          {/* Quota Usage */}
+          {/* Compute Engine Status */}
           <div className="profile-quota-card">
             <div className="flex justify-between items-center mb-2">
-              <span className="text-xs font-semibold text-slate-300">Planetary Compute Credits</span>
-              <strong className="text-cyan-400 text-xs">84,200 / 100,000 (84.2%)</strong>
+              <span className="text-xs font-semibold text-slate-300">Planetary GIS & Neural Engine</span>
+              <strong className="text-emerald-400 text-xs">READY • LOCAL CLUSTER</strong>
             </div>
             <div className="profile-quota-bar">
-              <div className="profile-quota-bar__fill" style={{ width: "84.2%" }} />
+              <div className="profile-quota-bar__fill" style={{ width: "100%", background: "linear-gradient(90deg, #10b981, #06b6d4)" }} />
             </div>
             <p className="text-[11px] text-slate-400 mt-2">
-              Quota auto-renews on the 1st of each calendar month. Unlimited local GIS raster processing.
+              Dedicated on-device GPU acceleration active. Unlimited multispectral GIS raster analysis, YOLOv8 target detection, and spectral index calculations.
             </p>
           </div>
 
           {/* Connected Feeds */}
           <div className="profile-section">
-            <h4 className="profile-section__title">Connected Satellite Constellations</h4>
+            <h4 className="profile-section__title">Earth Observation Constellations</h4>
             <div className="profile-feeds-list">
               <div className="profile-feed-item">
                 <div className="profile-feed-status profile-feed-status--live" />
                 <div className="profile-feed-info">
                   <div className="profile-feed-name">ESA Copernicus Open Access Hub</div>
-                  <div className="profile-feed-desc">Sentinel-2A/B (MSI 10m Multispectral)</div>
+                  <div className="profile-feed-desc">Sentinel-2A/B (MSI 10m Multispectral STAC)</div>
                 </div>
-                <span className="profile-feed-badge">CONNECTED</span>
+                <span className="profile-feed-badge" style={{ background: "rgba(16, 185, 129, 0.15)", color: "#34d399", border: "1px solid rgba(16, 185, 129, 0.3)" }}>
+                  CONNECTED
+                </span>
               </div>
 
               <div className="profile-feed-item">
                 <div className="profile-feed-status profile-feed-status--live" />
                 <div className="profile-feed-info">
                   <div className="profile-feed-name">USGS EarthExplorer</div>
-                  <div className="profile-feed-desc">Landsat-9 (OLI-2 / TIRS-2 15m/30m)</div>
+                  <div className="profile-feed-desc">Landsat-9 (OLI-2 / TIRS-2 15m/30m STAC)</div>
                 </div>
-                <span className="profile-feed-badge">CONNECTED</span>
+                <span className="profile-feed-badge" style={{ background: "rgba(16, 185, 129, 0.15)", color: "#34d399", border: "1px solid rgba(16, 185, 129, 0.3)" }}>
+                  CONNECTED
+                </span>
               </div>
 
               <div className="profile-feed-item">
-                <div className="profile-feed-status profile-feed-status--live" />
+                <div className="profile-feed-status" style={{ background: "#64748b" }} />
                 <div className="profile-feed-info">
-                  <div className="profile-feed-name">Planet Labs Enterprise API</div>
-                  <div className="profile-feed-desc">PlanetScope SuperDove (3m Daily Constellation)</div>
+                  <div className="profile-feed-name">Commercial Satellite Tasking</div>
+                  <div className="profile-feed-desc">PlanetScope / Maxar (On-Demand High-Resolution)</div>
                 </div>
-                <span className="profile-feed-badge">CONNECTED</span>
+                <span className="profile-feed-badge" style={{ background: "rgba(100, 116, 139, 0.15)", color: "#94a3b8", border: "1px solid rgba(100, 116, 139, 0.3)" }}>
+                  STANDBY
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Security & Organization */}
+          {/* Security & Secret Isolation */}
           <div className="profile-section">
-            <h4 className="profile-section__title">Security & Organization Key</h4>
-            <div className="profile-key-box">
-              <Key size={14} color="#94a3b8" />
-              <code>sq_live_94f8e21a88b04938d9c2e0</code>
-              <button
-                type="button"
-                onClick={() => alert("API Token copied to clipboard.")}
-                className="profile-copy-btn"
-              >
-                Copy
-              </button>
+            <h4 className="profile-section__title" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <ShieldCheck size={14} color="#10b981" />
+              Security Architecture & Secret Isolation
+            </h4>
+            <div
+              className="profile-key-box"
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "flex-start",
+                gap: 8,
+                padding: "12px 14px",
+                border: "1px solid rgba(16, 185, 129, 0.25)",
+                background: "rgba(6, 78, 59, 0.15)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+                <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#34d399", display: "flex", alignItems: "center", gap: 6 }}>
+                  <Lock size={13} /> Zero-Trust Server Isolation
+                </span>
+                <span style={{ fontSize: "0.65rem", padding: "2px 6px", borderRadius: 4, background: "rgba(16, 185, 129, 0.2)", color: "#6ee7b7", fontFamily: "monospace" }}>
+                  CLIENT-SECURE
+                </span>
+              </div>
+              <p style={{ fontSize: "0.7rem", color: "#cbd5e1", lineHeight: 1.5, margin: 0 }}>
+                API keys, S3 storage secrets, and service accounts are isolated strictly within backend runtime environment variables. Zero credentials or tokens are exposed to frontend browser bundles.
+              </p>
             </div>
           </div>
         </div>

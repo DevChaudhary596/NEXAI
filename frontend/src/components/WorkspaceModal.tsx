@@ -23,6 +23,7 @@ import {
   RefreshCw,
   Search,
   ChevronRight,
+  FolderGit2,
 } from "lucide-react";
 import { NavItemKey } from "./Sidebar";
 import {
@@ -32,6 +33,7 @@ import {
   uploadScene,
   queryScene,
   listScenes,
+  deleteScene,
   fetchSatelliteScene,
 } from "@/lib/api";
 import { exportIntelligenceReport } from "@/lib/pdfReport";
@@ -43,6 +45,7 @@ import type {
   RasterOverlay,
   ROI,
   SceneListItem,
+  ProjectResponse,
 } from "@/types";
 
 interface WorkspaceModalProps {
@@ -54,17 +57,19 @@ interface WorkspaceModalProps {
   onUploadSuccess: (scene: UploadResponse) => void;
   onAskAI: (prompt: string) => void;
   onSelectScene?: (sceneId: string, bounds: number[] | null, filename?: string) => void;
+  onUnmountScene?: () => void;
   currentSceneId: string | null;
   roi: ROI | null;
+  projects?: ProjectResponse[];
 }
 
-// Global Hotspots for "Explore"
+// Global Hotspots for "Explore" (Top-down Nadir Satellite View: pitch: -90)
 const GLOBAL_HOTSPOTS = [
   {
     id: "sfo",
     name: "San Francisco Int'l Airport & Bay",
-    category: "Aviation & Maritime",
-    coords: { lon: -122.379, lat: 37.6213, height: 4500, pitch: -45 },
+    category: "Aviation Infrastructure",
+    coords: { lon: -122.375, lat: 37.619, height: 3500, pitch: -90 },
     desc: "Active runways, taxiways, and San Francisco maritime traffic.",
     sensor: "Sentinel-2 MSI",
     resolution: "10m GSD",
@@ -73,7 +78,7 @@ const GLOBAL_HOTSPOTS = [
     id: "suez",
     name: "Suez Canal Maritime Corridor",
     category: "Maritime Chokepoint",
-    coords: { lon: 32.2654, lat: 30.5852, height: 14000, pitch: -50 },
+    coords: { lon: 32.2654, lat: 30.5852, height: 12000, pitch: -90 },
     desc: "Global container shipping artery connecting Red Sea and Mediterranean.",
     sensor: "Sentinel-2 MSI",
     resolution: "10m GSD",
@@ -82,16 +87,16 @@ const GLOBAL_HOTSPOTS = [
     id: "rotterdam",
     name: "Port of Rotterdam Maasvlakte",
     category: "Industrial Port",
-    coords: { lon: 4.0205, lat: 51.9544, height: 8500, pitch: -45 },
+    coords: { lon: 4.0205, lat: 51.9544, height: 8500, pitch: -90 },
     desc: "Europe's largest sea harbor, crude oil terminals and automated container cranes.",
-    sensor: "PlanetScope",
-    resolution: "3m GSD",
+    sensor: "Sentinel-2 MSI",
+    resolution: "10m GSD",
   },
   {
     id: "haneda",
     name: "Tokyo Haneda Airport (HND)",
     category: "Aviation Infrastructure",
-    coords: { lon: 139.7798, lat: 35.5494, height: 6000, pitch: -45 },
+    coords: { lon: 139.7798, lat: 35.5494, height: 5000, pitch: -90 },
     desc: "Offshore four-runway complex on Tokyo Bay with intense passenger traffic.",
     sensor: "Sentinel-2 MSI",
     resolution: "10m GSD",
@@ -100,7 +105,7 @@ const GLOBAL_HOTSPOTS = [
     id: "amazon",
     name: "Amazon Basin Deforestation Arc",
     category: "Environmental Crisis",
-    coords: { lon: -62.2159, lat: -3.4653, height: 28000, pitch: -60 },
+    coords: { lon: -62.2159, lat: -3.4653, height: 28000, pitch: -90 },
     desc: "Active logging frontiers, road expansion, and canopy depletion.",
     sensor: "Landsat-9 OLI-2",
     resolution: "15m GSD",
@@ -109,7 +114,7 @@ const GLOBAL_HOTSPOTS = [
     id: "everest",
     name: "Mount Everest & Khumbu Glacier",
     category: "Glacial & Cryosphere",
-    coords: { lon: 86.925, lat: 27.9881, height: 16000, pitch: -45 },
+    coords: { lon: 86.925, lat: 27.9881, height: 16000, pitch: -90 },
     desc: "Himalayan peak topography, serac crevasses, and glacial lake expansion.",
     sensor: "Sentinel-2 MSI",
     resolution: "10m GSD",
@@ -118,7 +123,7 @@ const GLOBAL_HOTSPOTS = [
     id: "mumbai",
     name: "Mumbai JNPT & Harbor Offshore",
     category: "Maritime & Port",
-    coords: { lon: 72.8777, lat: 19.076, height: 12000, pitch: -45 },
+    coords: { lon: 72.8777, lat: 19.076, height: 12000, pitch: -90 },
     desc: "Naval dockyards, oil tanker anchorage, and coastal transport arteries.",
     sensor: "Sentinel-2 MSI",
     resolution: "10m GSD",
@@ -126,8 +131,8 @@ const GLOBAL_HOTSPOTS = [
   {
     id: "dubai",
     name: "Dubai Palm Jumeirah & Coast",
-    category: "Coastal Urbanism",
-    coords: { lon: 55.139, lat: 25.1124, height: 7500, pitch: -50 },
+    category: "Coastal Infrastructure",
+    coords: { lon: 55.139, lat: 25.1124, height: 7500, pitch: -90 },
     desc: "Artificial archipelago land reclamation and coastal sediment dynamics.",
     sensor: "Sentinel-2 MSI",
     resolution: "10m GSD",
@@ -143,8 +148,10 @@ export default function WorkspaceModal({
   onUploadSuccess,
   onAskAI,
   onSelectScene,
+  onUnmountScene,
   currentSceneId,
   roi,
+  projects = [],
 }: WorkspaceModalProps) {
   useEffect(() => {
     if (!activeTab || activeTab === "dashboard") return;
@@ -235,6 +242,19 @@ export default function WorkspaceModal({
       setLoadingScenes(false);
     }
   }, []);
+
+  const handleDeleteScene = async (e: React.MouseEvent, sceneIdToDelete: string) => {
+    e.stopPropagation();
+    try {
+      await deleteScene(sceneIdToDelete);
+      setScenes((prev) => prev.filter((s) => s.scene_id !== sceneIdToDelete));
+      if (sceneIdToDelete === currentSceneId) {
+        onUnmountScene?.();
+      }
+    } catch (err) {
+      console.error("Failed to delete scene:", err);
+    }
+  };
 
   useEffect(() => {
     if (activeTab === "data-library") {
@@ -472,28 +492,6 @@ export default function WorkspaceModal({
     } finally {
       setUploading(false);
     }
-  };
-
-  // Handler: Export Dossier
-  const handleExportPDF = async (reportTitle: string) => {
-    await exportIntelligenceReport({
-      sceneName: reportTitle,
-      scene: null,
-      thumbnailUrl: "/images/amazon_deforest_hd.jpg",
-      question: `Executive satellite intelligence report for ${reportTitle}.`,
-      response: {
-        contract_version: "1.0",
-        routing: { tool: "satquery_engine", confidence: 0.98 },
-        answer: `Executive Geospatial Intelligence Dossier for ${reportTitle}. Observation period verified cloud-free. High resolution multispectral indicators demonstrate stable baseline conditions with critical infrastructure verified operational.`,
-        stats: { area_km2: 420, object_count: 86, confidence_score: 0.98 },
-        citations: [],
-        degradation_flags: [],
-        geojson: { type: "FeatureCollection", features: [] },
-        overlays: [],
-        timings: { total_ms: 180 },
-        peak_vram_gb: 3.4,
-      } as any,
-    });
   };
 
   // Get Tab Metadata
@@ -1202,91 +1200,63 @@ export default function WorkspaceModal({
                 </div>
 
                 <div className="workspace-projects-grid">
-                  {[
-                    {
-                      id: "mumbai",
-                      title: "Coastal Infrastructure Mapping",
-                      loc: "Mumbai, India",
-                      date: "Aug 28, 2024",
-                      status: "Completed",
-                      img: "/images/mumbai_port_hd.jpg",
-                      coords: { lon: 72.8777, lat: 19.076, height: 18000, pitch: -45 },
-                      query: "Classify maritime docks, vessels, and coastal structures in Mumbai Harbor.",
-                    },
-                    {
-                      id: "cal-fire",
-                      title: "Wildfire Impact Assessment",
-                      loc: "California, USA",
-                      date: "Aug 24, 2024",
-                      status: "In Progress",
-                      img: "/images/california_wildfire_hd.jpg",
-                      coords: { lon: -121.4944, lat: 38.5816, height: 25000, pitch: -45 },
-                      query: "Analyze wildfire burn scars and terrain damage in California.",
-                    },
-                    {
-                      id: "punjab",
-                      title: "Crop Health & NDVI Analysis",
-                      loc: "Punjab, India",
-                      date: "Aug 20, 2024",
-                      status: "Completed",
-                      img: "/images/punjab_crops_hd.jpg",
-                      coords: { lon: 75.3412, lat: 31.1471, height: 20000, pitch: -45 },
-                      query: "Evaluate agricultural crop vigor and irrigation patterns in Punjab.",
-                    },
-                    {
-                      id: "amazon-def",
-                      title: "Amazon Basin Deforestation Tracker",
-                      loc: "Amazonas, Brazil",
-                      date: "Aug 16, 2024",
-                      status: "Alert Active",
-                      img: "/images/amazon_deforest_hd.jpg",
-                      coords: { lon: -62.2159, lat: -3.4653, height: 28000, pitch: -50 },
-                      query: "Track recent clearcutting and logging road expansion in Amazon.",
-                    },
-                  ]
-                    .filter((p) =>
-                      p.title.toLowerCase().includes(projectSearch.toLowerCase()) ||
-                      p.loc.toLowerCase().includes(projectSearch.toLowerCase())
-                    )
-                    .map((proj) => (
-                      <div key={proj.id} className="workspace-project-card">
-                        <div className="workspace-project-card__thumb">
-                          <img src={proj.img} alt={proj.title} />
-                          <span
-                            className={`workspace-status-badge ${
-                              proj.status === "Completed"
-                                ? "workspace-status-badge--completed"
-                                : proj.status === "Alert Active"
-                                ? "workspace-status-badge--alert"
-                                : "workspace-status-badge--progress"
-                            }`}
-                          >
-                            {proj.status}
-                          </span>
-                        </div>
+                  {projects.length === 0 ? (
+                    <div className="p-8 text-center text-xs text-slate-400 flex flex-col items-center gap-2 col-span-full border border-dashed border-slate-800 rounded-xl bg-slate-900/40">
+                      <FolderGit2 size={32} className="text-slate-600 mb-1" />
+                      <span className="text-slate-300 font-semibold">No Projects in Current Workspace</span>
+                      <p className="text-[11px] text-slate-500 max-w-sm">
+                        Create a project to bind an Area of Interest (AOI), classification level, and persistent audit trail.
+                      </p>
+                    </div>
+                  ) : (
+                    projects
+                      .filter((p) =>
+                        p.name.toLowerCase().includes(projectSearch.toLowerCase()) ||
+                        p.template.toLowerCase().includes(projectSearch.toLowerCase())
+                      )
+                      .map((proj) => {
+                        const dateStr = new Date(proj.created_at).toLocaleDateString();
+                        const centerLon = proj.aoi ? (proj.aoi.west + proj.aoi.east) / 2 : 77.2090;
+                        const centerLat = proj.aoi ? (proj.aoi.south + proj.aoi.north) / 2 : 28.6139;
+                        return (
+                          <div key={proj.id} className="workspace-project-card">
+                            <div className="workspace-project-card__info" style={{ padding: "16px" }}>
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="workspace-status-badge workspace-status-badge--completed">
+                                  {proj.classification}
+                                </span>
+                                <span className="text-[10px] text-slate-500 font-mono">{proj.template}</span>
+                              </div>
+                              <h4 className="workspace-project-card__title">{proj.name}</h4>
+                              <span className="workspace-project-card__loc">
+                                <MapPin size={12} /> {proj.aoi ? `${centerLat.toFixed(2)}°, ${centerLon.toFixed(2)}°` : "Global AOI"}
+                              </span>
+                              <span className="workspace-project-card__date">{dateStr}</span>
 
-                        <div className="workspace-project-card__info">
-                          <h4 className="workspace-project-card__title">{proj.title}</h4>
-                          <span className="workspace-project-card__loc">
-                            <MapPin size={12} /> {proj.loc}
-                          </span>
-                          <span className="workspace-project-card__date">{proj.date}</span>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              onFlyTo(proj.coords);
-                              onClose();
-                              onAskAI(proj.query);
-                            }}
-                            className="workspace-project-open-btn"
-                          >
-                            <span>Open Investigation</span>
-                            <ChevronRight size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (proj.aoi) {
+                                    onFlyTo({
+                                      lon: centerLon,
+                                      lat: centerLat,
+                                      height: 8000,
+                                      pitch: -90,
+                                    });
+                                  }
+                                  onClose();
+                                  onAskAI(`Investigate active project ${proj.name} (${proj.template}).`);
+                                }}
+                                className="workspace-project-open-btn"
+                              >
+                                <span>Open Investigation</span>
+                                <ChevronRight size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                  )}
                 </div>
               </div>
             </div>
@@ -1454,11 +1424,22 @@ export default function WorkspaceModal({
                       .map((sc) => {
                         const sizeMb = (sc.size_bytes / (1024 * 1024)).toFixed(1);
                         const uploadDate = new Date(sc.uploaded_at).toLocaleDateString();
+                        const isMounted = sc.scene_id === currentSceneId;
+                        const boundsText = sc.bounds && sc.bounds.length === 4
+                          ? `${sc.bounds[1].toFixed(2)}°N, ${sc.bounds[0].toFixed(2)}°E to ${sc.bounds[3].toFixed(2)}°N, ${sc.bounds[2].toFixed(2)}°E`
+                          : null;
 
                         return (
                           <div key={sc.scene_id} className="workspace-catalog-item">
                             <div className="workspace-catalog-item__info">
-                              <h4 className="workspace-catalog-item__title">{sc.filename}</h4>
+                              <div className="flex items-center gap-2">
+                                <h4 className="workspace-catalog-item__title">{sc.filename}</h4>
+                                {isMounted && (
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+                                    Mounted Active
+                                  </span>
+                                )}
+                              </div>
                               <div className="workspace-catalog-item__meta">
                                 <span className="font-mono text-[11px] text-cyan-400">{sc.scene_id.slice(0, 18)}…</span>
                                 <span>•</span>
@@ -1467,31 +1448,63 @@ export default function WorkspaceModal({
                                 <span>{sc.crs || "EPSG:32648"}</span>
                                 <span>•</span>
                                 <span className="text-slate-400">{uploadDate}</span>
+                                {boundsText && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="text-slate-400 font-mono text-[10px]">{boundsText}</span>
+                                  </>
+                                )}
                               </div>
                             </div>
 
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (sc.bounds && sc.bounds.length === 4) {
-                                  const centerLon = (sc.bounds[0] + sc.bounds[2]) / 2;
-                                  const centerLat = (sc.bounds[1] + sc.bounds[3]) / 2;
-                                  const span = Math.max(
-                                    Math.abs(sc.bounds[2] - sc.bounds[0]),
-                                    Math.abs(sc.bounds[3] - sc.bounds[1])
-                                  );
-                                  const height = Math.max(2000, span * 111000 * 1.5);
-                                  onFlyTo({ lon: centerLon, lat: centerLat, height, pitch: -45 });
-                                }
-                                onSelectScene?.(sc.scene_id, sc.bounds, sc.filename);
-                                onClose();
-                                onAskAI(`Mounted scene: ${sc.filename} (${sc.scene_id}). Ready for target detection and spectral analysis.`);
-                              }}
-                              className="workspace-catalog-mount-btn"
-                            >
-                              <Play size={13} />
-                              <span>Mount on Globe</span>
-                            </button>
+                            <div className="flex items-center gap-2">
+                              {isMounted ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    onUnmountScene?.();
+                                  }}
+                                  className="workspace-catalog-unmount-btn"
+                                  title="Unmount and clear this scene overlay from the 3D globe"
+                                >
+                                  <X size={13} />
+                                  <span>Unmount</span>
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (sc.bounds && sc.bounds.length === 4) {
+                                      const centerLon = (sc.bounds[0] + sc.bounds[2]) / 2;
+                                      const centerLat = (sc.bounds[1] + sc.bounds[3]) / 2;
+                                      const span = Math.max(
+                                        Math.abs(sc.bounds[2] - sc.bounds[0]),
+                                        Math.abs(sc.bounds[3] - sc.bounds[1])
+                                      );
+                                      const height = Math.max(2000, span * 111000 * 1.5);
+                                      onFlyTo({ lon: centerLon, lat: centerLat, height, pitch: -90 });
+                                    }
+                                    onSelectScene?.(sc.scene_id, sc.bounds, sc.filename);
+                                    onClose();
+                                    onAskAI(`Mounted scene: ${sc.filename} (${sc.scene_id}). Ready for target detection and spectral analysis.`);
+                                  }}
+                                  className="workspace-catalog-mount-btn"
+                                  title="Mount this GeoTIFF raster onto 3D globe"
+                                >
+                                  <Play size={13} />
+                                  <span>Mount on Globe</span>
+                                </button>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={(e) => handleDeleteScene(e, sc.scene_id)}
+                                className="workspace-catalog-delete-btn"
+                                title="Delete scene from storage"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
                           </div>
                         );
                       })}
@@ -1514,50 +1527,10 @@ export default function WorkspaceModal({
                 </div>
 
                 <div className="workspace-reports-list">
-                  {[
-                    {
-                      id: "rep-1",
-                      title: "Executive Dossier — Amazon Basin Deforestation & Road Networks",
-                      date: "2024-08-28",
-                      classification: "PROPRIETARY // COMMERCIAL",
-                      findings: "Detected 312 km² deforestation canopy loss (+18% vs previous period). Identified 4 new illegal logging feeder trails.",
-                    },
-                    {
-                      id: "rep-2",
-                      title: "Maritime Intelligence Dossier — JNPT Port Vessel Anchorage Density",
-                      date: "2024-08-25",
-                      classification: "OPERATIONAL // RESTRICTED",
-                      findings: "Cataloged 86 maritime hulls with 98.4% model accuracy. 14 Aframax crude tankers currently berthed or anchored.",
-                    },
-                    {
-                      id: "rep-3",
-                      title: "Wildfire Damage Assessment — California Butte Sector Burn Scars",
-                      date: "2024-08-22",
-                      classification: "CRITICAL // DISASTER RESPONSE",
-                      findings: "NBR analysis isolated 18,400 hectares of extreme canopy destruction. Slope instability alert flagged for northern ravines.",
-                    },
-                  ].map((rep) => (
-                    <div key={rep.id} className="workspace-report-item">
-                      <div className="workspace-report-item__top">
-                        <span className="workspace-report-classification">{rep.classification}</span>
-                        <span className="workspace-report-date">{rep.date}</span>
-                      </div>
-
-                      <h4 className="workspace-report-title">{rep.title}</h4>
-                      <p className="workspace-report-findings">{rep.findings}</p>
-
-                      <div className="workspace-report-actions">
-                        <button
-                          type="button"
-                          onClick={() => handleExportPDF(rep.title)}
-                          className="workspace-download-btn"
-                        >
-                          <Download size={14} />
-                          <span>Download PDF Dossier</span>
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                  <div className="workspace-report-item">
+                    <h4 className="workspace-report-title">No completed reports in this workspace</h4>
+                    <p className="workspace-report-findings">Reports can only be exported from a completed analysis with its source scene and computed findings. Create an analysis in the copilot to generate the first dossier.</p>
+                  </div>
                 </div>
               </div>
             </div>

@@ -1,25 +1,7 @@
 import type { Metadata } from "next";
-import { Inter, Press_Start_2P, Playfair_Display } from "next/font/google";
 import "@/styles/globals.css";
-
-const inter = Inter({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-inter",
-});
-
-const serifFont = Playfair_Display({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-serif",
-});
-
-const pixelFont = Press_Start_2P({
-  subsets: ["latin"],
-  weight: "400",
-  display: "swap",
-  variable: "--font-pixel",
-});
+import Providers from "@/components/Providers";
+import AuthGate from "@/components/AuthGate";
 
 export const metadata: Metadata = {
   title: "SatQuery — Autonomous Geospatial Intelligence Platform",
@@ -43,16 +25,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${serifFont.variable} ${pixelFont.variable}`}>
+    <html lang="en">
       <head>
-        <link
-          rel="icon"
-          href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛰️</text></svg>"
-        />
+        <link rel="icon" href="/favicon.ico" />
       </head>
       <body>
+        <a href="#main-operations" className="skip-to-content">
+          Skip to main operations
+        </a>
         <div className="theme-epic-backdrop" aria-hidden="true" />
-        {children}
+        <Providers><AuthGate>{children}</AuthGate></Providers>
       </body>
     </html>
   );

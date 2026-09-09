@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import gc
 import logging
+import os
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -37,22 +38,29 @@ log = logging.getLogger(__name__)
 #      Hardcoded and stable on purpose: these are the exact three scenes M6
 #      rehearses, so the wording should not vary run to run.
 
-ANSWER_SYSTEM_PROMPT = """You are SatQuery, an assistant that explains satellite \
-imagery analysis to a non-technical reader.
+ANSWER_SYSTEM_PROMPT = """You are SatQuery, an expert AI geospatial and remote sensing intelligence analyst.
 
-Rules:
+Core Rules:
 - Never invent a number. Every count, area, or percentage in "Tool findings" \
-below is ground truth from a deterministic tool - restate it, don't recompute \
-or round it into a different figure.
-- If "Tool findings" is empty, you are answering from the image alone \
-(general visual question) - plain 1-3 sentence prose, no bullets required.
-- Otherwise, structure the answer as short markdown bullets, in this order, \
-omitting any that don't apply to this query:
-  - **Area Impacted**: what part of the scene / ROI this covers.
-  - **Density / Count**: the tool's count or area figure, verbatim.
-  - **Risk Rating**: Low / Moderate / High / Severe, with a one-clause reason. \
-Base this only on the numbers given - do not guess at risk from the image alone.
-- Keep the whole answer under ~120 words. This is a live chat panel, not a report."""
+below is ground truth from a deterministic trained neural network model — \
+restate it accurately, never contradict or hallucinate conflicting figures.
+- Deliver sharp, professional, and articulate answers befitting a defense \
+or civilian intelligence briefing.
+- When "Tool findings" are provided, structure the answer as clean markdown \
+bullets in this order (omit any that don't apply):
+  - **Area Impacted**: Precisely identify the geographic area, infrastructure, \
+or terrain the analysis covers. Name landmarks, facilities, or land-use \
+categories visible in the scene.
+  - **Density / Count**: State the tool's count or area figure verbatim, then \
+add brief professional context — e.g., vehicle distribution pattern, spacing, \
+clustering behavior, or comparison to typical operational baselines.
+  - **Risk Rating**: Low / Moderate / High / Severe, with a one-clause \
+justification grounded only in the numbers and observable scene context.
+- When "Tool findings" is empty, you are answering from the image alone \
+(general visual question) — provide a detailed, professional scene description \
+covering land use, infrastructure, vegetation, and any notable features.
+- Use concise but rich language. Avoid generic filler. Every sentence should \
+add analytical value."""
 
 SCENARIO_SYSTEM_PROMPTS: dict[str, str] = {
     "flood": """Scenario: Disaster / Flood Assessment. Frame "Area Impacted" as \
@@ -618,6 +626,211 @@ class MLXQwen2VL(VLMBackend):
         return self._peak or None
 
 
+class GroqVLM(VLMBackend):
+    """Cloud VLM backend powered by Groq's ultra-low latency inference engine.
+
+    Uses Groq's multimodal vision models (llama-3.2-11b-vision-preview) for
+    satellite scene analysis and high-intelligence models (llama-3.3-70b-versatile)
+    for general questions and query routing. Fuses deterministic trained CV/GIS
+    tool findings seamlessly into answers.
+    """
+
+    name = "groq"
+
+    def __init__(self, settings: Settings | None = None) -> None:
+        self.s = settings or get_settings()
+        api_key = (
+            self.s.groq_api_key
+            or os.getenv("SATQUERY_GROQ_API_KEY")
+            or os.getenv("GROQ_API_KEY")
+        )
+        if not api_key:
+            raise ValueError(
+                "Groq API key missing. Set SATQUERY_GROQ_API_KEY or GROQ_API_KEY."
+            )
+        try:
+            from groq import Groq
+
+            self.client = Groq(api_key=api_key)
+        except ImportError as exc:
+            raise ImportError(
+                "groq package is not installed. Run `pip install groq`."
+            ) from exc
+
+        # Auto-detect best available models on user's Groq account
+        available_ids: set[str] = set()
+        try:
+            m_list = self.client.models.list()
+            available_ids = {m.id for m in m_list.data}
+        except Exception as e:
+            log.debug("Could not query Groq models list: %s", e)
+
+        vision_candidates = [
+            self.s.groq_model,
+            "qwen/qwen3.8-27b",
+            "llama-3.2-11b-vision-preview",
+            "llama-3.2-90b-vision-preview",
+        ]
+        text_candidates = [
+            self.s.groq_text_model,
+            "qwen/qwen3.8-27b",
+            "openai/gpt-oss-120b",
+            "llama-3.3-70b-versatile",
+            "llama-3.1-8b-instant",
+        ]
+
+        self.model = next((c for c in vision_candidates if c and (not available_ids or c in available_ids)), "qwen/qwen3.8-27b")
+        self.text_model = next((c for c in text_candidates if c and (not available_ids or c in available_ids)), self.model)
+        log.info("Initialized GroqVLM (vision: %s, text: %s)", self.model, self.text_model)
+
+    def _encode_image(self, image_path: str | Path | None, max_dim: int = 1024) -> str | None:
+        if not image_path:
+            return None
+        p = Path(image_path)
+        if not p.exists():
+            return None
+        try:
+            import base64
+            import io
+            from PIL import Image
+
+            try:
+                img = Image.open(p)
+                if img.mode != "RGB":
+                    img = img.convert("RGB")
+            except Exception:
+                import numpy as np
+                import rasterio
+
+                with rasterio.open(str(p)) as src:
+                    if src.count >= 3:
+                        arr = src.read([1, 2, 3])
+                    else:
+                        arr = np.repeat(src.read(1)[np.newaxis, :, :], 3, axis=0)
+                    if arr.dtype == np.uint16:
+                        arr = (arr / 256).astype(np.uint8)
+                    elif arr.dtype in (np.float32, np.float64):
+                        arr = np.clip(
+                            arr * 255 if arr.max() <= 1.0 else arr, 0, 255
+                        ).astype(np.uint8)
+                    arr = np.transpose(arr, (1, 2, 0))
+                    img = Image.fromarray(arr)
+
+            if img.width > max_dim or img.height > max_dim:
+                img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
+
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=85)
+            return base64.b64encode(buf.getvalue()).decode("utf-8")
+        except Exception as exc:
+            log.warning("Failed to encode image %s for Groq vision: %s", image_path, exc)
+            return None
+
+    def generate_json(self, prompt: str, *, max_new_tokens: int = 128) -> str:
+        try:
+            messages = [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a routing classification engine that strictly outputs valid JSON. "
+                        "Output nothing except valid JSON."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ]
+            resp = self.client.chat.completions.create(
+                model=self.text_model,
+                messages=messages,
+                response_format={"type": "json_object"},
+                temperature=0.0,
+                max_tokens=max_new_tokens,
+            )
+            return resp.choices[0].message.content.strip()
+        except Exception as exc:
+            log.warning("Groq JSON generation failed: %s; falling back to rule router", exc)
+            return MockVLM().generate_json(prompt, max_new_tokens=max_new_tokens)
+
+    def answer(
+        self,
+        prompt: str,
+        image_path: str | Path | None = None,
+        *,
+        context: str = "",
+        history: list[dict[str, str]] | None = None,
+        system_prompt: str = "",
+    ) -> str:
+        default_sys = (
+            "You are SatQuery Intelligence Copilot, an expert AI geospatial, remote sensing, and defense intelligence analyst.\n"
+            "Deliver sharp, professional, and clear answers.\n"
+            "- When 'Tool findings' are provided below, they represent ground-truth counts, areas, and scores calculated by specialized trained neural network models (YOLOv8 aerial detector, GIS multispectral engine). You must honor and state these numbers accurately; never contradict or hallucinate conflicting numbers.\n"
+            "- When describing satellite imagery, explain visible features, land use, infrastructure, maritime or aviation assets, and operational significance.\n"
+            "- For general questions (concepts, sensors, orbits, spectral bands, or general queries), provide comprehensive, articulate explanations.\n"
+            "- Format with clean markdown headers and bullet points where helpful."
+        )
+        sys_content = f"{default_sys}\n\n{system_prompt}" if system_prompt else default_sys
+
+        messages: list[dict[str, Any]] = [{"role": "system", "content": sys_content}]
+
+        for turn in history or []:
+            role = "user" if turn.get("role") == "user" else "assistant"
+            content = (turn.get("content") or "").strip()
+            if content:
+                messages.append({"role": role, "content": content})
+
+        query_text = prompt
+        if context:
+            query_text = f"{prompt}\n\nTool findings (ground truth from trained models):\n{context}"
+
+        encoded_img = self._encode_image(image_path)
+        if encoded_img:
+            messages.append({
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": query_text},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{encoded_img}"
+                        },
+                    },
+                ],
+            })
+            model_to_call = self.model
+        else:
+            messages.append({"role": "user", "content": query_text})
+            model_to_call = self.text_model
+
+        try:
+            resp = self.client.chat.completions.create(
+                model=model_to_call,
+                messages=messages,
+                temperature=0.3,
+                max_tokens=self.s.max_new_tokens if self.s.max_new_tokens > 300 else 600,
+            )
+            return resp.choices[0].message.content.strip()
+        except Exception as exc:
+            # If vision model encountered an issue, fallback to high-intelligence text model
+            if model_to_call == self.model:
+                try:
+                    log.warning("Groq vision request failed (%s); trying text model %s", exc, self.text_model)
+                    messages[-1]["content"] = query_text
+                    resp = self.client.chat.completions.create(
+                        model=self.text_model,
+                        messages=messages,
+                        temperature=0.3,
+                        max_tokens=600,
+                    )
+                    return resp.choices[0].message.content.strip()
+                except Exception as text_exc:
+                    log.error("Groq fallback text request also failed: %s", text_exc)
+            log.error("Groq API error: %s", exc)
+            mock_ans = MockVLM().answer(prompt, image_path, context=context, history=history, system_prompt=system_prompt)
+            return f"{mock_ans}\n\n*(Notice: Groq inference error: {exc})*"
+
+    def peak_vram_gb(self) -> float | None:
+        return None
+
+
 _backend: VLMBackend | None = None
 
 
@@ -626,7 +839,18 @@ def get_vlm() -> VLMBackend:
     global _backend
     if _backend is None:
         s = get_settings()
-        if s.vlm_backend == "local":
+        has_groq_key = bool(
+            s.groq_api_key
+            or os.getenv("SATQUERY_GROQ_API_KEY")
+            or os.getenv("GROQ_API_KEY")
+        )
+        if s.vlm_backend == "groq" or (s.vlm_backend == "mock" and has_groq_key):
+            try:
+                _backend = GroqVLM(s)
+            except Exception as exc:
+                log.warning("GroqVLM init failed: %s. Falling back to MockVLM.", exc)
+                _backend = MockVLM()
+        elif s.vlm_backend == "local":
             _backend = LocalQwen2VL(s)
         elif s.vlm_backend == "mlx":
             _backend = MLXQwen2VL(s)

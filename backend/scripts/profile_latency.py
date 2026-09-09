@@ -64,6 +64,7 @@ def _seed_scene(scenes_dir: Path) -> str:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--ceiling-ms", type=float, default=4000.0)
+    ap.add_argument("--allow-mock", action="store_true", help="Force mock VLM backend for testing.")
     args = ap.parse_args()
 
     tmp_data_dir = Path(tempfile.mkdtemp(prefix="satquery-latency-"))
@@ -72,6 +73,10 @@ def main() -> int:
     from app.core.config import get_settings
     from app.core.schemas import QueryRequest
     from app.services.orchestrator import handle_query
+
+    if args.allow_mock:
+        os.environ["SATQUERY_VLM_BACKEND"] = "mock"
+        get_settings.cache_clear()
 
     s = get_settings()
     scene_id = _seed_scene(Path(s.scenes_dir))

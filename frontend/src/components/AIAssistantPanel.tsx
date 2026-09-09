@@ -20,14 +20,18 @@ import {
   UploadCloud,
 } from "lucide-react";
 import VoiceInputButton from "./VoiceInputButton";
-import { queryScene, createWatch, uploadScene } from "@/lib/api";
+import { queryScene, createWatch, uploadScene, createSnapshotScene } from "@/lib/api";
 import { exportIntelligenceReport } from "@/lib/pdfReport";
 import type {
   ROI,
   QueryResponse,
   UploadResponse,
   ConversationTurn,
+  Classification,
 } from "@/types";
+import type { LiveViewportCapture } from "./Cesium3DView";
+import { exportGeoJSON, exportKML, exportShapefile, exportISO19115XML } from "@/lib/gisExport";
+import { exportAnswerCardAsImage } from "@/lib/cardExport";
 
 interface AssistantMessage {
   id: string;
@@ -39,6 +43,7 @@ interface AssistantMessage {
   thumbnailUrl?: string;
   queryResponse?: QueryResponse;
   question?: string;
+  isStreaming?: boolean;
 }
 
 interface AIAssistantPanelProps {
@@ -56,6 +61,10 @@ interface AIAssistantPanelProps {
   onOpenNotifications?: () => void;
   onOpenProfile?: () => void;
   onOpenWorkspace?: (tab: any) => void;
+  classification?: Classification;
+  workspaceName?: string;
+  onCaptureLiveViewport?: () => Promise<LiveViewportCapture | null>;
+  onSelectScene?: (sceneId: string, bounds: number[] | null, filename: string) => void;
 }
 
 export default function AIAssistantPanel({
@@ -71,13 +80,17 @@ export default function AIAssistantPanel({
   onOpenNotifications,
   onOpenProfile,
   onOpenWorkspace,
+  classification = "unclassified",
+  workspaceName = "Primary Workspace",
+  onCaptureLiveViewport,
+  onSelectScene,
 }: AIAssistantPanelProps) {
   const [messages, setMessages] = useState<AssistantMessage[]>([
     {
       id: "welcome",
       role: "assistant",
       content:
-        "**SatQuery Intelligence Copilot Online**\n\nI can analyze multispectral satellite rasters, run YOLOv8 target detection (planes, ships, storage tanks), compute spectral vegetation & water indices (NDVI, NDWI, NBR), or ingest live Sentinel-2 passes.\n\n*Type any remote sensing query, speak into the mic, or select a workspace tool.*",
+        "**SatQuery Intelligence Copilot Online**\n\nI can analyze multispectral satellite rasters, run aerial target detection (vehicles, aircraft, vessels, infrastructure), compute spectral vegetation & water indices (NDVI, NDWI, NBR), or ingest live Sentinel-2 passes.\n\nType any remote sensing query, speak into the mic, or draw a Region of Interest (ROI) on the map to begin.",
       timestamp: new Date(),
     },
   ]);
@@ -91,6 +104,13 @@ export default function AIAssistantPanel({
   const [isLightMode, setIsLightMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const streamTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (streamTimerRef.current) clearInterval(streamTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem("satquery_theme");
@@ -113,11 +133,16 @@ export default function AIAssistantPanel({
   };
 
   const handleClearChat = () => {
+    if (streamTimerRef.current) {
+      clearInterval(streamTimerRef.current);
+      streamTimerRef.current = null;
+    }
     setMessages([
       {
         id: "welcome",
         role: "assistant",
-        content: "What can I help you with?",
+        content:
+          "**SatQuery Intelligence Copilot Online**\n\nI can analyze multispectral satellite rasters, run aerial target detection (vehicles, aircraft, vessels, infrastructure), compute spectral vegetation & water indices (NDVI, NDWI, NBR), or ingest live Sentinel-2 passes.\n\nType any remote sensing query, speak into the mic, or draw a Region of Interest (ROI) on the map to begin.",
         timestamp: new Date(),
       },
     ]);
@@ -168,12 +193,15 @@ export default function AIAssistantPanel({
     }
   };
 
-  // Auto-scroll inside chat
+  // Auto-scroll when user queries or while reasoning: scrolls down so user sees question + reasoning indicator
   useEffect(() => {
-    if (messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    if (messagesContainerRef.current && loading) {
+      messagesContainerRef.current.scrollTo({
+        top: messagesContainerRef.current.scrollHeight,
+        behavior: "smooth",
+      });
     }
-  }, [messages, loading]);
+  }, [loading]);
 
   // Handle prefilled queries
   useEffect(() => {
@@ -186,6 +214,12 @@ export default function AIAssistantPanel({
   const handleSend = async (queryText?: string) => {
     const textToSend = (queryText || input).trim();
     if (!textToSend || loading) return;
+
+    if (streamTimerRef.current) {
+      clearInterval(streamTimerRef.current);
+      streamTimerRef.current = null;
+      setMessages((prev) => prev.map((m) => (m.isStreaming ? { ...m, isStreaming: false } : m)));
+    }
 
     setInput("");
 
@@ -201,17 +235,52 @@ export default function AIAssistantPanel({
     setIsQuerying?.(true);
 
     try {
-      const activeSceneId = sceneId || "d1f2e30941c2_20260903T094411";
+      let targetSceneId = sceneId;
+
+      // Only capture live viewport if an AOI is drawn or user explicitly requested visual analysis
+      const lower = textToSend.toLowerCase();
+      const isVisualInspection =
+        roi !== null ||
+        lower.includes("analyze what is visible") ||
+        lower.includes("what is visible in this map scene") ||
+        lower.includes("what do you see on map") ||
+        lower.includes("look at this area") ||
+        lower.includes("look at the map");
+
+      if (isVisualInspection && !targetSceneId && onCaptureLiveViewport) {
+        try {
+          const snap = await onCaptureLiveViewport();
+          if (snap && snap.image_base64) {
+            const registered = await createSnapshotScene({
+              image_base64: snap.image_base64,
+              bounds: snap.bounds,
+              label: snap.label,
+              is_roi: snap.is_roi,
+            });
+            targetSceneId = registered.scene_id;
+            // Never call onSelectScene here — snapshots are for backend AI vision analysis,
+            // never draped back over the native 3D Cesium globe to avoid visual artifacts!
+          }
+        } catch (snapErr) {
+          console.warn("Live viewport snapshot capture error:", snapErr);
+        }
+      }
+
+      // If no scene was captured or loaded, route as a general knowledge query
+      if (!targetSceneId) {
+        targetSceneId = "general";
+      }
+
       const history: ConversationTurn[] = messages
         .filter((m) => m.id !== "welcome")
         .slice(-6)
         .map((m) => ({
           role: m.role,
-          content: m.content,
+          content: m.content ? m.content.slice(0, 8000) : "",
         }));
 
       const res = await queryScene({
-        scene_id: activeSceneId,
+        scene_id: targetSceneId,
         prompt: textToSend,
         roi: roi || undefined,
         history,
@@ -219,18 +288,60 @@ export default function AIAssistantPanel({
 
       onQueryResponse(res);
 
+      const botId = `b-${Date.now()}`;
+      const fullAnswer = res.answer || "No response generated.";
+
       const botMsg: AssistantMessage = {
-        id: `b-${Date.now()}`,
+        id: botId,
         role: "assistant",
-        content: res.answer,
+        content: "",
         timestamp: new Date(),
         queryResponse: res,
         question: textToSend,
         detectedAreaKm2: res.stats?.area_km2 || res.stats?.changed_area_km2,
-        thumbnailUrl: res.overlays?.[0]?.url || "/images/mumbai_port_hd.jpg",
+        thumbnailUrl: res.overlays?.[0]?.url,
+        isStreaming: true,
       };
 
       setMessages((prev) => [...prev, botMsg]);
+      setLoading(false);
+      setIsQuerying?.(false);
+
+      // Smoothly position user right at the start of the response instead of throwing them to the bottom!
+      setTimeout(() => {
+        const msgEl = document.getElementById(`msg-${botId}`);
+        if (msgEl && messagesContainerRef.current) {
+          const container = messagesContainerRef.current;
+          const targetTop = msgEl.offsetTop - 12;
+          container.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
+        }
+      }, 40);
+
+      // Progressive typewriter streaming animation
+      let charIndex = 0;
+      const stepSize = Math.max(4, Math.ceil(fullAnswer.length / 80));
+
+      if (streamTimerRef.current) clearInterval(streamTimerRef.current);
+
+      streamTimerRef.current = setInterval(() => {
+        charIndex += stepSize;
+        if (charIndex >= fullAnswer.length) {
+          if (streamTimerRef.current) clearInterval(streamTimerRef.current);
+          streamTimerRef.current = null;
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === botId ? { ...msg, content: fullAnswer, isStreaming: false } : msg
+            )
+          );
+        } else {
+          const currentSlice = fullAnswer.slice(0, charIndex);
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === botId ? { ...msg, content: currentSlice } : msg
+            )
+          );
+        }
+      }, 16);
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : "Analysis request failed";
       setMessages((prev) => [
@@ -248,32 +359,44 @@ export default function AIAssistantPanel({
     }
   };
 
-  const handleGenerateReport = async () => {
+  const handleGenerateReport = async (customMsg?: AssistantMessage) => {
+    const targetMsg =
+      customMsg ||
+      [...messages].reverse().find((m) => m.queryResponse);
+    if (!targetMsg?.queryResponse) {
+      setMessages((previous) => [
+        ...previous,
+        {
+          id: `system-${Date.now()}`,
+          role: "assistant",
+          content: "Run an aerial target detection, segmentation, or spectral analysis query on the map first to generate an intelligence briefing report.",
+          timestamp: new Date(),
+        },
+      ]);
+      return;
+    }
     setReportGenerated(true);
     try {
-      const lastBotMsg = [...messages].reverse().find((m) => m.queryResponse);
+      const reportSceneName =
+        sceneName ||
+        targetMsg.queryResponse?.provenance?.source_filename ||
+        targetMsg.queryResponse?.provenance?.scene_id ||
+        "Active Satellite Scene";
       await exportIntelligenceReport({
-        sceneName: sceneName || "Amazon Basin Sector Deforestation",
+        sceneName: reportSceneName,
         scene: scene || null,
-        thumbnailUrl: lastBotMsg?.thumbnailUrl || "/images/amazon_deforest_hd.jpg",
-        question: lastBotMsg?.question || "Show me recent deforestation near the Amazon with area estimate.",
-        response: lastBotMsg?.queryResponse || ({
-          contract_version: "1.0",
-          routing: { tool: "mock", confidence: 0.95 },
-          answer: "Satellite observation report: Detected deforestation area estimated at ~312 km² (+18% vs previous period).",
-          stats: { area_km2: 312, changed_area_km2: 312, confidence_score: 0.94 },
-          citations: [],
-          degradation_flags: [],
-          geojson: { type: "FeatureCollection", features: [] },
-          overlays: [],
-          timings: { total_ms: 120 },
-          peak_vram_gb: 2.1,
-        } as unknown as QueryResponse),
+        thumbnailUrl: targetMsg.thumbnailUrl || targetMsg.queryResponse?.overlays?.[0]?.url || "",
+        question: targetMsg.question || targetMsg.content || "Satellite Intelligence Briefing",
+        response: targetMsg.queryResponse,
+        classification,
+        workspaceName,
       });
-    } catch {
-      // Handled
+    } catch (reportErr) {
+      console.error("Failed to generate PDF report:", reportErr);
+      window.alert("Failed to generate PDF report: " + (reportErr instanceof Error ? reportErr.message : String(reportErr)));
+    } finally {
+      setTimeout(() => setReportGenerated(false), 3000);
     }
-    setTimeout(() => setReportGenerated(false), 3000);
   };
 
   const handleTrackRegion = async () => {
@@ -281,11 +404,12 @@ export default function AIAssistantPanel({
     try {
       const bbox = roi
         ? roi.bbox
-        : { west: -62.0, south: -4.5, east: -58.0, north: -2.0 };
+        : { west: 77.0, south: 28.4, east: 77.1, north: 28.6 };
+      const label = sceneName ? `AOI Alert - ${sceneName}` : "Active AOI Surveillance";
 
       await createWatch({
         email: "analyst@satquery.io",
-        label: `AOI Alert - Amazon Basin`,
+        label,
         bbox,
         tool_call: {
           action: "spectral",
@@ -303,78 +427,23 @@ export default function AIAssistantPanel({
 
   return (
     <div className="native-assistant-panel">
-      {/* ── Top Header Controls ──────────────────────────────────── */}
-      <div className="native-right-header">
-        <div className="native-right-header__controls">
-          <div
-            className="native-search-pill"
-            onClick={() => onOpenCommandPalette?.()}
-            style={{ cursor: "pointer" }}
-            title="Open Command Palette (⌘K)"
-          >
-            <span className="native-search-pill__dots">...</span>
-            <kbd className="native-search-pill__kbd">⌘K</kbd>
-          </div>
-          <button
-            type="button"
-            className={`native-circle-btn ${isLightMode ? "native-circle-btn--active" : ""}`}
-            title={isLightMode ? "Switch to Dark Orbit Mode" : "Switch to Daylight Mode"}
-            onClick={handleToggleTheme}
-          >
-            {isLightMode ? <Moon size={14} color="#f59e0b" /> : <Sun size={14} />}
-          </button>
-          <button
-            type="button"
-            className="native-circle-btn"
-            title="Notifications"
-            onClick={() => onOpenNotifications?.()}
-          >
-            <Bell size={14} />
-            <span className="native-circle-btn__dot" />
-          </button>
-          <div
-            className="native-avatar"
-            onClick={() => onOpenProfile?.()}
-            style={{ cursor: "pointer" }}
-            title="SatQuery Enterprise Profile"
-          >
-            SQ
-          </div>
-        </div>
-
-        <div className="native-right-header__slogan">
-          <span>PLANET</span>
-          <span>PEOPLE</span>
-          <span>POSSIBILITIES</span>
-        </div>
-      </div>
-
-      {/* ── Card 1: Our Mission Card ─────────────────────────────── */}
+      {/* ── Card 1: Our Mission Card (Matching theme.jpg) ─────────── */}
       <div
         className="native-mission-card"
         onClick={() => setShowVideoModal(true)}
+        role="button"
+        tabIndex={0}
+        title="Watch our story (2 min)"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") setShowVideoModal(true);
+        }}
       >
         <img
-          src="/images/mission_clean_bg.png"
-          alt="Mission Landscape"
-          className="native-mission-card__bg"
-          draggable={false}
+          src="/images/theme_mission_card.jpg"
+          alt="Our Mission: From satellite data to a better tomorrow."
+          className="native-mission-card__img"
+          style={{ width: "100%", height: "auto", display: "block", borderRadius: "16px", cursor: "pointer" }}
         />
-        <div className="native-mission-card__overlay">
-          <span className="native-mission-card__subtitle">OUR MISSION</span>
-          <h2 className="native-mission-card__heading">
-            From satellite data<br />to a better tomorrow.
-          </h2>
-          <div className="native-mission-card__action">
-            <div className="native-mission-card__play-btn">
-              <Play size={12} fill="#181e23" color="#181e23" />
-            </div>
-            <div className="native-mission-card__play-meta">
-              <span className="native-mission-card__play-title">Watch our story</span>
-              <span className="native-mission-card__play-time">2 min</span>
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* ── Card 2: AI Assistant Chat Card ───────────────────────── */}
@@ -383,8 +452,17 @@ export default function AIAssistantPanel({
         <div className="native-chat-card__header">
           <div className="native-chat-card__title-group">
             <span className="native-chat-card__title">AI Assistant</span>
-            <span className="native-chat-card__status">
-              <span className="native-chat-card__status-dot" /> Online
+            <span
+              className="native-chat-card__status"
+              onClick={() => onOpenProfile?.()}
+              style={{ cursor: "pointer" }}
+              title="SatQuery AI Intelligence Engine Online"
+            >
+              <span
+                className="native-chat-card__status-dot"
+                style={{ background: "#10b981", boxShadow: "0 0 8px #10b981" }}
+              />
+              Online
             </span>
           </div>
           <div style={{ position: "relative" }}>
@@ -468,6 +546,7 @@ export default function AIAssistantPanel({
           {messages.map((m) => (
             <div
               key={m.id}
+              id={`msg-${m.id}`}
               className={`native-chat-msg ${
                 m.role === "user"
                   ? "native-chat-msg--user"
@@ -482,16 +561,59 @@ export default function AIAssistantPanel({
               <div className="native-chat-msg__content">
                 <div className="native-chat-msg__bubble">
                   <ReactMarkdown>{m.content}</ReactMarkdown>
+                  {m.isStreaming && (
+                    <span
+                      className="inline-block w-2 h-4 ml-1.5 bg-cyan-400 animate-pulse align-middle rounded-sm shadow-[0_0_8px_#22d3ee]"
+                      title="AI Writing…"
+                    />
+                  )}
                 </div>
+                {!m.isStreaming && m.queryResponse?.provenance && (
+                  <details className="native-provenance-card">
+                    <summary>Source &amp; method</summary>
+                    <p><strong>Scene:</strong> {m.queryResponse.provenance.source_filename} · {m.queryResponse.provenance.scene_id}</p>
+                    <p><strong>Input:</strong> {m.queryResponse.provenance.source_type}{m.queryResponse.provenance.capture_date ? ` · ${m.queryResponse.provenance.capture_date}` : ""}</p>
+                    <p><strong>Bands:</strong> {m.queryResponse.provenance.bands_used.join(", ")} · <strong>Method:</strong> {m.queryResponse.provenance.analysis_method}</p>
+                    <p><strong>SHA-256:</strong> {m.queryResponse.provenance.sha256}</p>
+                    {m.queryResponse.uncertainty && <p><strong>Uncertainty:</strong> {m.queryResponse.uncertainty.lower.toFixed(1)}–{m.queryResponse.uncertainty.upper.toFixed(1)} ({m.queryResponse.uncertainty.method}). {m.queryResponse.uncertainty.caveat}</p>}
+                  </details>
+                )}
+                {!m.isStreaming && m.queryResponse && (
+                  <div className="native-chat-actions native-export-actions" aria-label="Export analysis">
+                    <button
+                      type="button"
+                      className="native-action-pill"
+                      style={{
+                        background: "rgba(16, 185, 129, 0.15)",
+                        color: "#34d399",
+                        border: "1px solid rgba(16, 185, 129, 0.3)",
+                        fontWeight: 600,
+                      }}
+                      onClick={() => handleGenerateReport(m)}
+                    >
+                      <FileDown size={12} />
+                      <span>{reportGenerated ? "Report Exported!" : "Generate PDF Dossier"}</span>
+                    </button>
+                    {m.queryResponse.geojson.features.length > 0 && (
+                      <>
+                        <button type="button" className="native-action-pill" onClick={() => exportGeoJSON(m.queryResponse!.geojson, m.queryResponse?.provenance?.scene_id ?? "satquery_analysis")}>GeoJSON</button>
+                        <button type="button" className="native-action-pill" onClick={() => exportKML(m.queryResponse!.geojson, m.queryResponse?.provenance?.scene_id ?? "satquery_analysis")}>KML</button>
+                        <button type="button" className="native-action-pill" onClick={() => void exportShapefile(m.queryResponse!.geojson, m.queryResponse?.provenance?.scene_id ?? "satquery_analysis").catch((error: unknown) => window.alert(error instanceof Error ? error.message : "Shapefile export failed."))}>Shapefile</button>
+                        <button type="button" className="native-action-pill" title="Export ISO 19115 Geospatial XML Metadata" onClick={() => exportISO19115XML(m.queryResponse!.geojson, m.queryResponse?.provenance?.scene_id ?? "satquery_analysis", m.queryResponse?.provenance, classification)}>ISO XML</button>
+                        <button type="button" className="native-action-pill" title="Export 16:9 shareable intelligence card PNG" onClick={() => void exportAnswerCardAsImage({ sceneId: m.queryResponse?.provenance?.scene_id ?? "satquery_analysis", prompt: m.question ?? m.content, response: m.queryResponse!, classification }).catch((error: unknown) => window.alert(error instanceof Error ? error.message : "Card image export failed."))}>Card PNG</button>
+                      </>
+                    )}
+                  </div>
+                )}
 
                 {/* Sub-Card: Detected Area & Satellite Map */}
-                {m.detectedAreaKm2 && (
+                {!m.isStreaming && m.detectedAreaKm2 && (
                   <div className="native-detected-card">
                     {m.thumbnailUrl && (
                       <div className="native-detected-card__thumb">
                         <img
                           src={m.thumbnailUrl}
-                          alt="Deforestation Map"
+                          alt="Analysis Map"
                           draggable={false}
                         />
                       </div>
@@ -516,11 +638,11 @@ export default function AIAssistantPanel({
                 )}
 
                 {/* Action Pills */}
-                {m.detectedAreaKm2 && (
+                {!m.isStreaming && m.detectedAreaKm2 && !m.queryResponse && (
                   <div className="native-chat-actions">
                     <button
                       type="button"
-                      onClick={handleGenerateReport}
+                      onClick={() => handleGenerateReport(m)}
                       className="native-action-pill"
                     >
                       {reportGenerated ? (
@@ -582,19 +704,6 @@ export default function AIAssistantPanel({
           )}
         </div>
 
-        {/* Quick Upload / Action Chip */}
-        <div className="native-chat-quick-chips">
-          <button
-            type="button"
-            onClick={() => onOpenWorkspace?.("data-library")}
-            className="native-chat-upload-chip"
-            title="Upload custom GeoTIFF satellite raster"
-          >
-            <UploadCloud size={12} />
-            <span>Upload GeoTIFF / Scene</span>
-          </button>
-        </div>
-
         {/* Input Bar */}
         <form
           onSubmit={(e) => {
@@ -644,26 +753,14 @@ export default function AIAssistantPanel({
         </form>
       </div>
 
-      {/* ── Card 3: Quote Card ───────────────────────────────────── */}
+      {/* ── Card 3: Quote Card (Matching theme.jpg) ──────────────── */}
       <div className="native-quote-card">
         <img
-          src="/images/quote_clean_bg.png"
-          alt="Golden Sunrise Landscape"
-          className="native-quote-card__bg"
-          draggable={false}
+          src="/images/theme_quote_card.jpg"
+          alt="Same Earth. Deeper Insights."
+          className="native-quote-card__img"
+          style={{ width: "100%", height: "auto", display: "block", borderRadius: "16px" }}
         />
-        <div className="native-quote-card__overlay">
-          <blockquote className="native-quote-card__text">
-            “Same Earth.<br />Deeper Insights.”
-          </blockquote>
-          <div className="native-quote-card__divider" />
-        </div>
-      </div>
-
-      {/* ── Sub-quote Tagline ─────────────────────────────────────── */}
-      <div className="native-right-footer">
-        <span className="native-right-footer__bold">Real-World</span>
-        <span className="native-right-footer__sub">Impact</span>
       </div>
 
       {/* Video Story Modal */}
@@ -683,11 +780,23 @@ export default function AIAssistantPanel({
               </button>
             </div>
             <div className="theme-modal-body">
-              <img
-                src="/images/satellite_feed_preview.jpg"
-                alt="Earth Mission"
-                style={{ width: "100%", borderRadius: "10px" }}
-              />
+              <div className="w-full h-40 rounded-xl bg-slate-900/90 border border-slate-800 p-4 flex flex-col justify-center items-center">
+                <svg viewBox="0 0 360 110" className="w-full h-full">
+                  <rect x="10" y="30" width="90" height="50" rx="8" fill="#0f172a" stroke="#0284c7" strokeWidth="1.5" />
+                  <text x="55" y="52" fill="#e2e8f0" fontSize="10" fontWeight="bold" textAnchor="middle">Sentinel-2</text>
+                  <text x="55" y="68" fill="#94a3b8" fontSize="8" textAnchor="middle">13 VNIR Bands</text>
+                  <line x1="100" y1="55" x2="135" y2="55" stroke="#38bdf8" strokeWidth="1.5" strokeDasharray="3 3" />
+
+                  <rect x="135" y="30" width="90" height="50" rx="8" fill="#0f172a" stroke="#10b981" strokeWidth="1.5" />
+                  <text x="180" y="52" fill="#e2e8f0" fontSize="10" fontWeight="bold" textAnchor="middle">GDAL Engine</text>
+                  <text x="180" y="68" fill="#94a3b8" fontSize="8" textAnchor="middle">COG / Overlays</text>
+                  <line x1="225" y1="55" x2="260" y2="55" stroke="#34d399" strokeWidth="1.5" strokeDasharray="3 3" />
+
+                  <rect x="260" y="30" width="90" height="50" rx="8" fill="#0f172a" stroke="#8b5cf6" strokeWidth="1.5" />
+                  <text x="305" y="52" fill="#e2e8f0" fontSize="10" fontWeight="bold" textAnchor="middle">AI Copilot</text>
+                  <text x="305" y="68" fill="#94a3b8" fontSize="8" textAnchor="middle">Vision Reasoning</text>
+                </svg>
+              </div>
               <p
                 style={{
                   marginTop: "14px",
