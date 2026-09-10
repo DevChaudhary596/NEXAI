@@ -15,18 +15,6 @@ class FetchSatelliteRequest(Strict):
     bbox: BBox = Field(description="Area of interest, EPSG:4326.")
 
 
-class SnapshotSceneRequest(Strict):
-    """POST /api/v1/scenes/snapshot request body."""
-
-    image_base64: str = Field(min_length=10, description="Base64 encoded image from live map canvas or drawn ROI.")
-    bounds: list[float] = Field(
-        min_length=4, max_length=4,
-        description="[west, south, east, north] coordinates in EPSG:4326.",
-    )
-    label: str | None = Field(default=None, description="Optional label for the captured scene.")
-    is_roi: bool = Field(default=False, description="True if captured from a drawn bounding box.")
-
-
 class UploadResponse(Strict):
     """Returned by POST /api/v1/upload on success."""
 

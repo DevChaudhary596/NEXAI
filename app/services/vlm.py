@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import gc
 import logging
-import os
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -25,113 +24,6 @@ from typing import Any, Iterator
 from app.core.config import Settings, get_settings
 
 log = logging.getLogger(__name__)
-
-# ── System prompts (M1 Days 9 & 12) ──────────────────────────────────────
-#
-# Two layers, composed at call time by `build_system_prompt`:
-#   1. ANSWER_SYSTEM_PROMPT - always on. Forces the structured bullet format
-#      judges and analysts can scan in two seconds, and reiterates the
-#      no-hallucinated-numbers rule the orchestrator's `_summarise` already
-#      enforces one layer down.
-#   2. SCENARIO_SYSTEM_PROMPTS - one of the 3 flagship demo scenarios, picked
-#      by `select_scenario` from the routing decision + raw query text.
-#      Hardcoded and stable on purpose: these are the exact three scenes M6
-#      rehearses, so the wording should not vary run to run.
-
-ANSWER_SYSTEM_PROMPT = """You are SatQuery, an expert AI geospatial and remote sensing intelligence analyst.
-
-Core Rules:
-- Never invent a number. Every count, area, or percentage in "Tool findings" \
-below is ground truth from a deterministic trained neural network model — \
-restate it accurately, never contradict or hallucinate conflicting figures.
-- Deliver sharp, professional, and articulate answers befitting a defense \
-or civilian intelligence briefing.
-- When "Tool findings" are provided, structure the answer as clean markdown \
-bullets in this order (omit any that don't apply):
-  - **Area Impacted**: Precisely identify the geographic area, infrastructure, \
-or terrain the analysis covers. Name landmarks, facilities, or land-use \
-categories visible in the scene.
-  - **Density / Count**: State the tool's count or area figure verbatim, then \
-add brief professional context — e.g., vehicle distribution pattern, spacing, \
-clustering behavior, or comparison to typical operational baselines.
-  - **Risk Rating**: Low / Moderate / High / Severe, with a one-clause \
-justification grounded only in the numbers and observable scene context.
-- When "Tool findings" is empty, you are answering from the image alone \
-(general visual question) — provide a detailed, professional scene description \
-covering land use, infrastructure, vegetation, and any notable features.
-- Use concise but rich language. Avoid generic filler. Every sentence should \
-add analytical value."""
-
-SCENARIO_SYSTEM_PROMPTS: dict[str, str] = {
-    "flood": """Scenario: Disaster / Flood Assessment. Frame "Area Impacted" as \
-flooded/inundated extent, "Density" as the % of the scene or ROI underwater, \
-and "Risk Rating" on displacement/infrastructure risk (Low < 5% of area, \
-Moderate 5-20%, High 20-50%, Severe > 50%).""",
-    "agriculture": """Scenario: Agricultural Stress. Frame "Area Impacted" as \
-crop/vegetation extent, "Density" as mean NDVI or the stressed-area fraction, \
-and "Risk Rating" on crop health (Low = healthy/NDVI>0.5, Moderate = mild \
-stress, High = significant stress, Severe = likely crop failure).""",
-    "port_surveillance": """Scenario: Defense / Port Surveillance. Frame "Area \
-Impacted" as the harbor/berth area covered, "Density" as vessel or object \
-count and rough spacing, and "Risk Rating" on anomalous activity (Low = \
-routine traffic, Moderate = elevated count, High = dense/clustered activity, \
-Severe = pattern inconsistent with normal traffic) - never claim vessel \
-identity or intent, only what is visually/statistically observable.""",
-}
-
-
-def select_scenario(tool_call: Any, prompt: str) -> str | None:
-    """Map a routing decision + raw query onto one of the 3 flagship demo
-    scenarios, or None for general queries that don't fit any of them.
-
-    Cheap keyword/index matching, deliberately - same "rules first, free,
-    cannot hallucinate" philosophy as app/services/router.py's rule pass.
-    """
-    action = getattr(tool_call, "action", None)
-    action_val = getattr(action, "value", action)
-    text = prompt.lower()
-
-    if action_val == "spectral":
-        index_val = getattr(getattr(tool_call, "index", None), "value", None)
-        if index_val == "ndwi" or any(
-            w in text for w in ("flood", "flooded", "flooding", "inundat", "disaster")
-        ):
-            return "flood"
-        if index_val == "ndvi" or any(
-            w in text for w in ("crop", "agricultur", "farm", "vegetation", "drought")
-        ):
-            return "agriculture"
-        return None
-
-    if action_val in ("detection", "segmentation"):
-        target = getattr(tool_call, "target", "") or ""
-        if target in ("ship", "harbor") or any(
-            w in text for w in ("port", "harbor", "harbour", "vessel", "naval", "dock")
-        ):
-            return "port_surveillance"
-        if any(w in text for w in ("flood", "flooded", "flooding", "inundat", "disaster")):
-            return "flood"
-        if any(w in text for w in ("crop", "agricultur", "farm", "vegetation", "drought")):
-            return "agriculture"
-
-    # General VQA / other queries: trigger scenario if query text strongly indicates one
-    if any(w in text for w in ("flood", "flooded", "flooding", "inundat", "disaster")):
-        return "flood"
-    if any(w in text for w in ("crop", "agricultur", "farm", "vegetation", "drought")):
-        return "agriculture"
-    if any(w in text for w in ("port", "harbor", "harbour", "vessel", "naval", "dock")):
-        return "port_surveillance"
-
-    return None
-
-
-def build_system_prompt(tool_call: Any, prompt: str) -> str:
-    """Compose the base structured-output prompt with a scenario overlay, if
-    the query matches one of the 3 flagship demos."""
-    scenario = select_scenario(tool_call, prompt)
-    if scenario is None:
-        return ANSWER_SYSTEM_PROMPT
-    return f"{ANSWER_SYSTEM_PROMPT}\n\n{SCENARIO_SYSTEM_PROMPTS[scenario]}"
 
 
 class VLMBackend:
@@ -144,18 +36,8 @@ class VLMBackend:
         raise NotImplementedError
 
     def answer(
-        self,
-        prompt: str,
-        image_path: str | Path | None = None,
-        *,
-        context: str = "",
-        history: list[dict[str, str]] | None = None,
-        system_prompt: str = "",
+        self, prompt: str, image_path: str | Path | None = None, *, context: str = ""
     ) -> str:
-        """`history` is prior turns as [{"role": "user"|"assistant", "content": ...}],
-        oldest first, text-only - the image is bound to the *current* turn
-        only (Day 8). `system_prompt` is Day 9/12's structured-output prompt,
-        built by `build_system_prompt`."""
         raise NotImplementedError
 
     def peak_vram_gb(self) -> float | None:
@@ -179,29 +61,11 @@ class MockVLM(VLMBackend):
         return decision.tool_call.model_dump_json()
 
     def answer(
-        self,
-        prompt: str,
-        image_path: str | Path | None = None,
-        *,
-        context: str = "",
-        history: list[dict[str, str]] | None = None,
-        system_prompt: str = "",
+        self, prompt: str, image_path: str | Path | None = None, *, context: str = ""
     ) -> str:
         head = "*(mock VLM - set SATQUERY_VLM_BACKEND=local on GPU or mlx on Apple Silicon)*"
-        memory_note = (
-            f" (considering {len(history)} prior turn(s) of context)" if history else ""
-        )
         if context:
-            bullets = f"Based on the analysis of this scene{memory_note}:\n\n{context}"
-            if system_prompt:
-                # Shape parity with the real backends: a scenario/structured
-                # system prompt should visibly change the mock's phrasing too,
-                # so tests exercise the same wiring, not just the real model.
-                bullets = (
-                    f"- **Density / Count**: {context}{memory_note}\n"
-                    f"- **Risk Rating**: see findings above"
-                )
-            return f"{head}\n\n{bullets}"
+            return f"{head}\n\nBased on the analysis of this scene:\n\n{context}"
 
         desc_parts = []
         if image_path and Path(image_path).exists():
@@ -218,13 +82,13 @@ class MockVLM(VLMBackend):
         if desc_parts:
             summary = ", ".join(desc_parts)
             return (
-                f"{head}{memory_note}\n\n"
+                f"{head}\n\n"
                 f"The satellite scene shows an aerial view containing {summary}. "
                 f"You can ask questions like 'how many planes are here?' or 'detect storage tanks' to visualize them on the map."
             )
 
         return (
-            f"{head}{memory_note}\n\n"
+            f"{head}\n\n"
             f"I can see the satellite scene. You can ask object detection questions (e.g. planes, ships, tanks, vehicles), "
             f"segmentation queries, or spectral index analyses (NDVI, NDWI) across the scene or within a selected ROI."
         )
@@ -396,27 +260,12 @@ class LocalQwen2VL(VLMBackend):
         self.model.eval()
         self._peak = 0.0
 
-    def _build(
-        self,
-        prompt: str,
-        image_path: str | Path | None,
-        *,
-        history: list[dict[str, str]] | None = None,
-        system_prompt: str = "",
-    ) -> dict[str, Any]:
-        messages: list[dict[str, Any]] = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        # Text-only prior turns - Day 8's whole point is that these never
-        # carry an image, so the KV cache never re-encodes the base crop.
-        for turn in history or []:
-            messages.append({"role": turn["role"], "content": turn["content"]})
-
+    def _build(self, prompt: str, image_path: str | Path | None) -> dict[str, Any]:
         content: list[dict[str, Any]] = []
         if image_path is not None:
             content.append({"type": "image", "image": str(image_path)})
         content.append({"type": "text", "text": prompt})
-        messages.append({"role": "user", "content": content})
+        messages = [{"role": "user", "content": content}]
 
         text = self.processor.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True
@@ -441,7 +290,6 @@ class LocalQwen2VL(VLMBackend):
                 temperature=None if greedy else 0.7,
                 pad_token_id=self.processor.tokenizer.pad_token_id
                 or self.processor.tokenizer.eos_token_id,
-                use_cache=True,
             )
         self._peak = max(self._peak, stats["peak_gb"])
         trimmed = out[:, inputs["input_ids"].shape[1]:]
@@ -455,17 +303,12 @@ class LocalQwen2VL(VLMBackend):
         return self._generate(self._build(prompt, None), max_new_tokens, greedy=True)
 
     def answer(
-        self,
-        prompt: str,
-        image_path: str | Path | None = None,
-        *,
-        context: str = "",
-        history: list[dict[str, str]] | None = None,
-        system_prompt: str = "",
+        self, prompt: str, image_path: str | Path | None = None, *, context: str = ""
     ) -> str:
         full = prompt if not context else f"{prompt}\n\nTool findings:\n{context}"
-        inputs = self._build(full, image_path, history=history, system_prompt=system_prompt)
-        return self._generate(inputs, self.s.max_new_tokens, greedy=False)
+        return self._generate(
+            self._build(full, image_path), self.s.max_new_tokens, greedy=False
+        )
 
     def peak_vram_gb(self) -> float | None:
         return self._peak or None
@@ -544,25 +387,6 @@ class MLXQwen2VL(VLMBackend):
         img.save(tmp)
         return tmp
 
-    @staticmethod
-    def _compose_text(
-        prompt: str, history: list[dict[str, str]] | None, system_prompt: str
-    ) -> str:
-        """mlx_vlm's `apply_chat_template` helper takes one flat prompt string,
-        not a message list - so system prompt and history are folded into
-        that string rather than passed as structured turns. Cruder than the
-        CUDA path's real multi-message template, but Qwen2.5-VL follows
-        clearly-labeled turns in a single user message fine, and this is the
-        only demo host guaranteed present on Day 7/Day 8 (M1's MacBook)."""
-        parts: list[str] = []
-        if system_prompt:
-            parts.append(f"[system]\n{system_prompt}")
-        for turn in history or []:
-            speaker = "User" if turn["role"] == "user" else "Assistant"
-            parts.append(f"{speaker}: {turn['content']}")
-        parts.append(f"User: {prompt}" if history else prompt)
-        return "\n\n".join(parts)
-
     def _run(
         self,
         prompt: str,
@@ -570,8 +394,6 @@ class MLXQwen2VL(VLMBackend):
         max_tokens: int,
         *,
         greedy: bool,
-        history: list[dict[str, str]] | None = None,
-        system_prompt: str = "",
     ) -> str:
         from mlx_vlm import generate
         from mlx_vlm.prompt_utils import apply_chat_template
@@ -580,9 +402,8 @@ class MLXQwen2VL(VLMBackend):
         if image_path is not None and Path(image_path).exists():
             images = [str(self._fit(image_path))]
 
-        composed = self._compose_text(prompt, history, system_prompt)
         formatted = apply_chat_template(
-            self.processor, self.config, composed, num_images=len(images)
+            self.processor, self.config, prompt, num_images=len(images)
         )
 
         with vram_scope("mlx-generate") as stats:
@@ -608,227 +429,13 @@ class MLXQwen2VL(VLMBackend):
         return self._run(prompt, None, max_new_tokens, greedy=True)
 
     def answer(
-        self,
-        prompt: str,
-        image_path: str | Path | None = None,
-        *,
-        context: str = "",
-        history: list[dict[str, str]] | None = None,
-        system_prompt: str = "",
+        self, prompt: str, image_path: str | Path | None = None, *, context: str = ""
     ) -> str:
         full = prompt if not context else f"{prompt}\n\nTool findings:\n{context}"
-        return self._run(
-            full, image_path, self.s.max_new_tokens, greedy=False,
-            history=history, system_prompt=system_prompt,
-        )
+        return self._run(full, image_path, self.s.max_new_tokens, greedy=False)
 
     def peak_vram_gb(self) -> float | None:
         return self._peak or None
-
-
-class GroqVLM(VLMBackend):
-    """Cloud VLM backend powered by Groq's ultra-low latency inference engine.
-
-    Uses Groq's multimodal vision models (llama-3.2-11b-vision-preview) for
-    satellite scene analysis and high-intelligence models (llama-3.3-70b-versatile)
-    for general questions and query routing. Fuses deterministic trained CV/GIS
-    tool findings seamlessly into answers.
-    """
-
-    name = "groq"
-
-    def __init__(self, settings: Settings | None = None) -> None:
-        self.s = settings or get_settings()
-        api_key = (
-            self.s.groq_api_key
-            or os.getenv("SATQUERY_GROQ_API_KEY")
-            or os.getenv("GROQ_API_KEY")
-        )
-        if not api_key:
-            raise ValueError(
-                "Groq API key missing. Set SATQUERY_GROQ_API_KEY or GROQ_API_KEY."
-            )
-        try:
-            from groq import Groq
-
-            self.client = Groq(api_key=api_key)
-        except ImportError as exc:
-            raise ImportError(
-                "groq package is not installed. Run `pip install groq`."
-            ) from exc
-
-        # Auto-detect best available models on user's Groq account
-        available_ids: set[str] = set()
-        try:
-            m_list = self.client.models.list()
-            available_ids = {m.id for m in m_list.data}
-        except Exception as e:
-            log.debug("Could not query Groq models list: %s", e)
-
-        vision_candidates = [
-            self.s.groq_model,
-            "qwen/qwen3.8-27b",
-            "llama-3.2-11b-vision-preview",
-            "llama-3.2-90b-vision-preview",
-        ]
-        text_candidates = [
-            self.s.groq_text_model,
-            "qwen/qwen3.8-27b",
-            "openai/gpt-oss-120b",
-            "llama-3.3-70b-versatile",
-            "llama-3.1-8b-instant",
-        ]
-
-        self.model = next((c for c in vision_candidates if c and (not available_ids or c in available_ids)), "qwen/qwen3.8-27b")
-        self.text_model = next((c for c in text_candidates if c and (not available_ids or c in available_ids)), self.model)
-        log.info("Initialized GroqVLM (vision: %s, text: %s)", self.model, self.text_model)
-
-    def _encode_image(self, image_path: str | Path | None, max_dim: int = 1024) -> str | None:
-        if not image_path:
-            return None
-        p = Path(image_path)
-        if not p.exists():
-            return None
-        try:
-            import base64
-            import io
-            from PIL import Image
-
-            try:
-                img = Image.open(p)
-                if img.mode != "RGB":
-                    img = img.convert("RGB")
-            except Exception:
-                import numpy as np
-                import rasterio
-
-                with rasterio.open(str(p)) as src:
-                    if src.count >= 3:
-                        arr = src.read([1, 2, 3])
-                    else:
-                        arr = np.repeat(src.read(1)[np.newaxis, :, :], 3, axis=0)
-                    if arr.dtype == np.uint16:
-                        arr = (arr / 256).astype(np.uint8)
-                    elif arr.dtype in (np.float32, np.float64):
-                        arr = np.clip(
-                            arr * 255 if arr.max() <= 1.0 else arr, 0, 255
-                        ).astype(np.uint8)
-                    arr = np.transpose(arr, (1, 2, 0))
-                    img = Image.fromarray(arr)
-
-            if img.width > max_dim or img.height > max_dim:
-                img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
-
-            buf = io.BytesIO()
-            img.save(buf, format="JPEG", quality=85)
-            return base64.b64encode(buf.getvalue()).decode("utf-8")
-        except Exception as exc:
-            log.warning("Failed to encode image %s for Groq vision: %s", image_path, exc)
-            return None
-
-    def generate_json(self, prompt: str, *, max_new_tokens: int = 128) -> str:
-        try:
-            messages = [
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a routing classification engine that strictly outputs valid JSON. "
-                        "Output nothing except valid JSON."
-                    ),
-                },
-                {"role": "user", "content": prompt},
-            ]
-            resp = self.client.chat.completions.create(
-                model=self.text_model,
-                messages=messages,
-                response_format={"type": "json_object"},
-                temperature=0.0,
-                max_tokens=max_new_tokens,
-            )
-            return resp.choices[0].message.content.strip()
-        except Exception as exc:
-            log.warning("Groq JSON generation failed: %s; falling back to rule router", exc)
-            return MockVLM().generate_json(prompt, max_new_tokens=max_new_tokens)
-
-    def answer(
-        self,
-        prompt: str,
-        image_path: str | Path | None = None,
-        *,
-        context: str = "",
-        history: list[dict[str, str]] | None = None,
-        system_prompt: str = "",
-    ) -> str:
-        default_sys = (
-            "You are SatQuery Intelligence Copilot, an expert AI geospatial, remote sensing, and defense intelligence analyst.\n"
-            "Deliver sharp, professional, and clear answers.\n"
-            "- When 'Tool findings' are provided below, they represent ground-truth counts, areas, and scores calculated by specialized trained neural network models (YOLOv8 aerial detector, GIS multispectral engine). You must honor and state these numbers accurately; never contradict or hallucinate conflicting numbers.\n"
-            "- When describing satellite imagery, explain visible features, land use, infrastructure, maritime or aviation assets, and operational significance.\n"
-            "- For general questions (concepts, sensors, orbits, spectral bands, or general queries), provide comprehensive, articulate explanations.\n"
-            "- Format with clean markdown headers and bullet points where helpful."
-        )
-        sys_content = f"{default_sys}\n\n{system_prompt}" if system_prompt else default_sys
-
-        messages: list[dict[str, Any]] = [{"role": "system", "content": sys_content}]
-
-        for turn in history or []:
-            role = "user" if turn.get("role") == "user" else "assistant"
-            content = (turn.get("content") or "").strip()
-            if content:
-                messages.append({"role": role, "content": content})
-
-        query_text = prompt
-        if context:
-            query_text = f"{prompt}\n\nTool findings (ground truth from trained models):\n{context}"
-
-        encoded_img = self._encode_image(image_path)
-        if encoded_img:
-            messages.append({
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": query_text},
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/jpeg;base64,{encoded_img}"
-                        },
-                    },
-                ],
-            })
-            model_to_call = self.model
-        else:
-            messages.append({"role": "user", "content": query_text})
-            model_to_call = self.text_model
-
-        try:
-            resp = self.client.chat.completions.create(
-                model=model_to_call,
-                messages=messages,
-                temperature=0.3,
-                max_tokens=self.s.max_new_tokens if self.s.max_new_tokens > 300 else 600,
-            )
-            return resp.choices[0].message.content.strip()
-        except Exception as exc:
-            # If vision model encountered an issue, fallback to high-intelligence text model
-            if model_to_call == self.model:
-                try:
-                    log.warning("Groq vision request failed (%s); trying text model %s", exc, self.text_model)
-                    messages[-1]["content"] = query_text
-                    resp = self.client.chat.completions.create(
-                        model=self.text_model,
-                        messages=messages,
-                        temperature=0.3,
-                        max_tokens=600,
-                    )
-                    return resp.choices[0].message.content.strip()
-                except Exception as text_exc:
-                    log.error("Groq fallback text request also failed: %s", text_exc)
-            log.error("Groq API error: %s", exc)
-            mock_ans = MockVLM().answer(prompt, image_path, context=context, history=history, system_prompt=system_prompt)
-            return f"{mock_ans}\n\n*(Notice: Groq inference error: {exc})*"
-
-    def peak_vram_gb(self) -> float | None:
-        return None
 
 
 _backend: VLMBackend | None = None
@@ -839,18 +446,7 @@ def get_vlm() -> VLMBackend:
     global _backend
     if _backend is None:
         s = get_settings()
-        has_groq_key = bool(
-            s.groq_api_key
-            or os.getenv("SATQUERY_GROQ_API_KEY")
-            or os.getenv("GROQ_API_KEY")
-        )
-        if s.vlm_backend == "groq" or (s.vlm_backend == "mock" and has_groq_key):
-            try:
-                _backend = GroqVLM(s)
-            except Exception as exc:
-                log.warning("GroqVLM init failed: %s. Falling back to MockVLM.", exc)
-                _backend = MockVLM()
-        elif s.vlm_backend == "local":
+        if s.vlm_backend == "local":
             _backend = LocalQwen2VL(s)
         elif s.vlm_backend == "mlx":
             _backend = MLXQwen2VL(s)

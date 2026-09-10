@@ -43,7 +43,7 @@ def _write_multiband_tif(path, red, nir, green, blue=None, *, west=DEMO_WEST, no
     return path
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def scene_with_vegetation_and_water():
     """100x100, 4-band (B,G,R,NIR) scene: a strong-NDVI patch top-left, a
     strong-NDWI patch bottom-right, flat background elsewhere."""
@@ -67,7 +67,7 @@ def scene_with_vegetation_and_water():
     return path
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def bitemporal_scenes():
     """Two same-grid scenes where a new NDVI patch appears in the second."""
     shape = (100, 100)
@@ -92,7 +92,7 @@ def bitemporal_scenes():
     return path_a, path_b
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def three_band_scene():
     """RGB-only scene - no NIR, so spectral indices must fail loudly."""
     shape = (20, 20)
