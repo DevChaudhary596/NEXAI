@@ -180,12 +180,10 @@ class GISServiceAdapter:
     def spectral(self, scene_path, index: SpectralIndex, threshold: float, operator, bbox):
         import numpy as np
 
-        arr, transform, crs = self._compute_index(scene_path, index, bbox)
         if not Path(scene_path).exists():
             return MockGISService().spectral(scene_path, index, threshold, operator, bbox)
-        arr, transform, _crs = self._compute_index(scene_path, index, bbox)
 
-        import numpy as np
+        arr, transform, crs = self._compute_index(scene_path, index, bbox)
         mask = self._threshold(arr, threshold, _op_to_str(operator))
         geojson = self._polygonize(mask, transform, crs or _OUTPUT_CRS, min_area_sqm=100.0)
         fc = _geojson_to_feature_collection(geojson, index, source="spectral")
@@ -201,35 +199,6 @@ class GISServiceAdapter:
         }
 
     def bi_temporal(self, scene_a, scene_b, index: SpectralIndex, threshold: float, bbox):
-        import numpy as np
-        from rasterio.warp import Resampling, reproject
-
-        arr_a, transform_a, crs_a = self._compute_index(scene_a, index, bbox)
-        arr_b, transform_b, crs_b = self._compute_index(scene_b, index, bbox)
-
-        if arr_b.shape != arr_a.shape or transform_b != transform_a or crs_b != crs_a:
-            aligned = np.full(arr_a.shape, np.nan, dtype=np.float32)
-            reproject(
-                source=arr_b.astype(np.float32), destination=aligned,
-                src_transform=transform_b, src_crs=crs_b or _OUTPUT_CRS,
-                dst_transform=transform_a, dst_crs=crs_a or _OUTPUT_CRS,
-                resampling=Resampling.bilinear,
-                src_nodata=np.nan, dst_nodata=np.nan,
-            )
-            arr_b = aligned
-
-        delta = arr_b.astype(float) - arr_a.astype(float)
-
-        # The Protocol's bi_temporal has no `operator` param (the orchestrator
-        # doesn't forward SpectralCall.operator for the bi_temporal branch -
-        # see app/services/orchestrator.py:run_tool), so "changed" always
-        # means the delta magnitude exceeded `threshold`, matching the
-        # Protocol docstring ("regions that crossed threshold") and Mock's
-        # behaviour.
-        mask = self._threshold(np.abs(delta), threshold, ">")
-        geojson = self._polygonize(mask, transform_a, crs_a or _OUTPUT_CRS, min_area_sqm=100.0)
-        fc = _geojson_to_feature_collection(geojson, index, source="spectral")
-        overlay = self._build_overlay(delta, transform_a, crs_a, index, scene_a, "change")
         if not Path(scene_a).exists() or not Path(scene_b).exists():
             return MockGISService().bi_temporal(scene_a, scene_b, index, threshold, bbox)
         try:
@@ -252,10 +221,16 @@ class GISServiceAdapter:
 
             delta = arr_b.astype(float) - arr_a.astype(float)
 
+            # The Protocol's bi_temporal has no `operator` param (the orchestrator
+            # doesn't forward SpectralCall.operator for the bi_temporal branch -
+            # see app/services/orchestrator.py:run_tool), so "changed" always
+            # means the delta magnitude exceeded `threshold`, matching the
+            # Protocol docstring ("regions that crossed threshold") and Mock's
+            # behaviour.
             mask = self._threshold(np.abs(delta), threshold, ">")
-            geojson = self._polygonize(mask, transform_a, _OUTPUT_CRS, min_area_sqm=100.0)
+            geojson = self._polygonize(mask, transform_a, crs_a or _OUTPUT_CRS, min_area_sqm=100.0)
             fc = _geojson_to_feature_collection(geojson, index, source="spectral")
-            overlay = self._build_overlay(delta, transform_a, index, scene_a, "change")
+            overlay = self._build_overlay(delta, transform_a, crs_a, index, scene_a, "change")
 
             changed_area_km2 = round(sum(f.properties.area_m2 or 0.0 for f in fc.features) / 1e6, 4)
             return fc, overlay, {
