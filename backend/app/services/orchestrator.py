@@ -164,9 +164,22 @@ def _summarise(
         low_conf = len(scores) - high_conf
         caveat = _resolution_caveat(tool_call.target, resolution_m) if fc.count == 0 else ""
 
-        target_label = "objects/items/vehicles" if tool_call.target == "all" else tool_call.target.replace("_", " ")
+        target_label = "objects" if tool_call.target == "all" else tool_call.target.replace("_", " ")
+
+        class_counts = {}
+        for f in fc.features:
+            lbl = (f.properties.label or tool_call.target).replace("_", " ")
+            class_counts[lbl] = class_counts.get(lbl, 0) + 1
+
+        breakdown_str = ""
+        if len(class_counts) > 1:
+            breakdown_str = " Breakdown: " + ", ".join(f"{cnt} {k}(s)" for k, cnt in class_counts.items()) + "."
+        elif len(class_counts) == 1:
+            k, cnt = next(iter(class_counts.items()))
+            breakdown_str = f" All classified as {k}."
+
         parts = [
-            f"The detector found {fc.count} instance(s) of '{target_label}' {scope}.",
+            f"The detector identified {fc.count} total instance(s) of '{target_label}' {scope}.{breakdown_str}",
             f"Mean detection confidence: {avg:.2f}.",
         ]
         if fc.count > 0 and scores:

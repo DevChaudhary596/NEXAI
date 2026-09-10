@@ -4330,6 +4330,10 @@ input[type="range"]::-moz-range-thumb {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  position: sticky;
+  top: 12px;
+  height: calc(100vh - 80px);
+  max-height: calc(100vh - 80px);
 }
 
 .theme-assistant-panel {
@@ -5474,7 +5478,9 @@ input[type="range"]::-moz-range-thumb {
   width: 380px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
+  height: 100%;
+  flex: 1;
 }
 
 .native-right-header {
@@ -5652,6 +5658,8 @@ input[type="range"]::-moz-range-thumb {
   flex-direction: column;
   overflow: hidden;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+  flex: 1;
+  min-height: 0;
 }
 
 .native-chat-card__header {
@@ -5660,6 +5668,7 @@ input[type="range"]::-moz-range-thumb {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-shrink: 0;
 }
 
 .native-chat-card__title-group {
@@ -5703,7 +5712,8 @@ input[type="range"]::-moz-range-thumb {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-height: 380px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
 }
 
@@ -5892,6 +5902,7 @@ input[type="range"]::-moz-range-thumb {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .native-chat-input-pill {
@@ -5960,10 +5971,11 @@ input[type="range"]::-moz-range-thumb {
 /* Quote Card */
 .native-quote-card {
   position: relative;
-  height: 115px;
   border-radius: 18px;
   overflow: hidden;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  margin-top: auto;
+  flex-shrink: 0;
 }
 
 .native-quote-card__bg {
@@ -6491,7 +6503,7 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .workspace-detection-table-wrap {
-  max-height: 180px;
+  max-height: 260px;
   overflow-y: auto;
 }
 
@@ -6506,12 +6518,98 @@ input[type="range"]::-moz-range-thumb {
   padding: 6px 10px;
   color: #64748b;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  position: sticky;
+  top: 0;
+  background: #0b1016;
+  z-index: 1;
 }
 
 .workspace-detection-table td {
   padding: 6px 10px;
   color: #cbd5e1;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+/* ── Detection Table Pagination Bar ───────────────────────────────── */
+.workspace-pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.78rem;
+  color: #94a3b8;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.workspace-pagination-info strong {
+  color: #f1f5f9;
+}
+
+.workspace-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.workspace-pagination-size {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #64748b;
+}
+
+.workspace-page-select {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  color: #cbd5e1;
+  padding: 3px 8px;
+  font-size: 0.76rem;
+  outline: none;
+  cursor: pointer;
+}
+
+.workspace-pagination-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.workspace-page-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 4px 10px;
+  color: #cbd5e1;
+  font-size: 0.76rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.workspace-page-btn:hover:not(:disabled) {
+  background: rgba(34, 211, 238, 0.15);
+  border-color: rgba(34, 211, 238, 0.4);
+  color: #22d3ee;
+}
+
+.workspace-page-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.workspace-page-indicator {
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: #94a3b8;
+  min-width: 75px;
+  text-align: center;
 }
 
 /* Compare Dates Grid */

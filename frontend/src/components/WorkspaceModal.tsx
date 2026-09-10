@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   X,
   Compass,
@@ -22,6 +22,7 @@ import {
   MapPin,
   RefreshCw,
   Search,
+  ChevronLeft,
   ChevronRight,
   FolderGit2,
 } from "lucide-react";
@@ -183,17 +184,37 @@ export default function WorkspaceModal({
 
   // ── Target Detection State ─────────────────────────────────────
   const [selectedClasses, setSelectedClasses] = useState<string[]>([
-    "plane",
-    "ship",
-    "storage tank",
+    "vehicles",
+    "aviation",
+    "vessels",
+    "storage_tanks",
   ]);
   const [confidenceCutoff, setConfidenceCutoff] = useState(0.35);
   const [isDetecting, setIsDetecting] = useState(false);
+  const [detectionPage, setDetectionPage] = useState(1);
+  const [detectionPageSize, setDetectionPageSize] = useState<number>(50);
+  const [filterClass, setFilterClass] = useState<string>("all");
   const [detectionResults, setDetectionResults] = useState<{
     totalCount: number;
     classes: { name: string; count: number; color: string }[];
     detectionsList: { id: string; label: string; conf: number; lat: number; lon: number }[];
   } | null>(null);
+
+  // Derived filtered & paginated detections list
+  const displayedDetections = useMemo(() => {
+    if (!detectionResults) return [];
+    let list = detectionResults.detectionsList;
+    if (filterClass !== "all") {
+      list = list.filter((d) => d.label.toLowerCase().includes(filterClass.toLowerCase()));
+    }
+    return list;
+  }, [detectionResults, filterClass]);
+
+  const totalDetectionPages = Math.max(1, Math.ceil(displayedDetections.length / detectionPageSize));
+  const pagedDetections = useMemo(() => {
+    const start = (detectionPage - 1) * detectionPageSize;
+    return displayedDetections.slice(start, start + detectionPageSize);
+  }, [displayedDetections, detectionPage, detectionPageSize]);
 
   // ── Bi-Temporal Compare State ──────────────────────────────────
   const [compareDateA, setCompareDateA] = useState("2024-05-12");
@@ -320,18 +341,45 @@ export default function WorkspaceModal({
     setDetectionResults(null);
     try {
       const activeScene = currentSceneId || "043267413b48_20260903T034939";
-      const targetsPrompt = selectedClasses.length > 0 ? selectedClasses.join(", ") : "targets";
+      // Map selectedClasses to unambiguous router target prompts
+      let targetsPrompt = "all targets";
+      if (selectedClasses.length === 1) {
+        const id = selectedClasses[0];
+        if (id === "vehicles") targetsPrompt = "vehicles";
+        else if (id === "aviation") targetsPrompt = "planes";
+        else if (id === "vessels") targetsPrompt = "ships";
+        else if (id === "storage_tanks") targetsPrompt = "storage tanks";
+        else targetsPrompt = id;
+      } else {
+        targetsPrompt = "all targets";
+      }
+
       const res = await queryScene({
         scene_id: activeScene,
         prompt: `Detect and count ${targetsPrompt} with confidence threshold > ${confidenceCutoff}.`,
         roi: roi || undefined,
       });
 
-      if (res.geojson && res.geojson.features.length > 0) {
-        onApplyGeoJSON(res.geojson);
+      const rawFeatures = res.geojson?.features || [];
+      const features = rawFeatures.filter((f) => {
+        if (selectedClasses.length >= 4 || selectedClasses.length === 0) return true;
+        const lbl = (f.properties?.label || "").toLowerCase();
+        return selectedClasses.some((id) => {
+          if (id === "vehicles") return lbl.includes("vehicle") || lbl.includes("car") || lbl.includes("truck") || lbl.includes("sedan") || lbl.includes("van") || lbl.includes("bus");
+          if (id === "aviation") return lbl.includes("plane") || lbl.includes("aircraft") || lbl.includes("jet");
+          if (id === "vessels") return lbl.includes("ship") || lbl.includes("vessel") || lbl.includes("boat");
+          if (id === "storage_tanks") return lbl.includes("tank") || lbl.includes("silo");
+          return false;
+        });
+      });
+
+      if (features.length > 0) {
+        onApplyGeoJSON({
+          type: "FeatureCollection",
+          features,
+        });
       }
 
-      const features = res.geojson?.features || [];
       const classMap: Record<string, number> = {};
       features.forEach((f) => {
         const lbl = (f.properties?.label || "target").toLowerCase();
@@ -345,7 +393,7 @@ export default function WorkspaceModal({
         color: colorPalette[idx % colorPalette.length],
       }));
 
-      const detectionsList = features.slice(0, 50).map((f, i) => {
+      const detectionsList = features.map((f, i) => {
         let lon = 0;
         let lat = 0;
         if (f.geometry?.type === "Polygon" && f.geometry.coordinates?.[0]?.length) {
@@ -371,6 +419,7 @@ export default function WorkspaceModal({
         classes,
         detectionsList,
       });
+      setDetectionPage(1);
 
       onAskAI(`Target detection inference completed on scene ${activeScene}. Identified ${totalCount} target(s) across ${classes.length} class(es).`);
     } catch (err: unknown) {
@@ -856,7 +905,7 @@ export default function WorkspaceModal({
                     { id: "vessels", label: "Maritime Vessels (Cargo, Tanker, Fishing)", icon: "🚢" },
                     { id: "aviation", label: "Commercial Aviation (Airliner, Cargo, Jet)", icon: "✈️" },
                     { id: "storage_tanks", label: "Energy Tanks (Floating & Fixed Roof)", icon: "🛢️" },
-                    { id: "vehicles", label: "Ground Transport (Trucks, Rail Cars)", icon: "🚛" },
+                    { id: "vehicles", label: "Ground Transport (Cars, Trucks, Rail Cars)", icon: "🚛" },
                   ].map((cls) => {
                     const isSelected = selectedClasses.includes(cls.id);
                     return (
@@ -928,16 +977,44 @@ export default function WorkspaceModal({
                       Inference Found: {detectionResults.totalCount} Targets
                     </div>
                     <div className="workspace-detection-chips">
-                      {detectionResults.classes.map((c) => (
-                        <div key={c.name} className="workspace-detection-chip">
-                          <span
-                            className="workspace-detection-chip__dot"
-                            style={{ backgroundColor: c.color }}
-                          />
-                          <span>{c.name}:</span>
-                          <strong>{c.count}</strong>
-                        </div>
-                      ))}
+                      <div
+                        onClick={() => {
+                          setFilterClass("all");
+                          setDetectionPage(1);
+                        }}
+                        className={`workspace-detection-chip cursor-pointer transition-all ${
+                          filterClass === "all" ? "workspace-detection-chip--active ring-1 ring-cyan-400 bg-cyan-950/60 text-cyan-200" : "hover:bg-slate-800/80"
+                        }`}
+                        title="Show all detected targets"
+                      >
+                        <span className="workspace-detection-chip__dot" style={{ backgroundColor: "#38bdf8" }} />
+                        <span>All:</span>
+                        <strong>{detectionResults.totalCount}</strong>
+                      </div>
+
+                      {detectionResults.classes.map((c) => {
+                        const isActive = filterClass.toLowerCase() === c.name.toLowerCase();
+                        return (
+                          <div
+                            key={c.name}
+                            onClick={() => {
+                              setFilterClass(isActive ? "all" : c.name.toLowerCase());
+                              setDetectionPage(1);
+                            }}
+                            className={`workspace-detection-chip cursor-pointer transition-all ${
+                              isActive ? "workspace-detection-chip--active ring-1 ring-cyan-400 bg-cyan-950/60 text-cyan-200" : "hover:bg-slate-800/80"
+                            }`}
+                            title={`Filter table by ${c.name}`}
+                          >
+                            <span
+                              className="workspace-detection-chip__dot"
+                              style={{ backgroundColor: c.color }}
+                            />
+                            <span>{c.name}:</span>
+                            <strong>{c.count}</strong>
+                          </div>
+                        );
+                      })}
                     </div>
 
                     <div className="workspace-detection-table-wrap">
@@ -951,16 +1028,71 @@ export default function WorkspaceModal({
                           </tr>
                         </thead>
                         <tbody>
-                          {detectionResults.detectionsList.map((d) => (
+                          {pagedDetections.map((d) => (
                             <tr key={d.id}>
                               <td><code>{d.id}</code></td>
                               <td>{d.label}</td>
                               <td className="text-emerald-400">{(d.conf * 100).toFixed(1)}%</td>
-                              <td>{d.lat.toFixed(3)}°N, {d.lon.toFixed(3)}°E</td>
+                              <td>{d.lat.toFixed(4)}°N, {d.lon.toFixed(4)}°E</td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
+                    </div>
+
+                    {/* ── Pagination & Page Navigation Controls ────── */}
+                    <div className="workspace-pagination-bar">
+                      <div className="workspace-pagination-info">
+                        Showing <strong>{displayedDetections.length === 0 ? 0 : (detectionPage - 1) * detectionPageSize + 1}</strong>–<strong>{Math.min(detectionPage * detectionPageSize, displayedDetections.length)}</strong> of <strong>{displayedDetections.length}</strong> targets
+                      </div>
+
+                      <div className="workspace-pagination-controls">
+                        <div className="workspace-pagination-size">
+                          <span>Rows:</span>
+                          <select
+                            value={detectionPageSize}
+                            onChange={(e) => {
+                              setDetectionPageSize(Number(e.target.value));
+                              setDetectionPage(1);
+                            }}
+                            className="workspace-page-select"
+                          >
+                            <option value={50}>50 / page</option>
+                            <option value={100}>100 / page</option>
+                            <option value={200}>200 / page</option>
+                            <option value={500}>500 / page</option>
+                            <option value={10000}>Show All ({displayedDetections.length})</option>
+                          </select>
+                        </div>
+
+                        <div className="workspace-pagination-nav">
+                          <button
+                            type="button"
+                            disabled={detectionPage <= 1}
+                            onClick={() => setDetectionPage((p) => Math.max(1, p - 1))}
+                            className="workspace-page-btn"
+                            title="Previous Page"
+                          >
+                            <ChevronLeft size={14} />
+                            <span>Prev</span>
+                          </button>
+
+                          <span className="workspace-page-indicator">
+                            Page {detectionPage} of {totalDetectionPages}
+                          </span>
+
+                          <button
+                            type="button"
+                            disabled={detectionPage >= totalDetectionPages}
+                            onClick={() => setDetectionPage((p) => Math.min(totalDetectionPages, p + 1))}
+                            className="workspace-page-btn"
+                            title="Next Page"
+                          >
+                            <span>Next</span>
+                            <ChevronRight size={14} />
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}

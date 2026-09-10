@@ -172,21 +172,48 @@ export async function exportIntelligenceReport(params: {
 
   // ── Statistical Metrics & Detections ───────────────────────────
   const statEntries = Object.entries(response.stats);
-  if (statEntries.length > 0) {
+  const detectedFeatures = response.geojson?.features || [];
+
+  if (detectedFeatures.length > 0 || statEntries.length > 0) {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10.5);
     doc.setTextColor(15, 23, 42);
-    doc.text("Quantitative Metrics (Directly Computed)", margin, y);
+    doc.text("Quantitative Metrics & Target Inventory", margin, y);
     y += 14;
 
+    if (detectedFeatures.length > 0) {
+      const classMap: Record<string, number> = {};
+      for (const f of detectedFeatures) {
+        const lbl = f.properties?.label || "target";
+        classMap[lbl] = (classMap[lbl] || 0) + 1;
+      }
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9.5);
+      doc.setTextColor(15, 23, 42);
+      doc.text(`• TOTAL DETECTED OBJECTS: ${detectedFeatures.length} Targets`, margin + 10, y);
+      y += 13;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(71, 85, 105);
+      for (const [clsName, cnt] of Object.entries(classMap)) {
+        const pct = ((cnt / detectedFeatures.length) * 100).toFixed(1);
+        doc.text(`    - ${clsName}: ${cnt} (${pct}%)`, margin + 10, y);
+        y += 12;
+      }
+      y += 4;
+    }
+
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
+    doc.setFontSize(8.5);
     doc.setTextColor(51, 65, 85);
     for (const [key, val] of statEntries) {
+      if (key === "count" && detectedFeatures.length > 0) continue;
       const formatted = typeof val === "number" && val % 1 !== 0 ? val.toFixed(3) : String(val);
       doc.text(`• ${key.replace(/_/g, " ").toUpperCase()}:`, margin + 10, y);
       doc.text(formatted, margin + 180, y);
-      y += 13;
+      y += 12;
     }
     y += 8;
   }
