@@ -17,6 +17,8 @@ _boot_time = time.time()
 
 
 @router.get("/healthz")
+@router.get("/health")
+@router.get("/api/v1/health")
 def healthz() -> dict[str, object]:
     """Lightweight health check. Always responds, even before VLM loads."""
     s = get_settings()

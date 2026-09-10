@@ -9,7 +9,10 @@ DELETE /api/v1/scenes/{scene_id} — remove a scene.
 """
 from __future__ import annotations
 
+import base64
+import io
 import logging
+from datetime import datetime, timezone
 
 import httpx
 from fastapi import APIRouter, File, UploadFile
@@ -17,7 +20,13 @@ from fastapi.responses import FileResponse, Response
 
 from app.api.errors import ApiError
 from app.core.config import get_settings
-from app.core.schemas import FetchSatelliteRequest, SceneListItem, SceneListResponse, UploadResponse
+from app.core.schemas import (
+    FetchSatelliteRequest,
+    SceneListItem,
+    SceneListResponse,
+    SnapshotSceneRequest,
+    UploadResponse,
+)
 from app.services import satellite_fetch
 from app.services.storage import get_storage
 
@@ -104,6 +113,12 @@ async def fetch_satellite_scene(req: FetchSatelliteRequest) -> UploadResponse:
     filename = satellite_fetch.scene_label(item)
     scene_id = storage.mint_scene_id()
     scene_path = storage.save_scene(scene_id, data, filename)
+    storage.update_scene_provenance(
+        scene_id,
+        source_type="copernicus_planetary_computer",
+        source_item_id=item["id"],
+        capture_date=satellite_fetch.scene_capture_info(item)["capture_date"],
+    )
     storage.generate_thumbnail(scene_id, scene_path)
     meta = storage.extract_metadata(scene_path)
 
@@ -125,6 +140,90 @@ async def fetch_satellite_scene(req: FetchSatelliteRequest) -> UploadResponse:
         satellite=capture_info["satellite"],
         capture_date=capture_info["capture_date"],
         cloud_cover_pct=capture_info["cloud_cover_pct"],
+    )
+
+
+@router.post("/scenes/snapshot", response_model=UploadResponse, status_code=201)
+async def create_snapshot_scene(req: SnapshotSceneRequest) -> UploadResponse:
+    """Create an authentic georeferenced GeoTIFF scene from a live Cesium
+    map viewport or user-drawn AOI bounding box snapshot.
+    """
+    storage = get_storage()
+    bounds = req.bounds
+    if len(bounds) != 4:
+        raise ApiError(400, "invalid_bounds", "bounds must be [west, south, east, north]")
+
+    west, south, east, north = bounds
+    if west >= east or south >= north:
+        raise ApiError(400, "invalid_bounds", "west must be < east and south must be < north")
+
+    raw_b64 = req.image_base64
+    if "," in raw_b64:
+        raw_b64 = raw_b64.split(",", 1)[1]
+
+    try:
+        image_bytes = base64.b64decode(raw_b64)
+    except Exception as exc:
+        raise ApiError(400, "invalid_image_base64", f"Could not decode base64 image: {exc}")
+
+    try:
+        from PIL import Image
+        import numpy as np
+        import rasterio
+        from rasterio.transform import from_bounds
+
+        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        arr = np.array(img)
+        h, w, _ = arr.shape
+        if h < 2 or w < 2:
+            raise ValueError("Image dimensions too small")
+
+        transform = from_bounds(west, south, east, north, w, h)
+        buf = io.BytesIO()
+        with rasterio.open(
+            buf,
+            "w",
+            driver="GTiff",
+            height=h,
+            width=w,
+            count=3,
+            dtype=arr.dtype,
+            crs="EPSG:4326",
+            transform=transform,
+        ) as dst:
+            dst.write(np.moveaxis(arr, -1, 0))
+
+        data = buf.getvalue()
+    except Exception as exc:
+        log.exception("snapshot geotiff generation failed")
+        raise ApiError(500, "geotiff_generation_failed", f"Failed to georeference snapshot: {exc}")
+
+    label_prefix = "Drawn AOI" if req.is_roi else "Live Map View"
+    filename = req.label or f"{label_prefix} ({north:.3f}°N, {west:.3f}°E).tif"
+    scene_id = storage.mint_scene_id()
+    scene_path = storage.save_scene(scene_id, data, filename)
+    storage.update_scene_provenance(
+        scene_id,
+        source_type="drawn_roi_snapshot" if req.is_roi else "live_viewport_snapshot",
+        capture_date=datetime.now(timezone.utc).isoformat(),
+    )
+    storage.generate_thumbnail(scene_id, scene_path)
+    meta = storage.extract_metadata(scene_path)
+
+    log.info("snapshot scene created: scene_id=%s filename=%s is_roi=%s", scene_id, filename, req.is_roi)
+
+    return UploadResponse(
+        scene_id=scene_id,
+        filename=filename,
+        size_bytes=len(data),
+        thumbnail_url=f"/api/v1/scenes/{scene_id}/thumbnail",
+        bounds=meta.get("bounds") or bounds,
+        crs=meta.get("crs") or "EPSG:4326",
+        resolution_m=meta.get("resolution_m"),
+        band_count=3,
+        satellite="Live Aerial/Satellite View",
+        capture_date=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        cloud_cover_pct=0.0,
     )
 
 
