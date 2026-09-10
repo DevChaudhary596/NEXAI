@@ -19,7 +19,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.errors import register_error_handlers
-from app.api.routes import health, query, tasks, tiles, transcribe, upload, watches
+from app.api.routes import ai_config, health, overpass, platform, query, tasks, tiles, transcribe, upload, watches
 from app.core.config import get_settings
 from app.core.schemas.common import CONTRACT_VERSION
 
@@ -34,6 +34,7 @@ async def lifespan(_: FastAPI):
     """Load the VLM once at boot, not on the first request — otherwise the
     demo's first query eats a 40s model load in front of the judges."""
     s = get_settings()
+    s.validate_runtime()
 
     if s.vlm_backend in ("local", "mlx"):
         from app.services.vlm import get_vlm
@@ -44,6 +45,9 @@ async def lifespan(_: FastAPI):
     from app.services.storage import get_storage
     get_storage()
     log.info("storage initialized at %s", s.data_dir)
+
+    from app.services.tenant_store import get_tenant_store
+    get_tenant_store().initialize()
 
     from app.services.watch_scheduler import run_scheduler_loop
     scheduler_task = asyncio.create_task(run_scheduler_loop())
@@ -86,4 +90,8 @@ app.include_router(upload.router)      # POST /api/v1/upload, GET /api/v1/scenes
 app.include_router(tasks.router)       # POST /api/v1/tasks, GET /api/v1/tasks/{id}
 app.include_router(tiles.router)       # GET  /api/v1/tiles/{scene_id}/{z}/{x}/{y}.png
 app.include_router(watches.router)     # POST /api/v1/watches, GET /api/v1/alerts
+app.include_router(overpass.router)    # GET  /api/v1/overpass
 app.include_router(transcribe.router)  # POST /api/v1/transcribe
+app.include_router(platform.router)    # authenticated workspaces, projects, audit events
+app.include_router(ai_config.router)   # GET /api/v1/ai/status, POST /api/v1/ai/groq-key
+

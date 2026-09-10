@@ -18,8 +18,8 @@ from pydantic import TypeAdapter
 
 from app.api.errors import ApiError
 from app.core.schemas import (
-    AlertListResponse, AlertResponse, CreateWatchRequest, WatchableToolCall,
-    WatchListResponse, WatchResponse,
+    AlertListResponse, AlertResponse, CreateWatchRequest, UpdateAlertRequest,
+    WatchableToolCall, WatchListResponse, WatchResponse,
 )
 from app.services import watch_store
 
@@ -51,6 +51,9 @@ def _to_alert_response(alert: watch_store.Alert) -> AlertResponse:
         stats_before=alert.stats_before,
         stats_after=alert.stats_after,
         seen=alert.seen,
+        status=getattr(alert, "status", "open"),
+        assigned_uid=getattr(alert, "assigned_uid", None),
+        triage_notes=getattr(alert, "triage_notes", None),
     )
 
 
@@ -90,3 +93,18 @@ def mark_alert_seen(alert_id: str) -> Response:
     if not watch_store.mark_alert_seen(alert_id):
         raise ApiError(404, "alert_not_found", f"Alert not found: {alert_id}")
     return Response(status_code=204)
+
+
+@router.patch("/alerts/{alert_id}", response_model=AlertResponse)
+def update_alert(alert_id: str, req: UpdateAlertRequest) -> AlertResponse:
+    updated = watch_store.update_alert(
+        alert_id=alert_id,
+        status=req.status,
+        assigned_uid=req.assigned_uid,
+        triage_notes=req.triage_notes,
+        seen=req.seen,
+    )
+    if not updated:
+        raise ApiError(404, "alert_not_found", f"Alert not found: {alert_id}")
+    return _to_alert_response(updated)
+
