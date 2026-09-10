@@ -26,6 +26,7 @@ import random
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
+from app.core.exceptions import UnsupportedSceneError
 from app.core.schemas import (
     BBox, Feature, FeatureCollection, FeatureProperties, RasterOverlay, SpectralIndex,
 )
@@ -143,21 +144,25 @@ class GISServiceAdapter:
 
     def _compute_index(self, scene_path, index: SpectralIndex, bbox: BBox | None):
         import rasterio
+        from rasterio.errors import RasterioIOError
 
-        with rasterio.open(scene_path) as src:
-            if src.count < _MIN_BANDS_FOR_SPECTRAL:
-                raise ValueError(
-                    f"scene has {src.count} band(s); spectral indices need >= "
-                    f"{_MIN_BANDS_FOR_SPECTRAL} (Blue, Green, Red, NIR)"
-                )
-            window = _window_for_bbox(src, bbox)
-            transform = src.window_transform(window)
-            red = src.read(_RED, window=window)
-            nir = src.read(_NIR, window=window)
-            green = src.read(_GREEN, window=window)
-            arr = self._index_array(red, nir, green, index)
-            crs = src.crs
-        return arr, transform, crs
+        try:
+            with rasterio.open(scene_path) as src:
+                if src.count < _MIN_BANDS_FOR_SPECTRAL:
+                    raise UnsupportedSceneError(
+                        f"scene has {src.count} band(s); spectral indices need >= "
+                        f"{_MIN_BANDS_FOR_SPECTRAL} (Blue, Green, Red, NIR)"
+                    )
+                window = _window_for_bbox(src, bbox)
+                transform = src.window_transform(window)
+                red = src.read(_RED, window=window)
+                nir = src.read(_NIR, window=window)
+                green = src.read(_GREEN, window=window)
+                arr = self._index_array(red, nir, green, index)
+                crs = src.crs
+            return arr, transform, crs
+        except RasterioIOError as exc:
+            raise UnsupportedSceneError(f"unreadable or corrupted raster dataset: {exc}") from exc
 
     def _build_overlay(
         self, arr, transform, crs, index: SpectralIndex, scene_path, name_suffix: str,
@@ -182,7 +187,6 @@ class GISServiceAdapter:
 
         if not Path(scene_path).exists():
             return MockGISService().spectral(scene_path, index, threshold, operator, bbox)
-
         arr, transform, crs = self._compute_index(scene_path, index, bbox)
         mask = self._threshold(arr, threshold, _op_to_str(operator))
         geojson = self._polygonize(mask, transform, crs or _OUTPUT_CRS, min_area_sqm=100.0)
