@@ -1,0 +1,105 @@
+# SatQuery AI — Sovereign On-Premise Docker Compose Stack
+# Boots a complete private cloud / air-gapped geospatial intelligence platform
+# Run: docker compose up -d
+
+services:
+  # ── 1. PostgreSQL Tenant & Audit Database ─────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: satquery-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-satquery}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-satquery_secret_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-satquery}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U satquery -d satquery"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── 2. MinIO S3-Compatible Raster Object Store ────────────────────────────
+  storage:
+    image: minio/minio:latest
+    container_name: satquery-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-satquery_s3_admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-satquery_s3_secret}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # Auto-create the initial bucket on startup
+  create-bucket:
+    image: minio/mc:latest
+    depends_on:
+      storage:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set local http://storage:9000 satquery_s3_admin satquery_s3_secret;
+      /usr/bin/mc mb local/satquery --ignore-existing;
+      exit 0;
+      "
+
+  # ── 3. FastAPI Geospatial & Vision Intelligence Compute ───────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: satquery-backend
+    restart: unless-stopped
+    environment:
+      SATQUERY_ENVIRONMENT: ${SATQUERY_ENVIRONMENT:-development}
+      SATQUERY_DATABASE_URL: postgresql://satquery:satquery_secret_pass@db:5432/satquery
+      SATQUERY_OBJECT_STORAGE_BUCKET: satquery
+      SATQUERY_OBJECT_STORAGE_ENDPOINT_URL: http://storage:9000
+      SATQUERY_OBJECT_STORAGE_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY:-satquery_s3_admin}
+      SATQUERY_OBJECT_STORAGE_SECRET_ACCESS_KEY: ${MINIO_SECRET_KEY:-satquery_s3_secret}
+      SATQUERY_OBJECT_STORAGE_REGION: auto
+      SATQUERY_VLM_BACKEND: ${SATQUERY_VLM_BACKEND:-mock}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      storage:
+        condition: service_healthy
+    volumes:
+      - backend_data:/root/.satquery/data
+
+  # ── 4. Next.js 16 Cesium 3D Operations Console ────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: satquery-frontend
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+    driver: local
+  minio_data:
+    driver: local
+  backend_data:
+    driver: local

@@ -19,6 +19,7 @@ from .common import Comparison, SpectralIndex, Strict, ToolAction
 DetectionTarget = Literal[
     "storage_tank", "ship", "plane", "vehicle", "building",
     "bridge", "harbor", "roundabout", "helicopter", "swimming_pool",
+    "all",
 ]
 DETECTION_TARGETS: tuple[str, ...] = tuple(DetectionTarget.__args__)
 
