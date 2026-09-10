@@ -18,9 +18,7 @@ from app.services.cv_engine.geo import (
     get_image_georeference,
     build_geojson_polygon,
     geo_bbox_to_pixel,
-    filter_features_by_spatial_constraint,
 )
-from app.services.cv_engine.spatial_cluster import compute_spatial_clusters
 
 try:
     import rasterio
@@ -148,7 +146,6 @@ class CVService:
         self.detector = RealOBBDetector(model_path=detector_model_path)
         self.segmenter = RealSegmenter(model_path=segmenter_model_path)
         self.last_benchmark_metrics: dict[str, float] = {}
-        self.last_cluster_metrics: dict[str, Any] = {}
 
     def detect(
         self,
@@ -158,33 +155,16 @@ class CVService:
         confidence: float
     ) -> FeatureCollection:
         """
-        Standard contract detect method.
-        Delegates to detect_advanced with calibrated defaults.
-        """
-        return self.detect_advanced(
-            scene_path=scene_path,
-            target=target,
-            bbox=bbox,
-            confidence=confidence,
-            spatial_filter=None,
-            cluster_density=True,
-            cloud_mask=None
-        )
-
-    def detect_advanced(
-        self,
-        scene_path,
-        target: str,
-        bbox: BBox | None,
-        confidence: float,
-        spatial_filter: Optional[str] = None,
-        cluster_density: bool = True,
-        cloud_mask: Optional[np.ndarray] = None
-    ) -> FeatureCollection:
-        """
         Detect target objects in the given scene using YOLOv8n-OBB and SAHI large-image slicing.
-        Supports multi-class calibrated thresholds, cross-tile boundary smoothing,
-        spatial quadrant filtering, and DBSCAN density hotspot clustering.
+
+        Args:
+            scene_path: Path to the aerial/satellite image (str or PathLike).
+            target: Target class name (e.g. 'ship', 'airplane', 'storage tank').
+            bbox: Optional bounding box [min_x, min_y, max_x, max_y] to restrict processing.
+            confidence: Confidence threshold in range [0.0, 1.0].
+
+        Returns:
+            FeatureCollection containing real detected object features.
         """
         image_np, transform, crs = load_image_and_georef(scene_path)
         img_h, img_w = image_np.shape[:2]
@@ -224,15 +204,13 @@ class CVService:
             offset_x = crop_min_x
             offset_y = crop_min_y
 
-        # Run real CPU detection with calibrated thresholds & boundary smoothing (Days 8, 9, 13)
+        # Run real CPU detection
         detections, metrics = self.detector.detect_image(
             image_np=image_np,
             target=target,
             confidence_threshold=confidence,
             tile_size=640,
-            overlap_ratio=0.2,
-            cloud_mask=cloud_mask,
-            smooth_boundaries=True
+            overlap_ratio=0.2
         )
         self.last_benchmark_metrics = metrics
 
@@ -251,51 +229,10 @@ class CVService:
                 properties={
                     "target": det["class_name"],
                     "confidence": round(float(det["confidence"]), 4),
-                    "pixel_coords": adjusted_coords,
-                    "cluster_id": None,
-                    "is_hotspot": False
+                    "pixel_coords": adjusted_coords
                 }
             )
             features.append(feature)
-
-        # Day 10: Spatial Filtering & Positional Query Pruning
-        if spatial_filter and features:
-            if bbox is not None and hasattr(bbox, "west"):
-                ref_bounds = (bbox.west, bbox.south, bbox.east, bbox.north)
-                is_pixel = False
-            elif transform is not None:
-                # Scene bounds in geo coordinates
-                w_geo, n_geo = rasterio.transform.xy(transform, 0, 0, offset='ul')
-                e_geo, s_geo = rasterio.transform.xy(transform, img_h, img_w, offset='lr')
-                ref_bounds = (min(w_geo, e_geo), min(s_geo, n_geo), max(w_geo, e_geo), max(s_geo, n_geo))
-                is_pixel = False
-            else:
-                ref_bounds = (0.0, 0.0, float(img_w), float(img_h))
-                is_pixel = True
-
-            features = filter_features_by_spatial_constraint(
-                features,
-                bounds=ref_bounds,
-                direction=spatial_filter,
-                is_pixel_space=is_pixel
-            )
-
-        # Day 11: CPU DBSCAN Spatial Density Hotspot Analysis
-        if cluster_density and len(features) >= 3:
-            features, cluster_metrics = compute_spatial_clusters(
-                features,
-                eps_meters=300.0,
-                min_samples=3,
-                is_geo_degrees=(transform is not None and crs is not None)
-            )
-            self.last_cluster_metrics = cluster_metrics
-        else:
-            self.last_cluster_metrics = {
-                "cluster_count": 0,
-                "hotspot_count": 0,
-                "noise_count": len(features),
-                "max_cluster_size": 0
-            }
 
         return FeatureCollection(features=features)
 
@@ -380,8 +317,3 @@ class CVService:
             features.append(feature)
 
         return FeatureCollection(features=features)
-
-
-# Public alias for unified contract
-RealCVService = CVService
-
