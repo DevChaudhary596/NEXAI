@@ -24,6 +24,27 @@ pyproj>=3.5.0
 # ── Live imagery (app/services/satellite_fetch.py) ────────────────────────
 # httpx also doubles as the test client below.
 httpx>=0.24.0
+groq>=0.9.0
+
+
+# ── Production platform ───────────────────────────────────────────────────
+# Firebase is the identity provider. PostgreSQL is the system of record for
+# tenants, memberships, projects, conversations, provenance, and audit logs.
+firebase-admin>=6.5.0
+psycopg[binary]>=3.2.0
+boto3>=1.35.0
+
+# ── Voice input (M1 Day 10) ────────────────────────────────────────────────
+# Only needed for the real ASR path. app/services/asr.py falls back to
+# MockASR when this isn't importable (SATQUERY_ASR_BACKEND=mock, default).
+# CPU-only by design - never competes with the VLM for VRAM.
+faster-whisper>=1.0.0
+
+# ── Voice input (M1 Day 10) ────────────────────────────────────────────────
+# Only needed for the real ASR path. app/services/asr.py falls back to
+# MockASR when this isn't importable (SATQUERY_ASR_BACKEND=mock, default).
+# CPU-only by design - never competes with the VLM for VRAM.
+faster-whisper>=1.0.0
 
 # ── Testing ───────────────────────────────────────────────────────────────
 pytest>=7.0.0

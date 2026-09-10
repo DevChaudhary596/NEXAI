@@ -83,7 +83,18 @@ def _diff_message(tool_call, old_stats: dict[str, float], new_stats: dict[str, f
 
 
 async def check_watch(watch: watch_store.Watch) -> None:
-    tool_call = _tool_call_adapter.validate_json(watch.tool_call_json)
+    raw_json = watch.tool_call_json
+    # Backwards-compatibility normalization for legacy watch action names
+    if '"action": "ndvi_vegetation"' in raw_json or '"action":"ndvi_vegetation"' in raw_json:
+        raw_json = raw_json.replace('"ndvi_vegetation"', '"spectral"')
+        if '"index"' not in raw_json:
+            raw_json = raw_json.rstrip("}") + ', "index": "ndvi"}'
+    elif '"action": "ndwi_flood_extent"' in raw_json or '"action":"ndwi_flood_extent"' in raw_json:
+        raw_json = raw_json.replace('"ndwi_flood_extent"', '"spectral"')
+        if '"index"' not in raw_json:
+            raw_json = raw_json.rstrip("}") + ', "index": "ndwi"}'
+
+    tool_call = _tool_call_adapter.validate_json(raw_json)
 
     try:
         item = await satellite_fetch.find_latest_scene(
