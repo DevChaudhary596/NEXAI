@@ -651,7 +651,7 @@ class GroqVLM(VLMBackend):
         try:
             from groq import Groq
 
-            self.client = Groq(api_key=api_key)
+            self.client = Groq(api_key=api_key, max_retries=0)
         except ImportError as exc:
             raise ImportError(
                 "groq package is not installed. Run `pip install groq`."
@@ -683,7 +683,7 @@ class GroqVLM(VLMBackend):
         self.text_model = next((c for c in text_candidates if c and (not available_ids or c in available_ids)), self.model)
         log.info("Initialized GroqVLM (vision: %s, text: %s)", self.model, self.text_model)
 
-    def _encode_image(self, image_path: str | Path | None, max_dim: int = 1024) -> str | None:
+    def _encode_image(self, image_path: str | Path | None, max_dim: int = 512) -> str | None:
         if not image_path:
             return None
         p = Path(image_path)
@@ -720,7 +720,7 @@ class GroqVLM(VLMBackend):
                 img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
 
             buf = io.BytesIO()
-            img.save(buf, format="JPEG", quality=85)
+            img.save(buf, format="JPEG", quality=70)
             return base64.b64encode(buf.getvalue()).decode("utf-8")
         except Exception as exc:
             log.warning("Failed to encode image %s for Groq vision: %s", image_path, exc)
@@ -807,12 +807,16 @@ class GroqVLM(VLMBackend):
                 temperature=0.3,
                 max_tokens=self.s.max_new_tokens if self.s.max_new_tokens > 300 else 600,
             )
-            return resp.choices[0].message.content.strip()
+            ans = resp.choices[0].message.content or ""
+            # Strip reasoning model chain-of-thought blocks if present
+            import re
+            ans = re.sub(r"<think>.*?</think>", "", ans, flags=re.DOTALL).strip()
+            return ans
         except Exception as exc:
-            # If vision model encountered an issue, fallback to high-intelligence text model
+            # If vision model encountered a rate limit (429) or issue, fallback immediately to text model
             if model_to_call == self.model:
                 try:
-                    log.warning("Groq vision request failed (%s); trying text model %s", exc, self.text_model)
+                    log.warning("Groq vision request failed (%s); instantly trying text model %s", exc, self.text_model)
                     messages[-1]["content"] = query_text
                     resp = self.client.chat.completions.create(
                         model=self.text_model,
@@ -820,12 +824,15 @@ class GroqVLM(VLMBackend):
                         temperature=0.3,
                         max_tokens=600,
                     )
-                    return resp.choices[0].message.content.strip()
+                    ans = resp.choices[0].message.content or ""
+                    import re
+                    ans = re.sub(r"<think>.*?</think>", "", ans, flags=re.DOTALL).strip()
+                    return ans
                 except Exception as text_exc:
                     log.error("Groq fallback text request also failed: %s", text_exc)
             log.error("Groq API error: %s", exc)
             mock_ans = MockVLM().answer(prompt, image_path, context=context, history=history, system_prompt=system_prompt)
-            return f"{mock_ans}\n\n*(Notice: Groq inference error: {exc})*"
+            return f"{mock_ans}\n\n*(Notice: Groq inference rate limit reached, falling back to local findings)*"
 
     def peak_vram_gb(self) -> float | None:
         return None
