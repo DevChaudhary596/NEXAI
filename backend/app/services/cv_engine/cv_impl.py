@@ -96,10 +96,22 @@ def _get_pixel_crop_bounds(
     if bbox is None:
         return None
 
-    if not isinstance(bbox, BBox):
+    if hasattr(bbox, "west") and hasattr(bbox, "south"):
+        xmin, ymin, xmax, ymax = float(bbox.west), float(bbox.south), float(bbox.east), float(bbox.north)
+    elif hasattr(bbox, "xmin") and hasattr(bbox, "ymin"):
+        xmin, ymin, xmax, ymax = float(bbox.xmin), float(bbox.ymin), float(bbox.xmax), float(bbox.ymax)
+    elif isinstance(bbox, (list, tuple)) and len(bbox) == 4:
+        xmin, ymin, xmax, ymax = float(bbox[0]), float(bbox[1]), float(bbox[2]), float(bbox[3])
+    elif isinstance(bbox, dict):
+        xmin = float(bbox.get("west", bbox.get("xmin", 0)))
+        ymin = float(bbox.get("south", bbox.get("ymin", 0)))
+        xmax = float(bbox.get("east", bbox.get("xmax", 0)))
+        ymax = float(bbox.get("north", bbox.get("ymax", 0)))
+    elif not isinstance(bbox, BBox):
         bbox = BBox(bbox)
-
-    xmin, ymin, xmax, ymax = float(bbox.xmin), float(bbox.ymin), float(bbox.xmax), float(bbox.ymax)
+        xmin, ymin, xmax, ymax = float(bbox.xmin), float(bbox.ymin), float(bbox.xmax), float(bbox.ymax)
+    else:
+        xmin, ymin, xmax, ymax = float(bbox.xmin), float(bbox.ymin), float(bbox.xmax), float(bbox.ymax)
 
     # Check if coords are geographic vs already pixel coordinates
     if transform is not None and not getattr(transform, "is_identity", False):
