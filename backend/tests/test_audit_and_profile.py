@@ -29,7 +29,7 @@ def test_profile_latency_script_runs_successfully():
     script = repo_root / "scripts" / "profile_latency.py"
 
     res = subprocess.run(
-        [sys.executable, str(script), "--ceiling-ms", "4000"],
+        [sys.executable, str(script), "--allow-mock", "--ceiling-ms", "4000"],
         cwd=str(repo_root),
         capture_output=True,
         text=True,

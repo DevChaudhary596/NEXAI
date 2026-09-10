@@ -10,7 +10,9 @@
     "postinstall": "node scripts/copy-cesium-assets.mjs"
   },
   "dependencies": {
+    "@mapbox/shp-write": "^0.4.3",
     "cesium": "^1.145.0",
+    "firebase": "^12.18.0",
     "jspdf": "^4.2.1",
     "leaflet": "^1.9.4",
     "leaflet-draw": "^1.0.4",

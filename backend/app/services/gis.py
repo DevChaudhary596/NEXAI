@@ -185,12 +185,10 @@ class GISServiceAdapter:
     def spectral(self, scene_path, index: SpectralIndex, threshold: float, operator, bbox):
         import numpy as np
 
-        arr, transform, crs = self._compute_index(scene_path, index, bbox)
         if not Path(scene_path).exists():
             return MockGISService().spectral(scene_path, index, threshold, operator, bbox)
-        arr, transform, _crs = self._compute_index(scene_path, index, bbox)
+        arr, transform, crs = self._compute_index(scene_path, index, bbox)
 
-        import numpy as np
         mask = self._threshold(arr, threshold, _op_to_str(operator))
         geojson = self._polygonize(mask, transform, crs or _OUTPUT_CRS, min_area_sqm=100.0)
         fc = _geojson_to_feature_collection(geojson, index, source="spectral")
@@ -258,9 +256,9 @@ class GISServiceAdapter:
             delta = arr_b.astype(float) - arr_a.astype(float)
 
             mask = self._threshold(np.abs(delta), threshold, ">")
-            geojson = self._polygonize(mask, transform_a, _OUTPUT_CRS, min_area_sqm=100.0)
+            geojson = self._polygonize(mask, transform_a, crs_a or _OUTPUT_CRS, min_area_sqm=100.0)
             fc = _geojson_to_feature_collection(geojson, index, source="spectral")
-            overlay = self._build_overlay(delta, transform_a, crs_a or _OUTPUT_CRS, index, scene_a, "change")
+            overlay = self._build_overlay(delta, transform_a, crs_a, index, scene_a, "change")
 
             changed_area_km2 = round(sum(f.properties.area_m2 or 0.0 for f in fc.features) / 1e6, 4)
             return fc, overlay, {
