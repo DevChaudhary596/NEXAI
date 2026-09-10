@@ -10,57 +10,19 @@ from __future__ import annotations
 import logging
 import time
 from pathlib import Path
-from typing import Any
 
 from app.core.config import get_settings
-from app.core.exceptions import UnsupportedSceneError
 from app.core.schemas import (
-    ConversationTurn, FeatureCollection, QueryRequest, QueryResponse, RasterOverlay,
-    RoutingDecision, Timings, ToolAction, Provenance, Uncertainty,
+    FeatureCollection, QueryRequest, QueryResponse, RasterOverlay, RoutingDecision,
+    Timings, ToolAction,
 )
 from app.services.cv import get_cv
 from app.services.gis import get_gis
 from app.services.router import IntentRouter
 from app.services.storage import get_storage
-from app.services.vlm import build_system_prompt, get_vlm, vram_scope
+from app.services.vlm import get_vlm, vram_scope
 
 log = logging.getLogger(__name__)
-
-# Day 13: rough real-world size (longest dimension, metres) per detection
-# target. Used only to *caveat* a zero-count result, never to block a query -
-# the detector itself already declines gracefully for untrained classes (see
-# app/services/cv.py's `_require_supported_target`); this is the analogous
-# guardrail for "trained class, but too small to resolve at this scene's GSD."
-_MIN_DETECTABLE_SIZE_M: dict[str, float] = {
-    "storage_tank": 15, "ship": 20, "plane": 15, "vehicle": 4, "building": 8,
-    "bridge": 20, "harbor": 100, "roundabout": 20, "helicopter": 10, "swimming_pool": 5,
-}
-
-
-def _history_as_dicts(
-    history: list[ConversationTurn], max_turns: int
-) -> list[dict[str, str]]:
-    """Trim to the last N turns server-side, regardless of what the client
-    sent - the wire-level cap in the schema is a sanity ceiling, this is the
-    actual VRAM/latency budget (Day 8 note in config.py)."""
-    trimmed = history[-max_turns:] if max_turns > 0 else []
-    return [{"role": t.role, "content": t.content} for t in trimmed]
-
-
-def _resolution_caveat(target: str, resolution_m: float | None) -> str:
-    """Non-empty only when a zero-count detection could plausibly be a
-    resolution artifact rather than a real absence - stops the VLM's prose
-    from reading as more confident than the data supports."""
-    if not resolution_m:
-        return ""
-    min_size = _MIN_DETECTABLE_SIZE_M.get(target)
-    if min_size is None or resolution_m * 2 <= min_size:
-        return ""
-    return (
-        f" Note: at ~{resolution_m:.0f} m/pixel, a typical '{target}' "
-        f"(~{min_size:.0f} m) is close to or below the detectable size here - "
-        f"a zero count means none were resolvable, not necessarily that none are present."
-    )
 
 
 class SceneNotFound(Exception):
@@ -146,52 +108,33 @@ def _get_scene_or_roi_crop(scene: Path, roi: Any) -> Path | None:
     return scene
 
 
-def _summarise(
-    tool_call, stats: dict[str, float], fc: FeatureCollection, has_roi: bool = False,
-    resolution_m: float | None = None,
-) -> str:
+def _summarise(tool_call, stats: dict[str, float], fc: FeatureCollection, has_roi: bool = False) -> str:
     """Deterministic factual context handed to the VLM for phrasing.
 
     The numbers are computed here, never generated. The VLM only turns them
     into prose - so a hallucinated count cannot reach the user.
     """
     action = tool_call.action
-    scope = "within the drawn Region of Interest (ROI)" if has_roi else "across the full scene"
+    scope = "within the ROI" if has_roi else "in the scene"
     if action == ToolAction.DETECTION:
         scores = [f.properties.score for f in fc.features if f.properties.score]
         avg = sum(scores) / len(scores) if scores else 0.0
-        high_conf = sum(1 for s in scores if s >= 0.5)
-        low_conf = len(scores) - high_conf
-        caveat = _resolution_caveat(tool_call.target, resolution_m) if fc.count == 0 else ""
-
-        target_label = "objects/items/vehicles" if tool_call.target == "all" else tool_call.target.replace("_", " ")
-        parts = [
-            f"The detector found {fc.count} instance(s) of '{target_label}' {scope}.",
-            f"Mean detection confidence: {avg:.2f}.",
-        ]
-        if fc.count > 0 and scores:
-            min_score = min(scores)
-            max_score = max(scores)
-            parts.append(f"Confidence range: {min_score:.2f} – {max_score:.2f}.")
-            if high_conf > 0:
-                parts.append(f"{high_conf} detection(s) above 0.50 confidence (high certainty), {low_conf} marginal.")
-        if caveat:
-            parts.append(caveat)
-        return " ".join(parts)
+        return (
+            f"Detector found {fc.count} instance(s) of '{tool_call.target}' "
+            f"{scope}, mean confidence {avg:.2f}."
+        )
     if action == ToolAction.SEGMENTATION:
         area = sum(f.properties.area_m2 or 0 for f in fc.features)
-        caveat = _resolution_caveat(tool_call.target, resolution_m) if fc.count == 0 else ""
-        target_label = tool_call.target.replace("_", " ")
         return (
-            f"Segmented {fc.count} '{target_label}' region(s) {scope}, "
-            f"total area {area / 1e6:.2f} km² ({area:,.0f} m²).{caveat}"
+            f"Segmented {fc.count} '{tool_call.target}' region(s), "
+            f"total area {area / 1e6:.2f} km²."
         )
     if action == ToolAction.SPECTRAL:
         key = "changed_area_km2" if tool_call.bi_temporal else "area_km2"
         return (
             f"{tool_call.index.value.upper()} thresholded at "
             f"{tool_call.operator.value} {tool_call.threshold}: "
-            f"{stats.get(key, 0.0):.2f} km² across {fc.count} region(s) {scope}."
+            f"{stats.get(key, 0.0):.2f} km² across {fc.count} region(s)."
         )
     return ""
 
@@ -242,120 +185,24 @@ def handle_query(req: QueryRequest) -> QueryResponse:
     decision = router.route(req.prompt)
     timings.route_ms = (time.perf_counter() - t) * 1000
 
-    is_general_scene = not req.scene_id or req.scene_id.lower() in ("general", "none", "earth")
-    scene: Path | None = None
-    if not is_general_scene:
-        try:
-            scene = resolve_scene(req.scene_id)
-        except SceneNotFound:
-            if decision.tool_call.action == ToolAction.GENERAL_VQA:
-                scene = None
-            else:
-                raise
+    scene = resolve_scene(req.scene_id)
 
     t = time.perf_counter()
-    guardrail_note: str | None = None
-    fc, overlays, stats = FeatureCollection(), [], {}
-    if scene is not None and scene.exists():
-        try:
-            with vram_scope("tool"):
-                fc, overlays, stats = run_tool(decision, req, scene)
-        except UnsupportedSceneError as exc:
-            # Day 13: a foreseeable "this scene can't support that" case (wrong
-            # band count, etc) - degrade to a graceful in-chat explanation rather
-            # than the 422 app/api/routes/query.py would otherwise raise.
-            log.info("graceful degrade for scene_id=%s: %s", req.scene_id, exc)
-            guardrail_note = str(exc)
-            fc, overlays, stats = FeatureCollection(), [], {}
+    with vram_scope("tool"):
+        fc, overlays, stats = run_tool(decision, req, scene)
     timings.tool_ms = (time.perf_counter() - t) * 1000
 
-    context = ""
-    if guardrail_note:
-        context = (
-            f"This scene cannot support the requested analysis ({guardrail_note}). "
-            "Explain this limitation to the user in one or two plain sentences and, "
-            "if obvious, what kind of scene would work instead. Do not invent numbers "
-            "or claim any analysis was performed."
-        )
-    elif decision.tool_call.action == ToolAction.GENERAL_VQA and scene and scene.exists():
-        # Scenery description / visual query: run trained detector so findings ground the VLM
-        prompt_lower = req.prompt.lower()
-        if any(w in prompt_lower for w in ("describe", "what do you see", "what is in", "scenery", "analyze this", "what is this", "spot")):
-            try:
-                cv = get_cv()
-                detected_items = []
-                bbox = req.roi.bbox if req.roi else None
-                for target in ["plane", "ship", "storage_tank", "vehicle"]:
-                    det_fc = cv.detect(scene, target, bbox, 0.35)
-                    if det_fc.count > 0:
-                        detected_items.append(f"{det_fc.count} {target.replace('_', ' ')}(s)")
-                        for feat in det_fc.features:
-                            fc.features.append(feat)
-                if detected_items:
-                    stats["detected_objects"] = float(len(fc.features))
-                    context = f"Trained object detector identified in scene: {', '.join(detected_items)}."
-            except Exception as det_err:
-                log.debug("Scenery describe CV scan error: %s", det_err)
-    elif decision.tool_call.action in (ToolAction.DETECTION, ToolAction.SEGMENTATION) and fc.count == 0 and scene and scene.exists():
-        resolution_m = None
-        try:
-            meta = get_gis().scene_metadata(scene)
-            raw = meta.get("resolution_m")
-            crs = str(meta.get("crs") or "")
-            if raw and ("4326" in crs or "CRS84" in crs or "84" in crs or float(raw) < 0.1):
-                resolution_m = float(raw) * 111_000
-            elif raw:
-                resolution_m = float(raw)
-        except Exception as exc:
-            log.debug("resolution lookup skipped for caveat: %s", exc)
-        context = _summarise(decision.tool_call, stats, fc, has_roi=bool(req.roi), resolution_m=resolution_m)
-    elif decision.tool_call.action != ToolAction.GENERAL_VQA:
-        context = _summarise(decision.tool_call, stats, fc, has_roi=bool(req.roi))
-
-    history = _history_as_dicts(req.history, s.max_history_turns)
-    system_prompt = build_system_prompt(decision.tool_call, req.prompt)
-
+    context = _summarise(decision.tool_call, stats, fc, has_roi=bool(req.roi))
     t = time.perf_counter()
-    vlm_image = _get_scene_or_roi_crop(scene, req.roi) if (scene and scene.exists()) else None
-    target_image = vlm_image if (vlm_image and Path(vlm_image).exists()) else (scene if (scene and scene.exists()) else None)
+    vlm_image = _get_scene_or_roi_crop(scene, req.roi)
     with vram_scope("answer"):
-        answer = vlm.answer(
-            req.prompt, target_image,
-            context=context, history=history, system_prompt=system_prompt,
-        )
+        answer = vlm.answer(req.prompt, vlm_image, context=context)
     timings.answer_ms = (time.perf_counter() - t) * 1000
     timings.total_ms = (time.perf_counter() - t0) * 1000
 
     peak = vlm.peak_vram_gb()
     if peak and peak > s.vram_ceiling_gb:
         log.warning("peak VRAM %.2f GB exceeded ceiling %.2f GB", peak, s.vram_ceiling_gb)
-
-    bands_used = {
-        "ndvi": ["red", "near_infrared"],
-        "ndwi": ["green", "near_infrared"],
-        "ndbi": ["shortwave_infrared", "near_infrared"],
-    }.get(getattr(getattr(decision.tool_call, "index", None), "value", ""), ["red", "green", "blue"])
-
-    if scene and scene.exists() and req.scene_id:
-        manifest = get_storage().get_scene_provenance(req.scene_id)
-        provenance = Provenance(**manifest, bands_used=bands_used, analysis_method=decision.tool_call.action.value)
-    else:
-        provenance = Provenance(
-            scene_id=req.scene_id or "general",
-            sha256="0" * 64,
-            source_filename="general_knowledge_base",
-            ingested_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            source_type="ai_knowledge_engine",
-            analysis_method=decision.tool_call.action.value,
-        )
-    uncertainty = None
-    if decision.tool_call.action == ToolAction.DETECTION:
-        count = stats.get("count", 0.0)
-        spread = count ** 0.5
-        uncertainty = Uncertainty(
-            metric="detected_object_count", lower=max(0.0, count - spread), upper=count + spread,
-            method="Poisson counting interval", caveat="This expresses count sampling variability only; it is not model-validation accuracy.",
-        )
 
     return QueryResponse(
         answer=answer,
@@ -365,6 +212,4 @@ def handle_query(req: QueryRequest) -> QueryResponse:
         stats=stats,
         timings=timings,
         peak_vram_gb=peak,
-        provenance=provenance,
-        uncertainty=uncertainty,
     )

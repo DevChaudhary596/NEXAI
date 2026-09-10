@@ -14,8 +14,6 @@ from __future__ import annotations
 
 import logging
 import os
-import json
-import hashlib
 import shutil
 import uuid
 from dataclasses import dataclass, field
@@ -44,49 +42,6 @@ class SceneMeta:
     extra: dict[str, Any] = field(default_factory=dict)
 
 
-class S3ObjectStore:
-    """S3/R2 object store. Filesystem copies are an ephemeral compute cache."""
-
-    def __init__(self) -> None:
-        s = get_settings()
-        if not s.object_storage_bucket:
-            raise RuntimeError("object storage bucket is not configured")
-        try:
-            import boto3
-        except ImportError as exc:  # pragma: no cover - production dependency
-            raise RuntimeError("boto3 is required for S3/R2 object storage") from exc
-        self.bucket = s.object_storage_bucket
-        self.prefix = s.object_storage_prefix.strip("/")
-        self.client = boto3.client(
-            "s3", region_name=s.object_storage_region,
-            endpoint_url=s.object_storage_endpoint_url,
-            aws_access_key_id=s.object_storage_access_key_id,
-            aws_secret_access_key=s.object_storage_secret_access_key,
-        )
-
-    def key(self, suffix: str) -> str:
-        return f"{self.prefix}/{suffix}" if self.prefix else suffix
-
-    def put_bytes(self, suffix: str, data: bytes, content_type: str) -> None:
-        self.client.put_object(Bucket=self.bucket, Key=self.key(suffix), Body=data, ContentType=content_type)
-
-    def download(self, suffix: str, destination: Path) -> bool:
-        try:
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            self.client.download_file(self.bucket, self.key(suffix), str(destination))
-            return True
-        except Exception as exc:
-            log.warning("could not retrieve %s from object storage: %s", suffix, exc)
-            return False
-
-    def delete_prefix(self, suffix_prefix: str) -> None:
-        prefix = self.key(suffix_prefix)
-        paginator = self.client.get_paginator("list_objects_v2")
-        objects = [{"Key": obj["Key"]} for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix) for obj in page.get("Contents", [])]
-        for start in range(0, len(objects), 1000):
-            self.client.delete_objects(Bucket=self.bucket, Delete={"Objects": objects[start:start + 1000], "Quiet": True})
-
-
 class StorageService:
     """Singleton-friendly file storage abstraction."""
 
@@ -96,7 +51,6 @@ class StorageService:
         self._thumbs_dir = Path(s.thumbnails_dir)
         self._overlays_dir = Path(s.overlays_dir)
         self._thumb_size = s.thumbnail_size
-        self._object_store = S3ObjectStore() if s.object_storage_bucket else None
 
         # Ensure base directories exist
         for d in (self._scenes_dir, self._thumbs_dir, self._overlays_dir):
@@ -115,52 +69,8 @@ class StorageService:
         scene_dir.mkdir(parents=True, exist_ok=True)
         dest = scene_dir / "scene.tif"
         dest.write_bytes(data)
-        provenance = {
-            "scene_id": scene_id,
-            "sha256": hashlib.sha256(data).hexdigest(),
-            "source_filename": filename,
-            "ingested_at": datetime.now(timezone.utc).isoformat(),
-            "source_type": "user_upload",
-            "capture_date": None,
-            "source_item_id": None,
-        }
-        (scene_dir / "provenance.json").write_text(json.dumps(provenance, sort_keys=True), encoding="utf-8")
-        if self._object_store:
-            self._object_store.put_bytes(f"scenes/{scene_id}/scene.tif", data, "image/tiff")
-            self._object_store.put_bytes(f"scenes/{scene_id}/provenance.json", json.dumps(provenance, sort_keys=True).encode(), "application/json")
         log.info("saved scene %s (%d bytes) → %s", scene_id, len(data), dest)
         return dest
-
-    def update_scene_provenance(self, scene_id: str, **values: Any) -> None:
-        path = self._scenes_dir / scene_id / "provenance.json"
-        current = self.get_scene_provenance(scene_id)
-        current.update({key: value for key, value in values.items() if value is not None})
-        path.write_text(json.dumps(current, sort_keys=True), encoding="utf-8")
-        if self._object_store:
-            self._object_store.put_bytes(f"scenes/{scene_id}/provenance.json", json.dumps(current, sort_keys=True).encode(), "application/json")
-
-    def get_scene_provenance(self, scene_id: str) -> dict[str, Any]:
-        path = self._scenes_dir / scene_id / "provenance.json"
-        if not path.exists() and self._object_store:
-            self._object_store.download(f"scenes/{scene_id}/provenance.json", path)
-        if not path.exists():
-            # Legacy/manual fixtures written before the provenance manifest
-            # existed are recovered from the actual raster bytes, never from
-            # invented metadata. New uploads always take the write path above.
-            scene = self.resolve_scene(scene_id)
-            recovered = {
-                "scene_id": scene_id,
-                "sha256": hashlib.sha256(scene.read_bytes()).hexdigest(),
-                "source_filename": scene.name,
-                "ingested_at": datetime.fromtimestamp(scene.stat().st_mtime, tz=timezone.utc).isoformat(),
-                "source_type": "legacy_local_scene",
-                "capture_date": None,
-                "source_item_id": None,
-            }
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps(recovered, sort_keys=True), encoding="utf-8")
-            return recovered
-        return json.loads(path.read_text(encoding="utf-8"))
 
     def generate_thumbnail(self, scene_id: str, scene_path: Path) -> Path:
         """Create a JPEG thumbnail from the GeoTIFF's display bands."""
@@ -218,8 +128,6 @@ class StorageService:
             img = Image.new("RGB", (self._thumb_size, self._thumb_size), (80, 0, 0))
             img.save(thumb_path, "JPEG")
 
-        if self._object_store and thumb_path.exists():
-            self._object_store.put_bytes(f"thumbnails/{scene_id}.jpg", thumb_path.read_bytes(), "image/jpeg")
         return thumb_path
 
     def extract_metadata(self, scene_path: Path) -> dict[str, Any]:
@@ -263,8 +171,6 @@ class StorageService:
         """Return the path to the scene GeoTIFF. Raises FileNotFoundError
         if the scene was never uploaded (mock mode tolerates this)."""
         path = self._scenes_dir / scene_id / "scene.tif"
-        if not path.exists() and self._object_store:
-            self._object_store.download(f"scenes/{scene_id}/scene.tif", path)
         if not path.exists():
             # Fallback: check flat naming from M1's convention
             flat = self._scenes_dir / f"{scene_id}.tif"
@@ -276,8 +182,6 @@ class StorageService:
     def get_thumbnail_path(self, scene_id: str) -> Path | None:
         """Return thumbnail path or None if it doesn't exist."""
         path = self._thumbs_dir / f"{scene_id}.jpg"
-        if not path.exists() and self._object_store:
-            self._object_store.download(f"thumbnails/{scene_id}.jpg", path)
         return path if path.exists() else None
 
     def list_scenes(self) -> list[SceneMeta]:
@@ -285,26 +189,14 @@ class StorageService:
         scenes = []
         if not self._scenes_dir.exists():
             return scenes
-        for entry in sorted(self._scenes_dir.iterdir(), key=lambda e: e.stat().st_mtime if e.exists() else 0, reverse=True):
+        for entry in sorted(self._scenes_dir.iterdir()):
             if entry.is_dir():
                 scene_file = entry / "scene.tif"
                 if scene_file.exists():
                     meta = self.extract_metadata(scene_file)
-                    prov = self.get_scene_provenance(entry.name)
-                    filename = prov.get("source_filename")
-                    if not filename or filename == "scene.tif":
-                        bounds = meta.get("bounds")
-                        if bounds and len(bounds) == 4:
-                            center_lon = (bounds[0] + bounds[2]) / 2
-                            center_lat = (bounds[1] + bounds[3]) / 2
-                            lat_label = f"{abs(center_lat):.2f}°{'N' if center_lat >= 0 else 'S'}"
-                            lon_label = f"{abs(center_lon):.2f}°{'E' if center_lon >= 0 else 'W'}"
-                            filename = f"Sentinel-2_{lat_label}_{lon_label}.tif"
-                        else:
-                            filename = f"Scene_{entry.name[:8]}.tif"
                     scenes.append(SceneMeta(
                         scene_id=entry.name,
-                        filename=filename,
+                        filename="scene.tif",
                         size_bytes=scene_file.stat().st_size,
                         thumbnail_url=f"/api/v1/scenes/{entry.name}/thumbnail",
                         uploaded_at=datetime.fromtimestamp(
@@ -325,10 +217,6 @@ class StorageService:
         thumb = self._thumbs_dir / f"{scene_id}.jpg"
         if thumb.exists():
             thumb.unlink()
-        if self._object_store:
-            self._object_store.delete_prefix(f"scenes/{scene_id}/")
-            self._object_store.delete_prefix(f"thumbnails/{scene_id}.jpg")
-            self._object_store.delete_prefix(f"overlays/{scene_id}/")
         log.info("deleted scene %s", scene_id)
         return True
 
@@ -340,14 +228,10 @@ class StorageService:
         overlay_dir.mkdir(parents=True, exist_ok=True)
         dest = overlay_dir / f"{name}.png"
         dest.write_bytes(data)
-        if self._object_store:
-            self._object_store.put_bytes(f"overlays/{scene_id}/{name}.png", data, "image/png")
         return dest
 
     def resolve_overlay(self, scene_id: str, name: str) -> Path:
         path = self._overlays_dir / scene_id / f"{name}.png"
-        if not path.exists() and self._object_store:
-            self._object_store.download(f"overlays/{scene_id}/{name}.png", path)
         if not path.exists():
             raise FileNotFoundError(f"overlay not found: {scene_id}/{name}")
         return path

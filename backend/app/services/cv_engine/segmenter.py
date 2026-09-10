@@ -20,11 +20,10 @@ class RealSegmenter:
     """
     def __init__(self, model_path: Optional[str] = None):
         if model_path is None:
-            from pathlib import Path
-            backend_dir = Path(__file__).resolve().parents[3]
-            local_model = backend_dir / "models" / "FastSAM-s.pt"
-            if local_model.exists():
-                model_path = str(local_model)
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            local_model = os.path.join(base_dir, "models", "FastSAM-s.pt")
+            if os.path.exists(local_model):
+                model_path = local_model
             else:
                 model_path = "FastSAM-s.pt"
 

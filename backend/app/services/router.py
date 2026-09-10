@@ -44,15 +44,8 @@ DETECTION_SYNONYMS: dict[str, str] = {
     "submarine": "ship", "submarines": "ship",
     "plane": "plane", "planes": "plane", "aircraft": "plane",
     "airplane": "plane", "airplanes": "plane", "jet": "plane", "jets": "plane",
-    "vehicle": "vehicle", "vehicles": "vehicle", "vehichle": "vehicle", "vehichles": "vehicle",
-    "vehical": "vehicle", "vehicals": "vehicle", "every vehicle": "vehicle", "each vehicle": "vehicle",
-    "each and every vehicle": "vehicle", "each and every vehichle": "vehicle", "all vehicles": "vehicle",
-    "car": "vehicle", "cars": "vehicle", "truck": "vehicle", "trucks": "vehicle",
-    "bus": "vehicle", "buses": "vehicle", "lorry": "vehicle", "lorries": "vehicle",
-    "van": "vehicle", "vans": "vehicle", "sedan": "vehicle", "sedans": "vehicle",
-    "suv": "vehicle", "suvs": "vehicle", "pickup": "vehicle", "pickups": "vehicle",
-    "automobile": "vehicle", "automobiles": "vehicle", "motor vehicle": "vehicle", "motor vehicles": "vehicle",
-    "trailer": "vehicle", "trailers": "vehicle", "semi": "vehicle", "semis": "vehicle",
+    "vehicle": "vehicle", "vehicles": "vehicle", "car": "vehicle", "cars": "vehicle",
+    "truck": "vehicle", "trucks": "vehicle",
     "building": "building", "buildings": "building", "house": "building",
     "houses": "building", "structure": "building", "structures": "building",
     "bridge": "bridge", "bridges": "bridge", "flyover": "bridge", "flyovers": "bridge",
@@ -61,12 +54,6 @@ DETECTION_SYNONYMS: dict[str, str] = {
     "helicopter": "helicopter", "helicopters": "helicopter",
     "swimming pool": "swimming_pool", "swimming pools": "swimming_pool",
     "pool": "swimming_pool", "pools": "swimming_pool",
-    "any item": "all", "every item": "all", "each item": "all", "each and every item": "all",
-    "all items": "all", "item": "all", "items": "all",
-    "any object": "all", "every object": "all", "each object": "all", "each and every object": "all",
-    "all objects": "all", "object": "all", "objects": "all",
-    "anything": "all", "everything": "all", "all targets": "all", "every target": "all",
-    "any target": "all", "target": "all", "targets": "all",
 }
 
 SEGMENTATION_SYNONYMS: dict[str, str] = {
@@ -107,13 +94,7 @@ SPECTRAL_KEYWORDS: dict[SpectralIndex, tuple[str, ...]] = {
 
 _COUNT_VERBS = re.compile(
     r"\b(how many|count|number of|find|locate|detect|identify|spot|list all|"
-    r"how much of|show me all|mark|highlight|box|pinpoint|"
-    r"detect each and every|detect every|detect each|detect all|"
-    r"highlight each and every|highlight every|highlight all|"
-    r"find each and every|find every|find all|"
-    r"identify each and every|identify every|identify all|"
-    r"spot each and every|spot every|spot all|"
-    r"show each and every|show every|show all)\b"
+    r"how much of|show me all)\b"
 )
 _SEGMENT_VERBS = re.compile(
     r"\b(segment|segmented|segmenting|mask|outline|delineate|trace|extent of|boundary|boundaries|"

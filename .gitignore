@@ -211,7 +211,3 @@ backend/yolov8n-obb.pt
 # on demand, not real satellite data. Same intent as backend-goru/data/images/ above.
 backend/data/images/
 
-# Local scratch and report PDFs
-scratch/
-*.pdf
-

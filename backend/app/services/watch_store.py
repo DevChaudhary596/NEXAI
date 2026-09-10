@@ -44,10 +44,7 @@ CREATE TABLE IF NOT EXISTS alerts (
     message TEXT NOT NULL,
     stats_before_json TEXT NOT NULL,
     stats_after_json TEXT NOT NULL,
-    seen INTEGER NOT NULL DEFAULT 0,
-    status TEXT NOT NULL DEFAULT 'open',
-    assigned_uid TEXT,
-    triage_notes TEXT
+    seen INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_alerts_watch ON alerts(watch_id);
@@ -81,9 +78,6 @@ class Alert:
     stats_before: dict[str, float]
     stats_after: dict[str, float]
     seen: bool
-    status: str = "open"
-    assigned_uid: str | None = None
-    triage_notes: str | None = None
 
 
 def _now() -> str:
@@ -101,15 +95,6 @@ def _connect() -> Iterator[sqlite3.Connection]:
     conn.row_factory = sqlite3.Row
     try:
         conn.executescript(_SCHEMA)
-        for col_name, col_def in (
-            ("status", "TEXT NOT NULL DEFAULT 'open'"),
-            ("assigned_uid", "TEXT"),
-            ("triage_notes", "TEXT"),
-        ):
-            try:
-                conn.execute(f"ALTER TABLE alerts ADD COLUMN {col_name} {col_def}")
-            except sqlite3.OperationalError:
-                pass
         yield conn
         conn.commit()
     finally:
@@ -132,7 +117,6 @@ def _row_to_watch(row: sqlite3.Row) -> Watch:
 
 
 def _row_to_alert(row: sqlite3.Row) -> Alert:
-    keys = row.keys()
     return Alert(
         id=row["id"],
         watch_id=row["watch_id"],
@@ -141,11 +125,7 @@ def _row_to_alert(row: sqlite3.Row) -> Alert:
         stats_before=json.loads(row["stats_before_json"]),
         stats_after=json.loads(row["stats_after_json"]),
         seen=bool(row["seen"]),
-        status=row["status"] if "status" in keys else "open",
-        assigned_uid=row["assigned_uid"] if "assigned_uid" in keys else None,
-        triage_notes=row["triage_notes"] if "triage_notes" in keys else None,
     )
-
 
 
 def create_watch(
@@ -262,44 +242,3 @@ def mark_alert_seen(alert_id: str) -> bool:
     with _connect() as conn:
         cur = conn.execute("UPDATE alerts SET seen = 1 WHERE id = ?", (alert_id,))
     return cur.rowcount > 0
-
-
-def get_alert(alert_id: str) -> Alert | None:
-    with _connect() as conn:
-        row = conn.execute("SELECT * FROM alerts WHERE id = ?", (alert_id,)).fetchone()
-    return _row_to_alert(row) if row else None
-
-
-def update_alert(
-    alert_id: str,
-    status: str | None = None,
-    assigned_uid: str | None = None,
-    triage_notes: str | None = None,
-    seen: bool | None = None,
-) -> Alert | None:
-    updates: list[str] = []
-    params: list[Any] = []
-    if status is not None:
-        updates.append("status = ?")
-        params.append(status)
-    if assigned_uid is not None:
-        updates.append("assigned_uid = ?")
-        params.append(assigned_uid)
-    if triage_notes is not None:
-        updates.append("triage_notes = ?")
-        params.append(triage_notes)
-    if seen is not None:
-        updates.append("seen = ?")
-        params.append(1 if seen else 0)
-
-    if not updates:
-        return get_alert(alert_id)
-
-    params.append(alert_id)
-    with _connect() as conn:
-        cur = conn.execute(f"UPDATE alerts SET {', '.join(updates)} WHERE id = ?", params)
-        if cur.rowcount == 0:
-            return None
-        row = conn.execute("SELECT * FROM alerts WHERE id = ?", (alert_id,)).fetchone()
-        return _row_to_alert(row) if row else None
-

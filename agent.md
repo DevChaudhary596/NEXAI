@@ -20,7 +20,7 @@ SatQuery AI enables natural language querying over multi-spectral satellite imag
 
 | Member | Assigned Teammate | Domain & Role | Week 1 Status | Week 2 Status (Days 8–14) | Current Repository Status |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Member 1** | **Goru / Gaurang** | System Architect & VLM Lead | **Complete** (Base VLM service, Intent router, Orchestrator pipeline) | **Complete & Merged (Days 8–14)** (Multi-turn memory, JSON metric schema, 3 demo prompts, Whisper voice input, latency tuning, guardrails) | ✅ **MERGED & VERIFIED (PR #11)**: Full Week 2 VLM suite merged into `main`. 35/35 tests passing. |
+| **Member 1** | **Goru / Gaurang** | System Architect & VLM Lead | **Complete** (Base VLM service, Intent router, Orchestrator pipeline) | **Implemented on personal fork** (Multi-turn memory, JSON metric schema, 3 demo prompts, Whisper voice input, latency tuning, guardrails) | ⚠️ **PENDING PR**: Work is on M1's fork/repo (`NEXAI`); has **not** yet been PR'd or merged into `satquery-ai`. |
 | **Member 2** | Joy / Harsh | Geospatial CV Engineer | **Complete** (YOLOv8n-OBB, SAHI sliding slicer, geo-affine conversion, Sentinel-2 physics gate) | **Complete & Verified (Days 8–14)** (SAHI boundary artifact smoothing, calibrated confidence thresholds, spatial quadrant pruning, DBSCAN hotspot clustering, 3 golden demo caches, rule-based pruning, benchmark test suite) | ✅ **COMPLETE & 100% TESTED**: Accidental `week 2/` propulsion simulator deleted. Full 19/19 CV tests passing. |
 | **Member 3** | Saksham | Raster & GIS Data Engineer | **Complete** (Deterministic NumPy/Rasterio GIS engine: NDVI, NDWI, SCL cloud masking, water/vegetation thresholding, bi-temporal differential change, GeoJSON polygonizer) | **In Progress / Validated** (Pure math validation, test suite 100% passing, composite generator & Douglas-Peucker simplification ready) | ✅ **MERGED & VERIFIED**: `satquery-gis-engine/` fully operational with zero ML hallucination. |
 | **Member 4** | **User (Dev)** | Frontend & Map UI Engineer (Repo Owner) | **Complete** (Next.js 16, TypeScript, Leaflet map with ROI drawer, Scene uploader, dynamic GeoJSON overlays, Chat sidebar) | **Active / Merged (PR #9)** (Layer opacity controls, bi-temporal swipe tool, AOI watches & alerts, live Sentinel-2 panel, Cesium 3D view; Week 2 tasks ready) | ✅ **MERGED & ACTIVE**: Frontend interactive UI fully synchronized on `main`. |
@@ -40,9 +40,10 @@ SatQuery AI enables natural language querying over multi-spectral satellite imag
 - **Day 14**: VRAM audit script for the $< 5\text{ GB}$ ceiling.
 
 ### Repository Audit Findings:
-* **Current State in `DevChaudhary596/satquery-ai` (NEXAI)**: ✅ **COMPLETE & MERGED (PR #11)**.
-* Multi-turn conversational memory, `/api/v1/transcribe` Whisper voice input, 3 flagship demo overlays, latency profiling ($< 4\text{s}$), and VRAM ceiling ($< 5\text{ GB}$) are all integrated and tested.
-* **Verification**: All 35/35 backend tests and frontend typechecks passing clean.
+* **Current State in `DevChaudhary596/satquery-ai`**: **NOT PRESENT**.
+* Searching `backend/app/services/vlm.py`, `backend/app/services/orchestrator.py`, and `frontend/` reveals no voice handling, no conversation session memory, and `max_new_tokens` remains at the Week 1 default of 384.
+* **Explanation**: Member 1 confirmed: *"Pushed + merged on my repo, will move it into NEXAI/PR it there next."*
+* **Conclusion**: Member 1's code is completed on their independent fork, but the repository is currently waiting for Member 1 to submit a Pull Request to merge these changes into `satquery-ai/main`.
 
 ---
 
@@ -67,7 +68,8 @@ SatQuery AI enables natural language querying over multi-spectral satellite imag
 ## 5. Immediate Action Plan & Next Steps
 
 1. **Member 1 (VLM Lead)**:
-   * ✅ **COMPLETED & MERGED (PR #11)**: PR #11 merged into `main` with all Days 8–14 deliverables.
+   * Open PR from personal fork (`NEXAI` / M1 branch) into `DevChaudhary596/satquery-ai:main`.
+   * Ensure `backend/app/services/vlm.py`, `orchestrator.py`, and voice ingestion endpoints are included.
 2. **Member 2 (CV Engineer)**:
    * Revert or discard the sci-fi `week 2/` propulsion simulation directory.
    * Execute the real Week 2 Geospatial CV tasks starting with Day 8 (SAHI tile smoothing) and Day 9 (Multi-class threshold tuning) in `backend/app/services/cv_engine/`.
