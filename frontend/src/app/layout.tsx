@@ -1,32 +1,21 @@
 import type { Metadata } from "next";
-import { Inter, Press_Start_2P } from "next/font/google";
 import "@/styles/globals.css";
-
-const inter = Inter({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-inter",
-});
-
-const pixelFont = Press_Start_2P({
-  subsets: ["latin"],
-  weight: "400",
-  display: "swap",
-  variable: "--font-pixel",
-});
+import Providers from "@/components/Providers";
+import AuthGate from "@/components/AuthGate";
 
 export const metadata: Metadata = {
-  title: "SatQuery AI — Interactive Remote Sensing Analysis",
+  title: "SatQuery — Autonomous Geospatial Intelligence Platform",
   description:
-    "An interactive Vision-Language assistant for multimodal remote sensing image analysis through text queries. SIH Problem Statement 26167.",
+    "Enterprise-grade autonomous geospatial intelligence and remote sensing platform. Real-time planetary observation, automated computer vision, and spectral analytics.",
   keywords: [
     "satellite imagery",
     "remote sensing",
-    "VLM",
+    "geospatial intelligence",
+    "earth observation",
     "GIS",
     "object detection",
     "NDVI",
-    "SIH",
+    "SatQuery",
   ],
 };
 
@@ -36,25 +25,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${pixelFont.variable}`}>
+    <html lang="en">
       <head>
-        <link
-          rel="icon"
-          href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛰️</text></svg>"
-        />
+        <link rel="icon" href="/favicon.ico" />
       </head>
       <body>
-        <div className="ambient-bg" aria-hidden="true">
-          <div className="ambient-bg__blob ambient-bg__blob--1" />
-          <div className="ambient-bg__blob ambient-bg__blob--2" />
-          <div className="ambient-bg__blob ambient-bg__blob--3" />
-          <div className="ambient-bg__pixel-star" style={{ top: "14%", left: "22%", animationDelay: "0s" }} />
-          <div className="ambient-bg__pixel-star" style={{ top: "28%", left: "68%", animationDelay: "0.6s" }} />
-          <div className="ambient-bg__pixel-star" style={{ top: "62%", left: "40%", animationDelay: "1.2s" }} />
-          <div className="ambient-bg__pixel-star" style={{ top: "45%", left: "85%", animationDelay: "1.8s" }} />
-          <div className="ambient-bg__pixel-star" style={{ top: "78%", left: "12%", animationDelay: "0.9s" }} />
-        </div>
-        {children}
+        <a href="#main-operations" className="skip-to-content">
+          Skip to main operations
+        </a>
+        <div className="theme-epic-backdrop" aria-hidden="true" />
+        <Providers><AuthGate>{children}</AuthGate></Providers>
       </body>
     </html>
   );

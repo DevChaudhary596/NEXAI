@@ -33,7 +33,8 @@ export type RoutingSource = "rules" | "vlm" | "fallback";
 
 export type DetectionTarget =
   | "storage_tank" | "ship" | "plane" | "vehicle" | "building"
-  | "bridge" | "harbor" | "roundabout" | "helicopter" | "swimming_pool";
+  | "bridge" | "harbor" | "roundabout" | "helicopter" | "swimming_pool"
+  | "all";
 
 export type SegmentationTarget =
   | "water" | "building" | "vegetation" | "road" | "bare_soil";
@@ -106,11 +107,18 @@ export interface RasterOverlay {
 
 /* ── Query ──────────────────────────────────────────────────── */
 
+/** One prior turn, text-only (Day 8 - the image is never re-sent). */
+export interface ConversationTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
 export interface QueryRequest {
   prompt: string;
   scene_id: string;
   roi?: ROI | null;
   scene_id_b?: string | null;
+  history?: ConversationTurn[];
 }
 
 export interface Timings {
@@ -129,6 +137,42 @@ export interface QueryResponse {
   stats: Record<string, number>;
   timings: Timings;
   peak_vram_gb: number | null;
+  provenance: Provenance;
+  uncertainty: Uncertainty | null;
+}
+
+export interface Provenance {
+  scene_id: string;
+  sha256: string;
+  source_filename: string;
+  ingested_at: string;
+  source_type: string;
+  capture_date: string | null;
+  source_item_id: string | null;
+  bands_used: string[];
+  analysis_method: string;
+}
+
+export interface Uncertainty {
+  metric: string;
+  lower: number;
+  upper: number;
+  method: string;
+  caveat: string;
+}
+
+/* ── Voice input (Day 10) ──────────────────────────────────────── */
+
+export interface TranscribeResponse {
+  text: string;
+  backend: string;
+}
+
+/* ── Voice input (Day 10) ──────────────────────────────────────── */
+
+export interface TranscribeResponse {
+  text: string;
+  backend: string;
 }
 
 /* ── Error ──────────────────────────────────────────────────── */
@@ -136,6 +180,13 @@ export interface QueryResponse {
 export interface ErrorResponse {
   detail: string;
   code: string;
+}
+
+export interface SnapshotSceneRequest {
+  image_base64: string;
+  bounds: number[];
+  label?: string;
+  is_roi?: boolean;
 }
 
 /* ── Upload ─────────────────────────────────────────────────── */
@@ -192,6 +243,8 @@ export interface WatchResponse {
   active: boolean;
 }
 
+export type AlertStatus = "open" | "investigating" | "resolved";
+
 export interface AlertResponse {
   id: string;
   watch_id: string;
@@ -200,6 +253,9 @@ export interface AlertResponse {
   stats_before: Record<string, number>;
   stats_after: Record<string, number>;
   seen: boolean;
+  status: AlertStatus;
+  assigned_uid?: string | null;
+  triage_notes?: string | null;
 }
 
 export interface WatchListResponse {
@@ -209,6 +265,25 @@ export interface WatchListResponse {
 export interface AlertListResponse {
   alerts: AlertResponse[];
 }
+
+export interface OverpassItem {
+  satellite: "Sentinel-2A" | "Sentinel-2B";
+  pass_time_utc: string;
+  local_solar_time: string;
+  seconds_until: number;
+  human_until: string;
+  orbit_direction: "descending" | "ascending";
+  sun_elevation_deg: number;
+  swath_coverage_pct: number;
+}
+
+export interface OverpassResponse {
+  center_lon: number;
+  center_lat: number;
+  next_pass: OverpassItem | null;
+  upcoming_passes: OverpassItem[];
+}
+
 
 /* ── Chat UI ────────────────────────────────────────────────── */
 
@@ -227,3 +302,39 @@ export interface ChatMessage {
   isLoading?: boolean;
   isError?: boolean;
 }
+
+/* ── Tenant platform ───────────────────────────────────────── */
+
+export type WorkspaceRole = "viewer" | "analyst" | "reviewer" | "admin";
+export type Classification = "unclassified" | "restricted" | "confidential";
+export type ProjectTemplate = "flood_response" | "crop_monitoring" | "maritime_surveillance" | "border_security" | "custom";
+
+export interface WorkspaceResponse {
+  id: string;
+  name: string;
+  classification: Classification;
+  role: WorkspaceRole;
+  created_at: string;
+}
+
+export interface WorkspaceListResponse { workspaces: WorkspaceResponse[]; }
+
+export interface CreateProjectRequest {
+  name: string;
+  template: ProjectTemplate;
+  aoi?: BBox | null;
+  classification?: Classification;
+}
+
+export interface ProjectResponse {
+  id: string;
+  workspace_id: string;
+  name: string;
+  template: ProjectTemplate;
+  aoi: BBox | null;
+  classification: Classification;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectListResponse { projects: ProjectResponse[]; }
