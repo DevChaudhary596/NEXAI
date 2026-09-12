@@ -484,27 +484,16 @@ class RealOBBDetector:
         local_range = cv2.dilate(gray, k5).astype(np.float32) - cv2.erode(gray, k5).astype(np.float32)
         text_mask = cv2.dilate((local_range > 125).astype(np.uint8), np.ones((7, 7), np.uint8)) > 0
 
-        # 3. Building roof mask (long straight structural contours & rooflines)
-        edges = cv2.Canny(gray, 40, 120)
-        lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=35, minLineLength=28, maxLineGap=4)
-        roof_lines = np.zeros((img_h, img_w), dtype=np.uint8)
-        if lines is not None:
-            for l in lines:
-                x1, y1, x2, y2 = l.ravel()
-                if np.hypot(x2 - x1, y2 - y1) > 28:
-                    cv2.line(roof_lines, (x1, y1), (x2, y2), 255, 4)
-        roof_mask = cv2.dilate(roof_lines, np.ones((5, 5), np.uint8)) > 0
-
-        # 4. Multi-directional morphology for arbitrary-angle vehicle profiles
+        # 3. Multi-directional morphology for arbitrary-angle vehicle profiles
         # Vertical vehicles (longer in Y, typical of parking stalls)
-        kv = cv2.getStructuringElement(cv2.MORPH_RECT, (4, 8))
+        kv = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 6))
         top_v = np.maximum(
             cv2.morphologyEx(gray, cv2.MORPH_TOPHAT, kv),
             cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, kv)
         )
 
         # Horizontal vehicles (longer in X, typical of horizontal bays or street parking)
-        kh = cv2.getStructuringElement(cv2.MORPH_RECT, (8, 4))
+        kh = cv2.getStructuringElement(cv2.MORPH_RECT, (6, 3))
         top_h = np.maximum(
             cv2.morphologyEx(gray, cv2.MORPH_TOPHAT, kh),
             cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, kh)
@@ -512,17 +501,16 @@ class RealOBBDetector:
 
         sal = np.maximum(top_v, top_h)
 
-        # Mask out trees, text labels, building roofs, and image borders
+        # Mask out trees, text labels, and image borders
         sal[tree_mask] = 0
         sal[text_mask] = 0
-        sal[roof_mask] = 0
-        sal[:6, :] = 0
-        sal[-6:, :] = 0
-        sal[:, :6] = 0
-        sal[:, -6:] = 0
+        sal[:4, :] = 0
+        sal[-4:, :] = 0
+        sal[:, :4] = 0
+        sal[:, -4:] = 0
 
-        # Calibrated salience threshold: isolates genuine vehicle reflectance while rejecting pavement noise
-        cand = np.argwhere(sal > 17.5)
+        # Calibrated salience threshold: captures both high-contrast and shaded parked vehicles
+        cand = np.argwhere(sal > 14.2)
         if len(cand) == 0:
             return []
 
@@ -538,12 +526,12 @@ class RealOBBDetector:
             if suppressed[cy, cx]:
                 continue
 
-            is_horiz = bool(top_h[cy, cx] > top_v[cy, cx] * 1.25)
+            is_horiz = bool(top_h[cy, cx] > top_v[cy, cx] * 1.2)
             chosen.append((int(cx), int(cy), float(sc), is_horiz))
 
-            # Tight row-aware suppression window: radius 2-4px so tightly parked cars are never erased
-            rx = 4 if is_horiz else 2
-            ry = 2 if is_horiz else 4
+            # Row-aware suppression window: radius 2-3px prevents inter-car erasure in compact parking rows
+            rx = 3 if is_horiz else 2
+            ry = 2 if is_horiz else 3
             y0 = max(0, cy - ry)
             y1 = min(img_h, cy + ry + 1)
             x0 = max(0, cx - rx)
@@ -553,17 +541,17 @@ class RealOBBDetector:
         if len(chosen) < 2:
             return []
 
-        # 5. Spatial cluster verification (vehicles naturally cluster in parking rows, lots, or driveways)
+        # 4. Spatial cluster verification (vehicles naturally cluster in parking rows, lots, or driveways)
         coords = np.array([[c[0], c[1]] for c in chosen])
         verified: List[Tuple[int, int, float, bool]] = []
         for c in chosen:
             cx, cy, sc, is_horiz = c
             dists = np.hypot(coords[:, 0] - cx, coords[:, 1] - cy)
-            nbrs = int(np.sum((dists > 3) & (dists < 30)))
-            if nbrs >= 2 or (nbrs >= 1 and sc > 26.0):
+            nbrs = int(np.sum((dists > 2) & (dists < 25)))
+            if nbrs >= 2 or (nbrs >= 1 and sc > 23.0):
                 verified.append(c)
 
-        # 6. Build clean, arbitrary-angle oriented bounding boxes (OBB)
+        # 5. Build clean, arbitrary-angle oriented bounding boxes (OBB)
         dets: List[Dict[str, Any]] = []
         cls_name = "small vehicle"
         cls_id = 10
