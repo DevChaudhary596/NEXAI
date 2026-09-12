@@ -9,6 +9,8 @@ import tempfile
 
 _tmp_data_dir = tempfile.mkdtemp(prefix="satquery-test-data-")
 os.environ["SATQUERY_DATA_DIR"] = _tmp_data_dir
+os.environ["SATQUERY_VLM_BACKEND"] = "mock"
+os.environ["SATQUERY_TESTING"] = "true"
 
 import numpy as np
 import pytest

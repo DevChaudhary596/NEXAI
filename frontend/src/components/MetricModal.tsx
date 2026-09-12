@@ -74,7 +74,7 @@ export default function MetricModal({
                 </div>
                 <div>
                   <h3 className="metric-modal-title">97.6% Model Validation Accuracy</h3>
-                  <p className="metric-modal-sub">YOLOv8x-OBB + SatQuery VLM grounding benchmarks</p>
+                  <p className="metric-modal-sub">YOLOv8x-OBB + SOLEN VLM grounding benchmarks</p>
                 </div>
               </>
             )}

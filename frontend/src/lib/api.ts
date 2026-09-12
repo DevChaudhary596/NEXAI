@@ -1,5 +1,5 @@
 /**
- * SatQuery AI — API Client
+ * SOLEN AI — API Client
  *
  * Communicates with the FastAPI backend (M5).
  * Backend routes defined in: backend/app/main.py
@@ -133,14 +133,20 @@ export async function transcribeAudio(blob: Blob): Promise<TranscribeResponse> {
 
 /**
  * POST /api/v1/scenes/fetch-satellite
- * Fetch the freshest low-cloud Sentinel-2 pass for an AOI — no GeoTIFF
- * upload required. Same response shape as uploadScene().
+ * Fetch a low-cloud Sentinel-2 pass for an AOI. Optional target_date
+ * (YYYY-MM-DD) picks the closest pass within ±45 days instead of latest.
  */
-export async function fetchSatelliteScene(bbox: BBox): Promise<UploadResponse> {
+export async function fetchSatelliteScene(
+  bbox: BBox,
+  targetDate?: string | null
+): Promise<UploadResponse> {
   const res = await apiFetch(`/api/v1/scenes/fetch-satellite`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ bbox }),
+    body: JSON.stringify({
+      bbox,
+      ...(targetDate ? { target_date: targetDate } : {}),
+    }),
   });
   return handleResponse<UploadResponse>(res);
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import SolenLogo from "@/components/SolenLogo";
 import {
   LayoutDashboard,
   Compass,
@@ -12,6 +13,7 @@ import {
   Database,
   FileText,
   UploadCloud,
+  Lock,
 } from "lucide-react";
 
 export type NavItemKey =
@@ -34,16 +36,17 @@ const NAV_ITEMS: {
   key: NavItemKey;
   label: string;
   icon: React.ComponentType<{ size?: number; className?: string }>;
+  locked?: boolean;
 }[] = [
   { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { key: "explore", label: "Explore", icon: Compass },
   { key: "analysis", label: "Analysis", icon: BarChart3 },
   { key: "detections", label: "Detections", icon: Scan },
-  { key: "compare", label: "Compare", icon: GitCompare },
-  { key: "monitor", label: "Monitor", icon: Clock },
+  { key: "compare", label: "Compare", icon: GitCompare, locked: true },
+  { key: "monitor", label: "Monitor", icon: Clock, locked: true },
   { key: "projects", label: "Projects", icon: Folder },
   { key: "data-library", label: "Data Library", icon: Database },
-  { key: "reports", label: "Reports", icon: FileText },
+  { key: "reports", label: "Reports", icon: FileText, locked: true },
 ];
 
 export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
@@ -54,35 +57,26 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
         {/* Brand Header */}
         <button
           type="button"
-          onClick={() => onTabChange("dashboard")}
+          onClick={() => {
+            if (activeTab === "dashboard") {
+              window.dispatchEvent(new CustomEvent("solen:replay-intro"));
+            } else {
+              onTabChange("dashboard");
+            }
+          }}
           className="native-sidebar__brand-btn"
-          title="SatQuery AI"
+          title="SOLEN — Click to switch to Dashboard or replay startup intro"
         >
-          <div className="native-sidebar__logo-icon">
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-              <circle cx="14" cy="14" r="13" fill="#181e23" />
-              <path
-                d="M4 14C4 14 9.5 7 15 7C20.5 7 24 14 24 14C24 14 18.5 21 13 21C7.5 21 4 14 4 14Z"
-                fill="#ffffff"
-                fillOpacity="0.15"
-              />
-              <path
-                d="M5 14.5C8.5 10 14 9 23 13"
-                stroke="#ffffff"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-              />
-            </svg>
-          </div>
+          <div className="native-sidebar__logo-icon"><SolenLogo variant="icon" decorative /></div>
           <div className="native-sidebar__brand-meta">
-            <span className="native-sidebar__brand-title">SatQuery AI</span>
+            <span className="native-sidebar__brand-title">SOLEN</span>
             <span className="native-sidebar__brand-sub">SEE A CLEARER TOMORROW</span>
           </div>
         </button>
 
         {/* Navigation Items List */}
         <nav className="native-sidebar__nav">
-          {NAV_ITEMS.map(({ key, label, icon: Icon }) => {
+          {NAV_ITEMS.map(({ key, label, icon: Icon, locked }) => {
             const isActive = activeTab === key;
             return (
               <button
@@ -91,10 +85,21 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
                 onClick={() => onTabChange(key)}
                 className={`native-sidebar__nav-item ${
                   isActive ? "native-sidebar__nav-item--active" : ""
-                }`}
+                } ${locked ? "native-sidebar__nav-item--locked" : ""}`}
+                title={locked ? `${label} — Coming Soon (Feature Locked)` : label}
               >
-                <Icon size={17} className="native-sidebar__nav-icon" />
-                <span className="native-sidebar__nav-label">{label}</span>
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <Icon size={17} className="native-sidebar__nav-icon" />
+                  {locked && (
+                    <Lock size={12} className="native-sidebar__lock-icon" />
+                  )}
+                  <span className="native-sidebar__nav-label">{label}</span>
+                </div>
+                {locked && (
+                  <span className="native-sidebar__coming-soon-badge">
+                    Coming Soon
+                  </span>
+                )}
               </button>
             );
           })}

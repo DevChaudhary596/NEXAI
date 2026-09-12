@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
-import { Box, Map as MapIcon } from "lucide-react";
+import { Box, Map as MapIcon, X, GripHorizontal, RotateCcw } from "lucide-react";
 
 import Sidebar, { NavItemKey } from "@/components/Sidebar";
 import TopNav from "@/components/TopNav";
@@ -31,6 +31,8 @@ import type {
 } from "@/types";
 import type { FlyToTarget, LiveViewportCapture } from "@/components/Cesium3DView";
 import { useAuth } from "@/components/AuthProvider";
+import SolenLogo from "@/components/SolenLogo";
+import IntroSplashOverlay from "@/components/IntroSplashOverlay";
 import type { Classification, WorkspaceResponse } from "@/types";
 
 // Lazy-load MapPanel to avoid SSR issues with Leaflet
@@ -113,6 +115,7 @@ export default function Home() {
   // Map interaction state
   const [roi, setROI] = useState<ROI | null>(null);
   const captureLiveSceneRef = useRef<(() => Promise<LiveViewportCapture | null>) | null>(null);
+  const triggerDrawAOIRef = useRef<(() => void) | null>(null);
 
   const handleCaptureLiveViewport = useCallback(async () => {
     if (captureLiveSceneRef.current) {
@@ -131,6 +134,145 @@ export default function Home() {
   const [isCmdPaletteOpen, setIsCmdPaletteOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+
+  // Floating Draggable Launcher Position & Drag State
+  const [launcherPos, setLauncherPos] = useState<{ x: number; y: number } | null>(null);
+  const isDraggingLauncherRef = useRef(false);
+  const launcherDragStartPointer = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const launcherDragStartPos = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  // Floating Draggable Chat Panel Position & Drag State
+  const [chatPos, setChatPos] = useState<{ x: number; y: number } | null>(null);
+  const isDraggingChatRef = useRef(false);
+  const chatDragStartPointer = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const chatDragStartPos = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  // Restore saved coordinates from localStorage
+  useEffect(() => {
+    try {
+      const savedLauncher = localStorage.getItem("solen_launcher_pos");
+      if (savedLauncher) {
+        const parsed = JSON.parse(savedLauncher);
+        if (typeof parsed.x === "number" && typeof parsed.y === "number") {
+          setLauncherPos(parsed);
+        }
+      }
+      const savedChat = localStorage.getItem("solen_chat_pos");
+      if (savedChat) {
+        const parsed = JSON.parse(savedChat);
+        if (typeof parsed.x === "number" && typeof parsed.y === "number") {
+          setChatPos(parsed);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // Handlers for Launcher Icon Dragging
+  const handleLauncherPointerDown = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    isDraggingLauncherRef.current = false;
+    launcherDragStartPointer.current = { x: e.clientX, y: e.clientY };
+    const rect = e.currentTarget.getBoundingClientRect();
+    launcherDragStartPos.current = { x: rect.left, y: rect.top };
+  }, []);
+
+  const handleLauncherPointerMove = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
+    const dx = e.clientX - launcherDragStartPointer.current.x;
+    const dy = e.clientY - launcherDragStartPointer.current.y;
+
+    if (!isDraggingLauncherRef.current && Math.hypot(dx, dy) > 5) {
+      isDraggingLauncherRef.current = true;
+    }
+
+    if (isDraggingLauncherRef.current) {
+      const newX = Math.max(10, Math.min(window.innerWidth - 66, launcherDragStartPos.current.x + dx));
+      const newY = Math.max(10, Math.min(window.innerHeight - 66, launcherDragStartPos.current.y + dy));
+      setLauncherPos({ x: newX, y: newY });
+    }
+  }, []);
+
+  const handleLauncherPointerUp = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    if (isDraggingLauncherRef.current) {
+      isDraggingLauncherRef.current = false;
+      setLauncherPos((current) => {
+        if (current) {
+          try {
+            localStorage.setItem("solen_launcher_pos", JSON.stringify(current));
+          } catch {
+            // ignore
+          }
+        }
+        return current;
+      });
+    } else {
+      // Regular click: toggle open/close
+      setIsCopilotOpen((open) => !open);
+    }
+  }, []);
+
+  // Handlers for Chat Panel Dragging
+  const handleChatDragStart = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    isDraggingChatRef.current = true;
+    chatDragStartPointer.current = { x: e.clientX, y: e.clientY };
+
+    const chatElem = document.querySelector(".theme-right-column") as HTMLElement;
+    if (chatElem) {
+      const rect = chatElem.getBoundingClientRect();
+      chatDragStartPos.current = { x: rect.left, y: rect.top };
+    }
+  }, []);
+
+  const handleChatDragMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingChatRef.current || !e.currentTarget.hasPointerCapture(e.pointerId)) return;
+    const dx = e.clientX - chatDragStartPointer.current.x;
+    const dy = e.clientY - chatDragStartPointer.current.y;
+
+    const chatElem = document.querySelector(".theme-right-column") as HTMLElement;
+    const width = chatElem ? chatElem.offsetWidth : 390;
+    const height = chatElem ? chatElem.offsetHeight : 700;
+
+    const newX = Math.max(10, Math.min(window.innerWidth - width - 10, chatDragStartPos.current.x + dx));
+    const newY = Math.max(10, Math.min(window.innerHeight - 80, chatDragStartPos.current.y + dy));
+    setChatPos({ x: newX, y: newY });
+  }, []);
+
+  const handleChatDragEnd = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    isDraggingChatRef.current = false;
+    setChatPos((current) => {
+      if (current) {
+        try {
+          localStorage.setItem("solen_chat_pos", JSON.stringify(current));
+        } catch {
+          // ignore
+        }
+      }
+      return current;
+    });
+  }, []);
+
+  const resetPositions = useCallback(() => {
+    setLauncherPos(null);
+    setChatPos(null);
+    try {
+      localStorage.removeItem("solen_launcher_pos");
+      localStorage.removeItem("solen_chat_pos");
+    } catch {
+      // ignore
+    }
+  }, []);
+
   const [workspaces, setWorkspaces] = useState<WorkspaceResponse[]>([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
   const [projects, setProjects] = useState<ProjectResponse[]>(DEFAULT_FLAGSHIP_PROJECTS);
@@ -141,7 +283,7 @@ export default function Home() {
   const [isLightMode, setIsLightMode] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem("satquery_theme");
+    const saved = localStorage.getItem("solen_theme") || localStorage.getItem("satquery_theme");
     if (saved === "light" || document.documentElement.classList.contains("light-theme")) {
       setIsLightMode(true);
       document.documentElement.classList.add("light-theme");
@@ -151,11 +293,11 @@ export default function Home() {
   const handleToggleTheme = useCallback(() => {
     if (isLightMode) {
       document.documentElement.classList.remove("light-theme");
-      localStorage.setItem("satquery_theme", "dark");
+      localStorage.setItem("solen_theme", "dark");
       setIsLightMode(false);
     } else {
       document.documentElement.classList.add("light-theme");
-      localStorage.setItem("satquery_theme", "light");
+      localStorage.setItem("solen_theme", "light");
       setIsLightMode(true);
     }
   }, [isLightMode]);
@@ -163,7 +305,7 @@ export default function Home() {
   useEffect(() => {
     void listWorkspaces().then((response) => {
       setWorkspaces(response.workspaces);
-      const stored = window.localStorage.getItem("satquery.active-workspace");
+      const stored = window.localStorage.getItem("solen.active-workspace") || window.localStorage.getItem("satquery.active-workspace");
       const selected = response.workspaces.find((workspace) => workspace.id === stored) ?? response.workspaces[0];
       setActiveWorkspaceId(selected?.id ?? null);
       configureActiveWorkspace(selected?.id ?? null);
@@ -178,7 +320,7 @@ export default function Home() {
   const selectWorkspace = useCallback((workspaceId: string) => {
     setActiveWorkspaceId(workspaceId);
     configureActiveWorkspace(workspaceId);
-    window.localStorage.setItem("satquery.active-workspace", workspaceId);
+    window.localStorage.setItem("solen.active-workspace", workspaceId);
   }, []);
 
   useEffect(() => {
@@ -264,22 +406,44 @@ export default function Home() {
     setROI(null);
   }, []);
 
+  // Handle ROI change with auto-prefill for AI chatbot
+  const handleROIChange = useCallback((newRoi: ROI | null) => {
+    setROI(newRoi);
+    if (newRoi && newRoi.bbox) {
+      const centerLat = ((newRoi.bbox.south + newRoi.bbox.north) / 2).toFixed(3);
+      const centerLon = ((newRoi.bbox.west + newRoi.bbox.east) / 2).toFixed(3);
+      setPrefillQuery(`Analyze satellite observations, multispectral indices, and changes for this Area of Interest (${centerLat}°N, ${centerLon}°E)`);
+      setIsCopilotOpen(true);
+    }
+  }, []);
+
   // Global Search Handler: Flies the 3D globe to any airport, city, or place
   const handleGlobalSearch = useCallback(async (query: string) => {
     try {
       const results = await searchPlaces(query, 3);
       if (results && results.length > 0) {
         const best = results[0];
+        let height = 3500;
+        if (best.boundingBox) {
+          const span = Math.max(
+            Math.abs(best.boundingBox[1] - best.boundingBox[0]),
+            Math.abs(best.boundingBox[3] - best.boundingBox[2])
+          );
+          height = Math.max(1800, Math.min(span * 111000 * 1.6, 45000));
+        }
         setFlyToTarget({
           lon: best.lon,
           lat: best.lat,
-          height: 3500,
+          height,
           pitch: -90,
         });
         setPrefillQuery(`Analyze recent satellite observations and surface changes for ${best.displayName}`);
+        setIsCopilotOpen(true);
+      } else {
+        alert(`Could not locate "${query}". Try searching a city name (e.g. Mumbai, Tokyo, London) or coordinates (e.g. 19.08, 72.86).`);
       }
     } catch {
-      // Fallback
+      alert(`Search error for "${query}". Please check the spelling or coordinates.`);
     }
   }, []);
 
@@ -293,6 +457,7 @@ export default function Home() {
       });
     }
     setPrefillQuery(`Analyze recent satellite observations and surface changes for ${project.name}`);
+    setIsCopilotOpen(true);
   }, []);
 
   const handleUnmountScene = useCallback(() => {
@@ -301,28 +466,39 @@ export default function Home() {
     setSceneName(null);
     setScene(null);
     setOverlays([]);
-    setGeojson(null);
   }, []);
 
-  // Handle Quick Action Click
+  // Quick Actions Dispatcher
   const handleQuickAction = useCallback((key: QuickActionKey) => {
     if (key === "count_objects") {
       setActiveTab("detections");
+      setPrefillQuery("Run vehicle, vessel, and infrastructure object detection on this area.");
+      setIsCopilotOpen(true);
     } else if (key === "detect_changes") {
       setActiveTab("compare");
+      setPrefillQuery("Compare temporal satellite passes and detect surface changes.");
+      setIsCopilotOpen(true);
     } else if (key === "analyze_terrain") {
       setActiveTab("analysis");
+      setPrefillQuery("Analyze terrain elevation, slope, and surface features for this region.");
+      setIsCopilotOpen(true);
     } else if (key === "ndvi_vegetation") {
       setActiveTab("analysis");
+      setPrefillQuery("Compute NDVI vegetation index and analyze canopy health.");
+      setIsCopilotOpen(true);
     } else if (key === "ndwi_flood_extent") {
       setActiveTab("analysis");
       setPrefillQuery("Compute NDWI flood-water extent for the selected scene and ROI.");
+      setIsCopilotOpen(true);
     } else if (key === "track_infrastructure") {
       setActiveTab("detections");
+      setPrefillQuery("Track infrastructure, road networks, and structural assets.");
+      setIsCopilotOpen(true);
     } else if (key === "upload_scene") {
       setActiveTab("data-library");
     } else if (key === "custom_query") {
       setPrefillQuery("Generate an executive remote sensing intelligence overview of this region.");
+      setIsCopilotOpen(true);
       document.querySelector<HTMLInputElement>(".native-chat-input-field")?.focus();
     }
   }, []);
@@ -342,6 +518,9 @@ export default function Home() {
 
   return (
     <div className={`theme-dashboard-wrapper ${isGlobeFullScreen ? "theme-dashboard-wrapper--fullscreen-globe" : ""}`}>
+      {/* Cinematic Logo Animation & Seamless Background Preloader */}
+      <IntroSplashOverlay />
+
       {/* Top Progress Bar during queries */}
       <ProgressBar visible={isQuerying} />
 
@@ -368,7 +547,7 @@ export default function Home() {
           />
 
           {/* Grid containing Center Command Center and Right Intelligence Panel */}
-          <div className="theme-columns-grid">
+          <div className={`theme-columns-grid ${isCopilotOpen ? "theme-columns-grid--copilot-open" : ""}`}>
             {/* Column 2: Center Command Center (Hero Globe + Metrics + Projects & Quick Actions) */}
             <div className="theme-center-column">
               {/* Center Hero: 3D Interactive Earth Globe (or 2D Map) */}
@@ -381,7 +560,7 @@ export default function Home() {
                         sceneBounds={sceneBounds}
                         scene={scene}
                         roi={roi}
-                        onROIChange={setROI}
+                        onROIChange={handleROIChange}
                         geojson={geojson}
                         overlays={overlays}
                       />
@@ -400,9 +579,12 @@ export default function Home() {
                       onToggleFullScreen={handleToggleFullScreen}
                       onUnmountScene={handleUnmountScene}
                       roi={roi}
-                      onROIChange={setROI}
+                      onROIChange={handleROIChange}
                       onRegisterCapture={(fn) => {
                         captureLiveSceneRef.current = fn;
+                      }}
+                      onRegisterDrawAOI={(fn) => {
+                        triggerDrawAOIRef.current = fn;
                       }}
                     />
                   </CesiumErrorBoundary>
@@ -412,7 +594,7 @@ export default function Home() {
                     sceneBounds={sceneBounds}
                     scene={scene}
                     roi={roi}
-                    onROIChange={setROI}
+                    onROIChange={handleROIChange}
                     geojson={geojson}
                     overlays={overlays}
                   />
@@ -431,33 +613,91 @@ export default function Home() {
               />
             </div>
 
-            {/* Column 3: Right Intelligence Panel (AI Assistant + Mission + Quote) */}
-            <aside className="theme-right-column">
-              <AIAssistantPanel
-                sceneId={sceneId}
-                sceneName={sceneName}
-                scene={scene}
-                sceneBounds={sceneBounds}
-                roi={roi}
-                onClearROI={handleClearROI}
-                onQueryResponse={handleQueryResponse}
-                setIsQuerying={setIsQuerying}
-                prefillQuery={prefillQuery}
-                onClearPrefill={() => setPrefillQuery(undefined)}
-                onOpenCommandPalette={() => setIsCmdPaletteOpen(true)}
-                onOpenNotifications={() => setIsNotificationsOpen(true)}
-                onOpenProfile={() => setIsProfileOpen(true)}
-                onOpenWorkspace={(tab) => setActiveTab(tab)}
-                classification={activeWorkspace?.classification ?? "unclassified"}
-                workspaceName={activeWorkspace?.name ?? "Primary Workspace"}
-                onCaptureLiveViewport={handleCaptureLiveViewport}
-                onSelectScene={(scId, scBounds, filename) => {
-                  setSceneId(scId);
-                  if (scBounds) setSceneBounds(scBounds);
-                  if (filename) setSceneName(filename);
-                }}
-              />
-            </aside>
+            {/* Draggable Intelligence Copilot Panel */}
+            {isCopilotOpen && (
+              <aside
+                className="theme-right-column"
+                aria-label="SOLEN intelligence copilot"
+                style={
+                  chatPos
+                    ? {
+                        left: `${chatPos.x}px`,
+                        top: `${chatPos.y}px`,
+                        right: "auto",
+                        bottom: "auto",
+                        transform: "none",
+                      }
+                    : undefined
+                }
+              >
+                {/* Dedicated Drag Header Bar */}
+                <div
+                  className="solen-chat-panel-dragbar"
+                  onPointerDown={handleChatDragStart}
+                  onPointerMove={handleChatDragMove}
+                  onPointerUp={handleChatDragEnd}
+                  onPointerCancel={handleChatDragEnd}
+                  title="Click and drag anywhere to move copilot across the screen"
+                >
+                  <div className="solen-chat-panel-dragbar__handle">
+                    <GripHorizontal size={15} />
+                    <span className="solen-chat-panel-dragbar__title">SOLEN COPILOT</span>
+                    <span className="solen-chat-panel-dragbar__hint">DRAG TO MOVE</span>
+                  </div>
+                  <div className="solen-chat-panel-dragbar__actions">
+                    <button
+                      type="button"
+                      className="solen-chat-panel-dragbar__btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        resetPositions();
+                      }}
+                      title="Reset position to default"
+                    >
+                      <RotateCcw size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      className="solen-chat-panel-dragbar__btn solen-chat-panel-dragbar__btn--close"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsCopilotOpen(false);
+                      }}
+                      title="Close copilot"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="theme-right-column__inner">
+                  <AIAssistantPanel
+                    sceneId={sceneId}
+                    sceneName={sceneName}
+                    scene={scene}
+                    sceneBounds={sceneBounds}
+                    roi={roi}
+                    onClearROI={handleClearROI}
+                    onQueryResponse={handleQueryResponse}
+                    setIsQuerying={setIsQuerying}
+                    prefillQuery={prefillQuery}
+                    onClearPrefill={() => setPrefillQuery(undefined)}
+                    onOpenCommandPalette={() => setIsCmdPaletteOpen(true)}
+                    onOpenNotifications={() => setIsNotificationsOpen(true)}
+                    onOpenProfile={() => setIsProfileOpen(true)}
+                    onOpenWorkspace={(tab) => setActiveTab(tab)}
+                    classification={activeWorkspace?.classification ?? "unclassified"}
+                    workspaceName={activeWorkspace?.name ?? "Primary Workspace"}
+                    onCaptureLiveViewport={handleCaptureLiveViewport}
+                    onSelectScene={(scId, scBounds, filename) => {
+                      setSceneId(scId);
+                      if (scBounds) setSceneBounds(scBounds);
+                      if (filename) setSceneName(filename);
+                    }}
+                  />
+                </div>
+              </aside>
+            )}
           </div>
         </div>
       </div>
@@ -465,10 +705,41 @@ export default function Home() {
       {/* Full-width Footer Bar */}
       <FooterBar />
 
+      {/* Draggable Launcher Button */}
+      <button
+        type="button"
+        className={`solen-copilot-launcher ${isCopilotOpen ? "solen-copilot-launcher--open" : ""}`}
+        onPointerDown={handleLauncherPointerDown}
+        onPointerMove={handleLauncherPointerMove}
+        onPointerUp={handleLauncherPointerUp}
+        onPointerCancel={handleLauncherPointerUp}
+        style={
+          launcherPos
+            ? {
+                left: `${launcherPos.x}px`,
+                top: `${launcherPos.y}px`,
+                right: "auto",
+                bottom: "auto",
+                transform: "none",
+              }
+            : undefined
+        }
+        aria-label={isCopilotOpen ? "Close SOLEN copilot" : "Open SOLEN copilot"}
+        aria-expanded={isCopilotOpen}
+        title={
+          isCopilotOpen
+            ? "Close SOLEN copilot (drag to move anywhere)"
+            : "Open SOLEN copilot (drag to move anywhere)"
+        }
+      >
+        {isCopilotOpen ? <X size={22} aria-hidden="true" /> : <SolenLogo variant="icon" decorative />}
+      </button>
+
       {/* ── All Interactive Startup Modals ─────────────────────────── */}
       <WorkspaceModal
         activeTab={activeTab}
         onClose={() => setActiveTab("dashboard")}
+        onTabChange={(tab) => setActiveTab(tab)}
         onFlyTo={(target) => setFlyToTarget(target)}
         onApplyGeoJSON={(features) => setGeojson(features)}
         onApplyOverlay={(newOverlays) => setOverlays(newOverlays)}
@@ -483,6 +754,13 @@ export default function Home() {
         currentSceneId={sceneId}
         roi={roi}
         projects={projects}
+        onStartDrawAOI={() => {
+          setActiveTab("dashboard");
+          setTimeout(() => {
+            triggerDrawAOIRef.current?.();
+          }, 150);
+        }}
+        onCaptureLiveViewport={handleCaptureLiveViewport}
       />
 
       <MetricModal

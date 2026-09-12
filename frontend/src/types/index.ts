@@ -1,5 +1,5 @@
 /**
- * SatQuery AI — Frontend Type Definitions
+ * SOLEN AI — Frontend Type Definitions
  *
  * Mirrors the backend Pydantic schemas defined in:
  *   backend/app/core/schemas/common.py
@@ -213,6 +213,9 @@ export interface SceneListItem {
   uploaded_at: string;
   bounds: number[] | null;
   crs: string | null;
+  satellite?: string | null;
+  capture_date?: string | null;
+  cloud_cover_pct?: number | null;
 }
 
 export interface SceneListResponse {

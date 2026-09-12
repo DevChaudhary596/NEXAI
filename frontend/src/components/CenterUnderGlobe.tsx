@@ -23,6 +23,7 @@ import {
   SlidersHorizontal,
   Sun,
   UploadCloud,
+  Lock,
   X,
 } from "lucide-react";
 
@@ -40,9 +41,9 @@ interface CenterUnderGlobeProps {
   roi?: ROI | null;
 }
 
-const ACTIONS: { key: QuickActionKey; label: string; icon: React.ComponentType<{ size?: number }> }[] = [
+const ACTIONS: { key: QuickActionKey; label: string; icon: React.ComponentType<{ size?: number }>; locked?: boolean }[] = [
   { key: "count_objects", label: "Count Objects", icon: Scan },
-  { key: "detect_changes", label: "Detect Changes", icon: GitCompare },
+  { key: "detect_changes", label: "Detect Changes", icon: GitCompare, locked: true },
   { key: "analyze_terrain", label: "Analyze Terrain", icon: Mountain },
   { key: "ndvi_vegetation", label: "NDVI Vegetation", icon: Leaf },
   { key: "track_infrastructure", label: "Track Infrastructure", icon: Building2 },
@@ -145,7 +146,7 @@ function formatArea(value: number | undefined): string {
 }
 
 const DEFAULT_PINNED = ["objects", "area", "overpass", "monitors"];
-const STORAGE_KEY = "satquery.pinned-kpis";
+const STORAGE_KEY = "solen.pinned-kpis";
 
 export default function CenterUnderGlobe({
   onMetricClick,
@@ -538,18 +539,22 @@ export default function CenterUnderGlobe({
             <h3 className="native-deck-title">Quick Actions</h3>
           </div>
           <div className="native-qa-grid">
-            {ACTIONS.map(({ key, label, icon: Icon }) => (
+            {ACTIONS.map(({ key, label, icon: Icon, locked }) => (
               <button
                 key={key}
                 type="button"
                 onClick={() => onQuickAction(key)}
-                className="native-qa-btn"
-                title={label}
+                className={`native-qa-btn ${locked ? "native-qa-btn--locked" : ""}`}
+                title={locked ? `${label} (Coming Soon — Feature Locked)` : label}
               >
                 <span className="native-qa-btn__icon">
                   <Icon size={18} />
+                  {locked && <Lock size={10} className="native-qa-btn__lock" />}
                 </span>
-                <span className="native-qa-btn__label">{label}</span>
+                <span className="native-qa-btn__label">
+                  <span>{label}</span>
+                  {locked && <span className="native-qa-btn__soon">Coming Soon</span>}
+                </span>
               </button>
             ))}
           </div>

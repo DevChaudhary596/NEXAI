@@ -12,7 +12,7 @@ from app.services.gis_engine.change_detection.detector import detect_change
 
 class RasterGISService:
     """
-    High-level orchestrator for the SatQuery GIS engine, designed for FastAPI integration.
+    High-level orchestrator for the SOLEN GIS engine, designed for FastAPI integration.
     """
     def __init__(self, data_dir: str = "data"):
         self.data_dir = Path(data_dir)

@@ -1,4 +1,4 @@
-"""PostgreSQL system of record for SatQuery's multi-tenant product data.
+"""PostgreSQL system of record for SOLEN's multi-tenant product data.
 
 No tenant identity is inferred from an email query parameter or the browser.
 Every read is scoped by a workspace membership verified from a Firebase UID.

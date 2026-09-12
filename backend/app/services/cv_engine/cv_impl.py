@@ -233,8 +233,8 @@ class CVService:
             for pt in det["coords"]:
                 adjusted_coords.append([float(pt[0] + offset_x), float(pt[1] + offset_y)])
 
-            # Convert to GeoJSON geometry
-            geom_type, coords = build_geojson_polygon(adjusted_coords, transform=transform)
+            # Convert to GeoJSON geometry (reprojecting to WGS84 EPSG:4326 if needed)
+            geom_type, coords = build_geojson_polygon(adjusted_coords, transform=transform, crs=crs)
 
             feature = Feature(
                 geometry=Geometry(type=geom_type, coordinates=coords),
@@ -316,7 +316,7 @@ class CVService:
             for pt in obj["coords"]:
                 adjusted_coords.append([float(pt[0] + offset_x), float(pt[1] + offset_y)])
 
-            geom_type, coords = build_geojson_polygon(adjusted_coords, transform=transform)
+            geom_type, coords = build_geojson_polygon(adjusted_coords, transform=transform, crs=crs)
 
             feature = Feature(
                 geometry=Geometry(type=geom_type, coordinates=coords),

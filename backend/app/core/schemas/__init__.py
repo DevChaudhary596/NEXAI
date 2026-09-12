@@ -1,4 +1,4 @@
-"""Frozen inter-service contract for SatQuery AI.
+"""Frozen inter-service contract for SOLEN AI.
 
 Import from here, never from the submodules directly - that keeps the public
 surface reviewable in one place when we bump CONTRACT_VERSION.

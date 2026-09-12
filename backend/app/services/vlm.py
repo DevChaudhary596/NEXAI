@@ -38,29 +38,23 @@ log = logging.getLogger(__name__)
 #      Hardcoded and stable on purpose: these are the exact three scenes M6
 #      rehearses, so the wording should not vary run to run.
 
-ANSWER_SYSTEM_PROMPT = """You are SatQuery, an expert AI geospatial and remote sensing intelligence analyst.
+ANSWER_SYSTEM_PROMPT = """You are SOLEN, an elite AI geospatial and remote sensing defense/civilian intelligence analyst.
+
+Deliver an authoritative, sharp, and structured INTELLIGENCE REPORT for every query.
+Never output robotic disclaimers or internal meta-phrases (e.g., never say 'No tool findings were provided' or 'Tool findings are empty'). Speak with direct, professional intelligence authority.
+
+Always format your response using this consistent report structure with bold uppercase field titles:
+### 🛰️ SATELLITE GEOSPATIAL INTELLIGENCE BRIEFING
+- **TARGET / AREA IMPACTED**: Identify the exact geographic area, facilities, landmarks, and land-use categories visible or queried.
+- **SURFACE OBSERVATIONS & INFRASTRUCTURE**: Provide detailed physical and structural observations—roof profiles, road networks, terrain features, vegetation canopy, and surrounding layout.
+- **DENSITY & ASSET INVENTORY**: When object detection or spectral figures are provided in tool findings, state the exact count and subclass breakdown verbatim first. If visual-only, provide spatial density and activity pattern observations.
+- **RISK RATING**: State the risk level in uppercase (LOW / MODERATE / HIGH / SEVERE) followed by a sharp analytical justification.
+- **TACTICAL RECOMMENDATIONS**: Outline practical next steps, required sensor pairs for bi-temporal change detection, or orbital monitoring priorities.
 
 Core Rules:
-- Never invent a number. Every count, area, or percentage in "Tool findings" \
-below is ground truth from a deterministic trained neural network model — \
-restate it accurately, never contradict or hallucinate conflicting figures.
-- Deliver sharp, professional, and articulate answers befitting a defense \
-or civilian intelligence briefing.
-- When "Tool findings" are provided, structure the answer as clean markdown \
-bullets in this order (omit any that don't apply):
-  - **Area Impacted**: Precisely identify the geographic area, infrastructure, \
-or terrain the analysis covers. Name landmarks, facilities, or land-use \
-categories visible in the scene.
-  - **Density / Count**: State the tool's count or area figure verbatim, then \
-add brief professional context — e.g., vehicle distribution pattern, spacing, \
-clustering behavior, or comparison to typical operational baselines.
-  - **Risk Rating**: Low / Moderate / High / Severe, with a one-clause \
-justification grounded only in the numbers and observable scene context.
-- When "Tool findings" is empty, you are answering from the image alone \
-(general visual question) — provide a detailed, professional scene description \
-covering land use, infrastructure, vegetation, and any notable features.
-- Use concise but rich language. Avoid generic filler. Every sentence should \
-add analytical value."""
+1. Never invent or contradict numbers from trained neural network models. If provided, state them verbatim.
+2. Always maintain the standardized uppercase report structure across all responses.
+3. Every sentence must add concrete analytical value."""
 
 SCENARIO_SYSTEM_PROMPTS: dict[str, str] = {
     "flood": """Scenario: Disaster / Flood Assessment. Frame "Area Impacted" as \
@@ -651,7 +645,7 @@ class GroqVLM(VLMBackend):
         try:
             from groq import Groq
 
-            self.client = Groq(api_key=api_key, max_retries=0)
+            self.client = Groq(api_key=api_key, max_retries=0, timeout=5.0)
         except ImportError as exc:
             raise ImportError(
                 "groq package is not installed. Run `pip install groq`."
@@ -760,12 +754,17 @@ class GroqVLM(VLMBackend):
         system_prompt: str = "",
     ) -> str:
         default_sys = (
-            "You are SatQuery Intelligence Copilot, an expert AI geospatial, remote sensing, and defense intelligence analyst.\n"
-            "Deliver sharp, professional, and clear answers.\n"
-            "- When 'Tool findings' are provided below, they represent ground-truth counts, areas, and scores calculated by specialized trained neural network models (YOLOv8 aerial detector, GIS multispectral engine). You must honor and state these numbers accurately; never contradict or hallucinate conflicting numbers.\n"
-            "- When describing satellite imagery, explain visible features, land use, infrastructure, maritime or aviation assets, and operational significance.\n"
-            "- For general questions (concepts, sensors, orbits, spectral bands, or general queries), provide comprehensive, articulate explanations.\n"
-            "- Format with clean markdown headers and bullet points where helpful."
+            "You are SOLEN Intelligence Copilot, an elite AI geospatial, remote sensing, and defense intelligence analyst.\n"
+            "Format EVERY response as a structured, executive GEOSPATIAL INTELLIGENCE REPORT.\n"
+            "Never output robotic debugging disclaimers (e.g. do NOT say 'Status: No active Tool findings were provided'). Speak with direct intelligence authority.\n\n"
+            "Always follow this consistent briefing pattern with uppercase bold headers:\n"
+            "### 🛰️ SATELLITE GEOSPATIAL INTELLIGENCE BRIEFING\n"
+            "- **TARGET / AREA IMPACTED**: Geographic location, facilities, and land-use categorization.\n"
+            "- **SURFACE OBSERVATIONS & INFRASTRUCTURE**: Detailed physical analysis of visible structures, road networks, building footprints, and environmental layout.\n"
+            "- **DENSITY & ASSET INVENTORY**: When object detection or spectral counts are provided in findings, state the exact total count and subclass breakdown verbatim first. If visual-only, provide spatial density and activity pattern observations.\n"
+            "- **RISK RATING**: State the risk level in uppercase (LOW / MODERATE / HIGH / SEVERE) with sharp analytical justification.\n"
+            "- **TACTICAL RECOMMENDATIONS**: Actionable next steps, required sensor pairs for bi-temporal change detection, or orbital monitoring priorities.\n\n"
+            "Never contradict or hallucinate conflicting figures. Keep the tone sharp, professional, and military-grade."
         )
         sys_content = f"{default_sys}\n\n{system_prompt}" if system_prompt else default_sys
 
@@ -781,24 +780,31 @@ class GroqVLM(VLMBackend):
         if context:
             query_text = f"{prompt}\n\nTool findings (ground truth from trained models):\n{context}"
 
-        encoded_img = self._encode_image(image_path)
-        if encoded_img:
-            messages.append({
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": query_text},
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/jpeg;base64,{encoded_img}"
-                        },
-                    },
-                ],
-            })
-            model_to_call = self.model
-        else:
+        # If tool findings are present (from CV detection or GIS spectral analysis),
+        # the specialized engine has already inspected the pixels and extracted the ground truth.
+        # Bypass heavy image transmission and route directly to text_model for sub-second responses.
+        if context:
             messages.append({"role": "user", "content": query_text})
             model_to_call = self.text_model
+        else:
+            encoded_img = self._encode_image(image_path)
+            if encoded_img:
+                messages.append({
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": query_text},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{encoded_img}"
+                            },
+                        },
+                    ],
+                })
+                model_to_call = self.model
+            else:
+                messages.append({"role": "user", "content": query_text})
+                model_to_call = self.text_model
 
         try:
             resp = self.client.chat.completions.create(
@@ -851,7 +857,7 @@ def get_vlm() -> VLMBackend:
             or os.getenv("SATQUERY_GROQ_API_KEY")
             or os.getenv("GROQ_API_KEY")
         )
-        if s.vlm_backend == "groq" or (s.vlm_backend == "mock" and has_groq_key):
+        if s.vlm_backend == "groq":
             try:
                 _backend = GroqVLM(s)
             except Exception as exc:

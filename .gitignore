@@ -215,3 +215,6 @@ backend/data/images/
 scratch/
 *.pdf
 
+# IDE Agents / customizations
+.agents/
+

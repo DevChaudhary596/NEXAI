@@ -1,6 +1,9 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
+import CookieConsent from "@/components/CookieConsent";
+import SolenLogo from "@/components/SolenLogo";
 
 export default function FooterBar() {
   return (
@@ -8,13 +11,10 @@ export default function FooterBar() {
       {/* Brand & Slogan */}
       <div className="theme-footer__brand">
         <div className="theme-footer__logo-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="10" stroke="#94a3b8" strokeWidth="1.8" />
-            <circle cx="12" cy="12" r="3" fill="#22d3ee" />
-          </svg>
+          <SolenLogo variant="dark" />
         </div>
         <div>
-          <span className="theme-footer__title">SatQuery</span>
+          <span className="theme-footer__title">SOLEN</span>
           <span className="theme-footer__sub">Geospatial Intelligence for a More Resilient World.</span>
         </div>
       </div>
@@ -38,6 +38,12 @@ export default function FooterBar() {
           <span className="theme-footer__stat-lbl">Impact</span>
         </div>
       </div>
+      <nav className="theme-footer__legal" aria-label="Legal">
+        <button type="button" onClick={() => window.dispatchEvent(new Event("solen:cookie-settings"))}>Cookie settings</button>
+        <Link href="/privacy">Privacy</Link>
+        <Link href="/terms">Terms</Link>
+      </nav>
+      <CookieConsent />
     </footer>
   );
 }

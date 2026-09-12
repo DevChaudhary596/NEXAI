@@ -26,7 +26,7 @@ interface AuthContextValue {
 
 const LOCAL_ANALYST_USER = {
   uid: "local-analyst",
-  email: "analyst@satquery.local",
+  email: "analyst@solen.ai",
   displayName: "Lead Intelligence Analyst",
   getIdToken: async () => "local-dev-token",
 } as unknown as User;

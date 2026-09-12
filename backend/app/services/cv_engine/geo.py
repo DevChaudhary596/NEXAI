@@ -57,31 +57,58 @@ def pixel_to_geo(x: float, y: float, transform: Any) -> Tuple[float, float]:
 
 def transform_polygon_to_geo(
     coords: List[List[float]],
-    transform: Optional[Any] = None
+    transform: Optional[Any] = None,
+    crs: Optional[Any] = None
 ) -> List[List[float]]:
     """
-    Transform a list of [x, y] coordinates from pixel space to geographic space.
+    Transform a list of [x, y] coordinates from pixel space to geographic space (WGS84).
     If transform is None, returns the coordinates directly as floats.
+    If CRS is non-geographic (e.g. UTM meters), reprojects coordinates to EPSG:4326.
     """
     if transform is None:
         return [[float(pt[0]), float(pt[1])] for pt in coords]
 
-    geo_coords = []
+    raw_geo = []
+    xs = []
+    ys = []
     for pt in coords:
         gx, gy = pixel_to_geo(pt[0], pt[1], transform)
-        geo_coords.append([gx, gy])
-    return geo_coords
+        raw_geo.append((gx, gy))
+        xs.append(gx)
+        ys.append(gy)
+
+    # Reproject to EPSG:4326 if CRS is projected (e.g. UTM meters)
+    if crs is not None and HAS_RASTERIO and len(xs) > 0:
+        try:
+            from rasterio.warp import transform as warp_transform
+            is_4326 = False
+            try:
+                if hasattr(crs, "to_epsg") and crs.to_epsg() == 4326:
+                    is_4326 = True
+                elif hasattr(crs, "is_geographic") and crs.is_geographic and abs(xs[0]) <= 180 and abs(ys[0]) <= 90:
+                    is_4326 = True
+            except Exception:
+                pass
+
+            if not is_4326:
+                txs, tys = warp_transform(crs, "EPSG:4326", xs, ys)
+                return [[float(tx), float(ty)] for tx, ty in zip(txs, tys)]
+        except Exception:
+            pass
+
+    return [[float(gx), float(gy)] for gx, gy in raw_geo]
 
 
 def build_geojson_polygon(
     coords: List[List[float]],
     transform: Optional[Any] = None,
+    crs: Optional[Any] = None,
     simplify_tolerance: float = 0.5
 ) -> Tuple[str, Any]:
     """
     Build a valid GeoJSON Polygon/MultiPolygon from boundary points.
     Handles self-intersections, GeometryCollections, and CRS transforms cleanly.
-    Returns (geometry_type, coordinates).
+    Returns (geometry_type, coordinates in WGS84).
     """
     # Fallback to minimal polygon if too few points
     if len(coords) < 3:
@@ -99,8 +126,8 @@ def build_geojson_polygon(
 
     if not HAS_SHAPELY:
         if transform is not None:
-            transformed = [pixel_to_geo(pt[0], pt[1], transform) for pt in coords]
-            return "Polygon", [[list(pt) for pt in transformed]]
+            transformed = transform_polygon_to_geo(coords, transform=transform, crs=crs)
+            return "Polygon", [transformed]
         return "Polygon", [coords]
 
     poly = Polygon(coords)
@@ -135,14 +162,14 @@ def build_geojson_polygon(
         if geom_type == "Polygon":
             transformed_coords = []
             for ring in raw_coords:
-                transformed_coords.append(transform_polygon_to_geo(ring, transform))
+                transformed_coords.append(transform_polygon_to_geo(ring, transform=transform, crs=crs))
             return geom_type, transformed_coords
         elif geom_type == "MultiPolygon":
             transformed_coords = []
             for poly_rings in raw_coords:
                 poly_list = []
                 for ring in poly_rings:
-                    poly_list.append(transform_polygon_to_geo(ring, transform))
+                    poly_list.append(transform_polygon_to_geo(ring, transform=transform, crs=crs))
                 transformed_coords.append(poly_list)
             return geom_type, transformed_coords
 

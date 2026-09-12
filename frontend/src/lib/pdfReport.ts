@@ -22,6 +22,16 @@ async function imageUrlToDataUrl(url: string): Promise<string | null> {
   }
 }
 
+async function solenLogoDataUrl(): Promise<string | null> {
+  try {
+    const dataUrl = await imageUrlToDataUrl("/images/solen_logo_light.png");
+    if (dataUrl) return dataUrl;
+    return await imageUrlToDataUrl("/images/solen_logo_dark.png");
+  } catch {
+    return null;
+  }
+}
+
 function toolCallLabel(response: QueryResponse): string {
   const call = response.routing.tool_call;
   switch (call.action) {
@@ -74,11 +84,23 @@ export async function exportIntelligenceReport(params: {
 
   y = 48;
 
+  // SOLEN's approved logo is embedded from the shipped brand asset, so the
+  // downloaded dossier remains branded even when opened outside the app.
+  const logoDataUrl = await solenLogoDataUrl();
+  if (logoDataUrl) {
+    try {
+      doc.addImage(logoDataUrl, "PNG", margin, y - 10, 96, 30);
+    } catch {
+      // A report remains usable if a browser blocks the local brand asset.
+    }
+  }
+  y += 30;
+
   // ── Document Title ─────────────────────────────────────────────
   doc.setFont("helvetica", "bold");
   doc.setFontSize(20);
   doc.setTextColor(15, 23, 42);
-  doc.text("SatQuery — Intelligence Dossier", margin, y);
+  doc.text("SOLEN — Intelligence Dossier", margin, y);
   y += 18;
 
   doc.setFont("helvetica", "normal");
@@ -269,5 +291,5 @@ export async function exportIntelligenceReport(params: {
   doc.text(`SECURITY CLASSIFICATION: ${classLabel}`, pageWidth / 2, pageHeight - 6, { align: "center" });
 
   const safeName = sceneName.replace(/[^a-z0-9]+/gi, "_").slice(0, 40);
-  doc.save(`SatQuery_Dossier_${safeName}.pdf`);
+  doc.save(`SOLEN_Dossier_${safeName}.pdf`);
 }

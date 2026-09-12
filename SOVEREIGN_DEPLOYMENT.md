@@ -1,6 +1,6 @@
-# SatQuery Sovereign On-Premise Deployment Guide
+# SOLEN Sovereign On-Premise Deployment Guide
 
-This guide documents deploying SatQuery in a fully private, air-gapped, or sovereign cloud environment (such as an on-premise defense network, ISRO computing cluster, or municipal datacenter) where public cloud dependencies (AWS, Cloudflare, Firebase Cloud) are restricted.
+This guide documents deploying SOLEN in a fully private, air-gapped, or sovereign cloud environment (such as an on-premise defense network, ISRO computing cluster, or municipal datacenter) where public cloud dependencies (AWS, Cloudflare, Firebase Cloud) are restricted.
 
 ---
 

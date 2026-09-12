@@ -55,7 +55,7 @@ def _firebase_auth():
 async def require_principal(
     request: Request,
     authorization: Annotated[str | None, Header()] = None,
-    test_uid: Annotated[str | None, Header(alias="X-SatQuery-Test-UID")] = None,
+    test_uid: Annotated[str | None, Header(alias="X-SOLEN-Test-UID")] = None,
 ) -> Principal:
     """Validate a Firebase ID token, failing closed in production.
 
