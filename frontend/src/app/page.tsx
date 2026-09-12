@@ -13,7 +13,7 @@ import FooterBar from "@/components/FooterBar";
 import CesiumErrorBoundary from "@/components/CesiumErrorBoundary";
 import { ProgressBar } from "@/components/LoadingSkeleton";
 import WorkspaceModal from "@/components/WorkspaceModal";
-import MetricModal from "@/components/MetricModal";
+import MetricModal, { MetricKey } from "@/components/MetricModal";
 import {
   NotificationsDrawer,
   ProfileModal,
@@ -130,7 +130,7 @@ export default function Home() {
   const [isQuerying, setIsQuerying] = useState(false);
 
   // Modals state
-  const [selectedMetric, setSelectedMetric] = useState<"objects" | "area" | "accuracy" | "monitors" | null>(null);
+  const [selectedMetric, setSelectedMetric] = useState<MetricKey>(null);
   const [isCmdPaletteOpen, setIsCmdPaletteOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -703,7 +703,7 @@ export default function Home() {
       </div>
 
       {/* Full-width Footer Bar */}
-      <FooterBar />
+      <FooterBar onStatClick={(key) => setSelectedMetric(key)} />
 
       {/* Draggable Launcher Button */}
       <button
@@ -770,6 +770,9 @@ export default function Home() {
           setSelectedMetric(null);
           setActiveTab(tab);
         }}
+        onFlyTo={(target) => setFlyToTarget(target)}
+        onSelectProject={handleSelectProject}
+        projects={projects}
       />
 
       <NotificationsDrawer

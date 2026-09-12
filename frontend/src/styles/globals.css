@@ -4937,14 +4937,84 @@ input[type="range"]::-moz-range-thumb {
 
 .theme-footer__stat-item {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-family: inherit;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+.theme-footer__stat-item--interactive {
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+
+.theme-footer__stat-item--interactive:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  transform: translateY(-1px);
+}
+
+.theme-footer__stat-item--interactive:hover .theme-footer__stat-lbl {
+  color: #cbd5e1;
+}
+
+.theme-footer__stat-item--interactive:hover .theme-footer__stat-num {
+  color: #00f0ff;
+  text-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
+}
+
+.theme-footer__stat-item--interactive:focus-visible {
+  outline: 2px solid #00f0ff;
+  outline-offset: 2px;
+}
+
+.theme-footer__stat-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+  box-shadow: 0 0 6px currentColor;
+  animation: footerDotPulse 2.4s infinite ease-in-out;
+}
+
+.theme-footer__stat-badge-dot--cyan {
+  background-color: #00f0ff;
+  color: #00f0ff;
+}
+
+.theme-footer__stat-badge-dot--emerald {
+  background-color: #10b981;
+  color: #10b981;
+}
+
+.theme-footer__stat-badge-dot--purple {
+  background-color: #a855f7;
+  color: #a855f7;
+}
+
+.theme-footer__stat-badge-dot--amber {
+  background-color: #f59e0b;
+  color: #f59e0b;
+}
+
+@keyframes footerDotPulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.3); }
 }
 
 .theme-footer__stat-num {
   font-size: 0.82rem;
   font-weight: 700;
   color: #f1f5f9;
+  transition: color 0.15s ease;
 }
 
 .theme-footer__stat-lbl {
@@ -4952,6 +5022,7 @@ input[type="range"]::-moz-range-thumb {
   color: #64748b;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  transition: color 0.15s ease;
 }
 
 /* ═════════════════════════════════════════════════════════════════
@@ -7511,7 +7582,8 @@ input[type="range"]::-moz-range-thumb {
 /* ── Metric Modal ────────────────────────────────────────────────── */
 .metric-modal-container {
   width: 100%;
-  max-width: 640px;
+  max-width: 680px;
+  max-height: 88vh;
   background: #11161b;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 20px;
@@ -7671,6 +7743,229 @@ input[type="range"]::-moz-range-thumb {
 
 .metric-stream-loc {
   color: #64748b;
+}
+
+/* ── Live Metric Modal Helpers ───────────────────────────────────── */
+.metric-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+}
+
+.metric-status-pill--live {
+  background: rgba(16, 185, 129, 0.14);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+.metric-status-pill--active {
+  background: rgba(6, 182, 212, 0.14);
+  color: #22d3ee;
+  border-color: rgba(6, 182, 212, 0.35);
+}
+
+.metric-status-pill--standby {
+  background: rgba(245, 158, 11, 0.14);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.metric-source-card {
+  padding: 12px 14px;
+  background: rgba(18, 24, 30, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.metric-source-card:hover {
+  background: rgba(24, 32, 40, 0.9);
+  border-color: rgba(0, 240, 255, 0.25);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.metric-source-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.metric-source-card__name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #f1f5f9;
+}
+
+.metric-source-card__agency {
+  font-size: 0.68rem;
+  color: #64748b;
+  margin-left: 6px;
+  font-weight: 500;
+}
+
+.metric-source-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+.metric-source-card__desc {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
+.metric-mission-card {
+  padding: 14px;
+  background: rgba(18, 24, 30, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: all 0.2s ease;
+}
+
+.metric-mission-card:hover {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(24, 32, 40, 0.95);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+
+.metric-mission-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.metric-mission-card__title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.metric-mission-card__badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+  text-transform: uppercase;
+}
+
+.metric-mission-card__badge--emergency {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.metric-mission-card__badge--surveillance {
+  background: rgba(6, 182, 212, 0.15);
+  color: #22d3ee;
+  border: 1px solid rgba(6, 182, 212, 0.3);
+}
+
+.metric-mission-card__badge--strategic {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.metric-mission-card__stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+.metric-mission-card__stat-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.metric-mission-card__stat-num {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #00f0ff;
+}
+
+.metric-mission-card__stat-lbl {
+  font-size: 0.65rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.metric-mission-card__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.metric-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+}
+
+.metric-action-btn--primary {
+  background: rgba(0, 240, 255, 0.12);
+  color: #00f0ff;
+  border-color: rgba(0, 240, 255, 0.25);
+}
+
+.metric-action-btn--primary:hover {
+  background: #00f0ff;
+  color: #000000;
+  box-shadow: 0 0 14px rgba(0, 240, 255, 0.4);
+}
+
+.metric-action-btn--amber {
+  background: rgba(245, 158, 11, 0.12);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.metric-action-btn--amber:hover {
+  background: #f59e0b;
+  color: #000000;
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.4);
+}
+
+.metric-action-btn--ghost {
+  background: rgba(255, 255, 255, 0.05);
+  color: #94a3b8;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.metric-action-btn--ghost:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
 }
 
 /* ── Notifications Drawer ────────────────────────────────────────── */
