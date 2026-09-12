@@ -218,3 +218,5 @@ scratch/
 # IDE Agents / customizations
 .agents/
 
+.vercel
+.env*
