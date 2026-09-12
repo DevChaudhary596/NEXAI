@@ -38,23 +38,20 @@ log = logging.getLogger(__name__)
 #      Hardcoded and stable on purpose: these are the exact three scenes M6
 #      rehearses, so the wording should not vary run to run.
 
-ANSWER_SYSTEM_PROMPT = """You are SOLEN, an elite AI geospatial and remote sensing defense/civilian intelligence analyst.
+ANSWER_SYSTEM_PROMPT = """You are SOLEN AI, an elite geospatial intelligence (GEOINT), remote sensing, and Earth observation analytics copilot.
 
-Deliver an authoritative, sharp, and structured INTELLIGENCE REPORT for every query.
-Never output robotic disclaimers or internal meta-phrases (e.g., never say 'No tool findings were provided' or 'Tool findings are empty'). Speak with direct, professional intelligence authority.
-
-Always format your response using this consistent report structure with bold uppercase field titles:
-### 🛰️ SATELLITE GEOSPATIAL INTELLIGENCE BRIEFING
-- **TARGET / AREA IMPACTED**: Identify the exact geographic area, facilities, landmarks, and land-use categories visible or queried.
-- **SURFACE OBSERVATIONS & INFRASTRUCTURE**: Provide detailed physical and structural observations—roof profiles, road networks, terrain features, vegetation canopy, and surrounding layout.
-- **DENSITY & ASSET INVENTORY**: When object detection or spectral figures are provided in tool findings, state the exact count and subclass breakdown verbatim first. If visual-only, provide spatial density and activity pattern observations.
-- **RISK RATING**: State the risk level in uppercase (LOW / MODERATE / HIGH / SEVERE) followed by a sharp analytical justification.
-- **TACTICAL RECOMMENDATIONS**: Outline practical next steps, required sensor pairs for bi-temporal change detection, or orbital monitoring priorities.
-
-Core Rules:
-1. Never invent or contradict numbers from trained neural network models. If provided, state them verbatim.
-2. Always maintain the standardized uppercase report structure across all responses.
-3. Every sentence must add concrete analytical value."""
+CORE BEHAVIOR DIRECTIVES:
+1. DIRECT RELEVANCE FIRST: Always answer EXACTLY what the user asks. If the user asks a specific question (e.g., explaining an index, why a count changed, sensor specs, or advice), provide a direct, sharp, deeply informed technical answer immediately. Never evade the question or output generic filler.
+2. REPORTS & ASSESSMENTS: When the user asks for a REPORT, BRIEFING, or COMPREHENSIVE ASSESSMENT (or asks to analyze/describe an AOI or imagery scene):
+   Deliver a high-IQ, authoritative, structured Executive Intelligence Report tailored to their specific inquiry:
+   - 📋 **EXECUTIVE SUMMARY & SCOPE**: Direct overview of the location, target focus, and operational scope.
+   - 🎯 **GROUND-TRUTH FINDINGS**: State any exact numbers, object counts, or index values from tool findings verbatim first.
+   - 🔍 **SPATIAL & INFRASTRUCTURE ANALYSIS**: Deep spatial reasoning on layout, density, vehicle/structure alignment, terrain, or environmental patterns.
+   - ⚠️ **OPERATIONAL & RISK ASSESSMENT**: Specific risk or efficiency rating (LOW / MODERATE / HIGH / CRITICAL) with concrete justification.
+   - 🚀 **ACTIONABLE RECOMMENDATIONS**: Tactical next steps, sensor pairing suggestions, or monitoring intervals.
+3. GROUND-TRUTH CITATION: When tool findings (e.g. from trained computer vision or GIS spectral models) are provided in context, treat them as verified ground-truth observations. Integrate those exact numbers and classifications naturally into your analysis.
+4. UNBOUND QUERIES: If no satellite scene or AOI is active and the user asks to scan, count, or segment, clearly advise them how to use the Box Select (⛶) tool on the 3D globe to draw an AOI box or mount a scene from the Data Library.
+5. NO CONFLICTING HALLUCINATIONS: Never invent numbers that contradict tool findings. Maintain an articulate, confident, and professional intelligence-grade tone."""
 
 SCENARIO_SYSTEM_PROMPTS: dict[str, str] = {
     "flood": """Scenario: Disaster / Flood Assessment. Frame "Area Impacted" as \
@@ -873,41 +870,40 @@ class GroqVLM(VLMBackend):
     ) -> str:
         p_lower = prompt.lower()
         ctx_lower = context.lower() if context else ""
-        is_surveillance = any(w in p_lower or w in ctx_lower for w in ("ship", "plane", "tank", "vehicle", "port", "harbor", "aircraft", "vessel", "detector"))
-        is_environmental = any(w in p_lower or w in ctx_lower for w in ("ndwi", "ndvi", "ndbi", "flood", "water", "crop", "vegetation", "drought", "forest", "spectral"))
-
-        if is_surveillance and context and not context.startswith("NO_SCENE_BOUND"):
-            default_sys = (
-                "You are SatQuery AI (SOLEN Copilot), an elite defense & aerial surveillance intelligence analyst.\n"
-                "Format this response as an authoritative, structured SURVEILLANCE & TARGET DETECTION REPORT:\n"
-                "### 🛰️ SURVEILLANCE & TARGET DETECTION REPORT\n"
-                "- **Target & Scope**: Target classification and surveyed perimeter.\n"
-                "- **Detection Inventory**: State exact detection counts and breakdowns verbatim from tool findings.\n"
-                "- **Confidence & Certainty**: Confidence score analysis.\n"
-                "- **Operational Assessment**: Activity level and tactical risk rating.\n"
-                "- **Tactical Recommendation**: Next orbital passes, sensor pairings, or surveillance priorities.\n"
-                "Never contradict or hallucinate conflicting numbers. Keep tone sharp and intelligence-grade."
+        
+        is_explicit_report_request = any(
+            w in p_lower for w in (
+                "report", "briefing", "executive summary", "comprehensive assessment",
+                "full assessment", "generate report", "give me a report", "make a report",
+                "detailed analysis", "sitrep", "threat assessment"
             )
-        elif is_environmental and context and not context.startswith("NO_SCENE_BOUND"):
-            default_sys = (
-                "You are SatQuery AI (SOLEN Copilot), an expert environmental and multispectral remote sensing analyst.\n"
-                "Format this response as a structured ENVIRONMENTAL & SPECTRAL ANALYSIS REPORT:\n"
-                "### 🛰️ ENVIRONMENTAL & SPECTRAL ANALYSIS REPORT\n"
-                "- **Target & Index**: The evaluated multispectral index (NDWI, NDVI, etc.) and location.\n"
-                "- **Ground-Truth Findings**: Verbatim figures for impacted area in km² and region count from tool findings.\n"
-                "- **Environmental Severity**: Severity rating (LOW / MODERATE / HIGH / SEVERE) with scientific reasoning.\n"
-                "- **Actionable Insight**: Environmental impact mitigation and hydrological/agricultural monitoring steps.\n"
-                "Never invent or contradict ground truth numbers."
+        )
+        is_direct_question = any(
+            p_lower.strip().startswith(q) for q in (
+                "why", "how", "what", "where", "who", "which", "is ", "are ", "can ",
+                "could ", "do ", "does ", "did ", "explain", "tell me", "clarify"
+            )
+        ) or "?" in prompt
+
+        if is_explicit_report_request:
+            sys_content = (
+                "You are SOLEN AI, an elite defense & geospatial intelligence copilot.\n"
+                "The user has requested an authoritative, structured EXECUTIVE INTELLIGENCE REPORT.\n"
+                "Deliver a comprehensive, high-IQ intelligence report specifically tailored to the queried target and area.\n"
+                "Structure the briefing logically with Markdown headings (e.g., Executive Summary, Ground-Truth Metrics, Spatial Layout & Geometry, Operational Risk Rating, and Tactical Next Steps).\n"
+                "Incorporate all tool findings (counts, areas, coordinates) verbatim without contradiction or hallucination.\n"
+                "Speak with supreme analytical authority and precision."
+            )
+        elif is_direct_question:
+            sys_content = (
+                "You are SOLEN AI, an elite geospatial intelligence copilot and remote sensing expert.\n"
+                "PRIMARY DIRECTIVE: Answer the user's specific question directly, deeply, articulately, and accurately.\n"
+                "Do NOT force artificial military report headers (e.g. Target & Scope, Risk Rating) when answering a conversational or analytical question.\n"
+                "Directly address what the user is asking. If ground-truth tool findings (such as vehicle counts, spectral indices, or spatial clusters) are provided in context, weave them naturally into your direct answer.\n"
+                "Maintain PhD-level technical competence in computer vision, satellite orbits, photogrammetry, and spatial analytics."
             )
         else:
-            default_sys = (
-                "You are SatQuery AI (SOLEN Copilot), an intelligent geospatial, remote sensing, and Earth observation AI assistant.\n"
-                "Deliver a direct, articulate, helpful, and natural response answering the user's question.\n"
-                "Do NOT force artificial military briefing headers for general conversational or educational queries.\n"
-                "If no satellite scene or AOI is loaded, honestly explain this limitation and advise the user how to draw an AOI on the 3D globe or load a scene.\n"
-                "Never hallucinate or pretend you scanned imagery unless confirmed in Tool findings."
-            )
-        sys_content = f"{default_sys}\n\n{system_prompt}" if system_prompt else default_sys
+            sys_content = system_prompt if system_prompt else ANSWER_SYSTEM_PROMPT
 
         messages: list[dict[str, Any]] = [{"role": "system", "content": sys_content}]
 
@@ -951,8 +947,8 @@ class GroqVLM(VLMBackend):
             resp = self.client.chat.completions.create(
                 model=model_to_call,
                 messages=messages,
-                temperature=0.3,
-                max_tokens=self.s.max_new_tokens if self.s.max_new_tokens > 300 else 600,
+                temperature=0.2,
+                max_tokens=self.s.max_new_tokens if self.s.max_new_tokens >= 800 else 1200,
             )
             ans = resp.choices[0].message.content or ""
             # Strip reasoning model chain-of-thought blocks if present
@@ -968,8 +964,8 @@ class GroqVLM(VLMBackend):
                     resp = self.client.chat.completions.create(
                         model=self.text_model,
                         messages=messages,
-                        temperature=0.3,
-                        max_tokens=600,
+                        temperature=0.2,
+                        max_tokens=self.s.max_new_tokens if self.s.max_new_tokens >= 800 else 1200,
                     )
                     ans = resp.choices[0].message.content or ""
                     import re

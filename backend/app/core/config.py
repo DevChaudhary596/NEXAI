@@ -60,21 +60,16 @@ class Settings(BaseSettings):
         description="Groq API key for cloud LLM and vision reasoning.",
     )
     groq_model: str = Field(
-        default="llama-3.2-11b-vision-preview",
+        default="qwen/qwen3.8-27b",
         description="Groq multimodal vision model for satellite scene reasoning.",
     )
     groq_text_model: str = Field(
-        default="llama-3.3-70b-versatile",
-        description="Groq high-intelligence model for general questions and routing.",
+        default="openai/gpt-oss-120b",
+        description="Groq high-intelligence 120B parameter model for deep reasoning and reports.",
     )
     max_pixels: int = 256 * 28 * 28
     min_pixels: int = 64 * 28 * 28
-    # Day 11: dropped from 384 -> 150. The structured 3-bullet answer format
-    # (Day 9) fits comfortably under 150 tokens, and generation time is
-    # ~linear in max_new_tokens - this is the single biggest lever on the
-    # <4s end-to-end target. Bump per-request via SATQUERY_MAX_NEW_TOKENS if
-    # a real GPU run shows answers getting cut off.
-    max_new_tokens: int = 150
+    max_new_tokens: int = 1200
     vram_ceiling_gb: float = 5.0
     rules_only_router: bool = False
 
