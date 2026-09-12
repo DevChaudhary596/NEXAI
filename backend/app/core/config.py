@@ -75,7 +75,7 @@ class Settings(BaseSettings):
 
     # ── Multi-turn memory (M1 Day 8) ────────────────────────────────────────
     max_history_turns: int = Field(
-        default=8,
+        default=3,
         description=(
             "Prior user/assistant turns kept as text-only context on each "
             "request. Bounded so a long chat can't grow the prompt (and VRAM) "

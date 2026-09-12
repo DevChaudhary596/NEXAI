@@ -40,11 +40,24 @@ _MIN_DETECTABLE_SIZE_M: dict[str, float] = {
 def _history_as_dicts(
     history: list[ConversationTurn], max_turns: int
 ) -> list[dict[str, str]]:
-    """Trim to the last N turns server-side, regardless of what the client
-    sent - the wire-level cap in the schema is a sanity ceiling, this is the
-    actual VRAM/latency budget (Day 8 note in config.py)."""
+    """Trim to last 3 turns and tightly compact each turn's text length.
+    
+    Prevents exhausting Groq's Tokens Per Minute (TPM) quota during multi-turn chats
+    or after generating long reports. Keeps essential context without carrying
+    thousands of past response tokens.
+    """
     trimmed = history[-max_turns:] if max_turns > 0 else []
-    return [{"role": t.role, "content": t.content} for t in trimmed]
+    cleaned: list[dict[str, str]] = []
+    for t in trimmed:
+        role = "user" if t.role == "user" else "assistant"
+        raw_text = (t.content or "").strip()
+        # Cap user turn at 300 chars, assistant at 400 chars
+        limit = 300 if role == "user" else 400
+        if len(raw_text) > limit:
+            raw_text = raw_text[:limit].rsplit(" ", 1)[0] + "..."
+        if raw_text:
+            cleaned.append({"role": role, "content": raw_text})
+    return cleaned
 
 
 def _resolution_caveat(target: str, resolution_m: float | None) -> str:

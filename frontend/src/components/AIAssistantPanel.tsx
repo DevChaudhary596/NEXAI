@@ -412,13 +412,22 @@ export default function AIAssistantPanel({
         targetSceneId = "general";
       }
 
+      // Compact history to last 3 turns with bounded character counts
+      // Prevents exhausting Groq Tokens Per Minute (TPM) limits across multi-turn queries
       const history: ConversationTurn[] = messages
-        .filter((m) => m.id !== "welcome")
-        .slice(-6)
-        .map((m) => ({
-          role: m.role,
-          content: m.content ? m.content.slice(0, 8000) : "",
-        }));
+        .filter((m) => m.id !== "welcome" && m.content)
+        .slice(-3)
+        .map((m) => {
+          const limit = m.role === "user" ? 300 : 400;
+          let text = m.content.trim();
+          if (text.length > limit) {
+            text = text.slice(0, limit) + "...";
+          }
+          return {
+            role: m.role,
+            content: text,
+          };
+        });
 
       const res = await queryScene({
         scene_id: targetSceneId,

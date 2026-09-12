@@ -782,15 +782,22 @@ class GroqVLM(VLMBackend):
         ]
         text_candidates = [
             self.s.groq_text_model,
-            "qwen/qwen3.8-27b",
             "openai/gpt-oss-120b",
+            "qwen/qwen3.8-27b",
+            "openai/gpt-oss-20b",
             "llama-3.3-70b-versatile",
             "llama-3.1-8b-instant",
         ]
 
         self.model = next((c for c in vision_candidates if c and (not available_ids or c in available_ids)), "qwen/qwen3.8-27b")
-        self.text_model = next((c for c in text_candidates if c and (not available_ids or c in available_ids)), self.model)
-        log.info("Initialized GroqVLM (vision: %s, text: %s)", self.model, self.text_model)
+        self.text_models_pool: list[str] = [
+            c for c in text_candidates if c and (not available_ids or c in available_ids)
+        ]
+        self.text_models_pool = list(dict.fromkeys(self.text_models_pool))
+        if not self.text_models_pool:
+            self.text_models_pool = ["openai/gpt-oss-120b", "qwen/qwen3.8-27b", "openai/gpt-oss-20b"]
+        self.text_model = self.text_models_pool[0]
+        log.info("Initialized GroqVLM (vision: %s, text pool: %s)", self.model, self.text_models_pool)
 
     def _encode_image(self, image_path: str | Path | None, max_dim: int = 512) -> str | None:
         if not image_path:
@@ -917,65 +924,96 @@ class GroqVLM(VLMBackend):
         if context:
             query_text = f"{prompt}\n\nTool findings (ground truth from trained models):\n{context}"
 
-        # If tool findings are present (from CV detection or GIS spectral analysis),
-        # the specialized engine has already inspected the pixels and extracted the ground truth.
-        # Bypass heavy image transmission and route directly to text_model for sub-second responses.
-        if context:
-            messages.append({"role": "user", "content": query_text})
-            model_to_call = self.text_model
-        else:
+        # Dynamic token budget: large reports get 850 tokens; standard queries get 480 tokens
+        # Prevents rapid TPM (Tokens Per Minute) burnout
+        token_budget = 850 if is_explicit_report_request else 480
+
+        # Step 1: If raw image is provided without extracted context, try vision model first
+        if not context and image_path and Path(image_path).exists():
             encoded_img = self._encode_image(image_path)
             if encoded_img:
-                messages.append({
+                img_messages = list(messages)
+                img_messages.append({
                     "role": "user",
                     "content": [
                         {"type": "text", "text": query_text},
                         {
                             "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{encoded_img}"
-                            },
+                            "image_url": {"url": f"data:image/jpeg;base64,{encoded_img}"},
                         },
                     ],
                 })
-                model_to_call = self.model
-            else:
-                messages.append({"role": "user", "content": query_text})
-                model_to_call = self.text_model
-
-        try:
-            resp = self.client.chat.completions.create(
-                model=model_to_call,
-                messages=messages,
-                temperature=0.2,
-                max_tokens=self.s.max_new_tokens if self.s.max_new_tokens >= 800 else 1200,
-            )
-            ans = resp.choices[0].message.content or ""
-            # Strip reasoning model chain-of-thought blocks if present
-            import re
-            ans = re.sub(r"<think>.*?</think>", "", ans, flags=re.DOTALL).strip()
-            return ans
-        except Exception as exc:
-            # If vision model encountered a rate limit (429) or issue, fallback immediately to text model
-            if model_to_call == self.model:
                 try:
-                    log.warning("Groq vision request failed (%s); instantly trying text model %s", exc, self.text_model)
-                    messages[-1]["content"] = query_text
                     resp = self.client.chat.completions.create(
-                        model=self.text_model,
-                        messages=messages,
+                        model=self.model,
+                        messages=img_messages,
                         temperature=0.2,
-                        max_tokens=self.s.max_new_tokens if self.s.max_new_tokens >= 800 else 1200,
+                        max_tokens=token_budget,
                     )
                     ans = resp.choices[0].message.content or ""
                     import re
                     ans = re.sub(r"<think>.*?</think>", "", ans, flags=re.DOTALL).strip()
+                    if ans:
+                        return ans
+                except Exception as v_err:
+                    log.warning("Groq vision call failed (%s); failing over to text intelligence pool", v_err)
+
+        # Step 2: Multi-model text pool loop with isolated TPM/RPM rate limit quotas
+        txt_messages = list(messages)
+        txt_messages.append({"role": "user", "content": query_text})
+
+        last_error = None
+        for cand_model in self.text_models_pool:
+            try:
+                resp = self.client.chat.completions.create(
+                    model=cand_model,
+                    messages=txt_messages,
+                    temperature=0.2,
+                    max_tokens=token_budget,
+                )
+                ans = resp.choices[0].message.content or ""
+                import re
+                ans = re.sub(r"<think>.*?</think>", "", ans, flags=re.DOTALL).strip()
+                if ans:
                     return ans
-                except Exception as text_exc:
-                    log.error("Groq fallback text request also failed: %s", text_exc)
-            log.error("Groq API error: %s", exc)
-            mock_ans = MockVLM().answer(prompt, image_path, context=context, history=history, system_prompt=system_prompt)
-            return f"{mock_ans}\n\n*(Notice: Groq inference rate limit reached, falling back to local findings)*"
+            except Exception as m_err:
+                last_error = m_err
+                err_str = str(m_err).lower()
+                if any(w in err_str for w in ("rate limit", "429", "tpm", "rpm", "tokens per minute")):
+                    log.warning("Groq model %s rate limit hit (%s); switching to isolated model quota", cand_model, m_err)
+                    continue
+                else:
+                    log.warning("Groq model %s attempt failed: %s; trying next", cand_model, m_err)
+                    continue
+
+        # Step 3: Emergency recovery if all models hit rate limit with history included:
+        # Strip history completely (0 history turns = ~100 tokens) and retry lightest model
+        if len(txt_messages) > 2:
+            log.warning("All models hit rate limits with history; retrying with 0 history on lightweight model")
+            try:
+                minimal_messages = [
+                    {"role": "system", "content": sys_content},
+                    {"role": "user", "content": query_text},
+                ]
+                emergency_model = self.text_models_pool[-1]
+                resp = self.client.chat.completions.create(
+                    model=emergency_model,
+                    messages=minimal_messages,
+                    temperature=0.2,
+                    max_tokens=350,
+                )
+                ans = resp.choices[0].message.content or ""
+                import re
+                ans = re.sub(r"<think>.*?</think>", "", ans, flags=re.DOTALL).strip()
+                if ans:
+                    return ans
+            except Exception as min_err:
+                last_error = min_err
+
+        # Step 4: Ultimate deterministic fallback if Groq account is entirely unavailable
+        log.error("All Groq model attempts exhausted: %s", last_error)
+        mock_ans = MockVLM().answer(prompt, image_path, context=context, history=history, system_prompt=system_prompt)
+        return f"{mock_ans}\n\n*(Notice: Groq inference rate limit reached, falling back to local findings)*"
 
     def peak_vram_gb(self) -> float | None:
         return None
