@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 const backendUrl =
   process.env.BACKEND_INTERNAL_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
-  "https://findarticles-comparisons-bald-eight.trycloudflare.com";
+  "https://solenn-pkot.onrender.com";
 
 const nextConfig: NextConfig = {
   devIndicators: false,
