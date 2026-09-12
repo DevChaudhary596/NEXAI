@@ -59,17 +59,20 @@ async def lifespan(_: FastAPI):
         await scheduler_task
 
 
+s = get_settings()
+is_prod = s.environment == "production"
+
 app = FastAPI(
     title="SOLEN AI",
     lifespan=lifespan,
     version=CONTRACT_VERSION,
     description="Vision-language assistant for remote sensing (SIH26167).",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url=None if is_prod else "/docs",
+    redoc_url=None if is_prod else "/redoc",
+    openapi_url=None if is_prod else "/openapi.json",
 )
 
 # ── CORS ──────────────────────────────────────────────────────────────────
-s = get_settings()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=s.cors_origins,

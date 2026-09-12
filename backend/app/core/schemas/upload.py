@@ -4,7 +4,7 @@ Uses M1's Strict base so extra="forbid" applies uniformly.
 """
 from __future__ import annotations
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from .common import BBox, Strict
 
@@ -21,17 +21,31 @@ class FetchSatelliteRequest(Strict):
         ),
     )
 
+    @model_validator(mode="after")
+    def _validate_bbox_span(self) -> "FetchSatelliteRequest":
+        max_span = 1.5
+        if (self.bbox.east - self.bbox.west) > max_span or (self.bbox.north - self.bbox.south) > max_span:
+            raise ValueError(
+                f"AOI bounding box span cannot exceed {max_span} degrees (~165 km) in longitude or latitude."
+            )
+        return self
+
 
 class SnapshotSceneRequest(Strict):
     """POST /api/v1/scenes/snapshot request body."""
 
-    image_base64: str = Field(min_length=10, description="Base64 encoded image from live map canvas or drawn ROI.")
+    image_base64: str = Field(
+        min_length=10,
+        max_length=20_000_000,
+        description="Base64 encoded image from live map canvas or drawn ROI (max 20MB payload).",
+    )
     bounds: list[float] = Field(
         min_length=4, max_length=4,
         description="[west, south, east, north] coordinates in EPSG:4326.",
     )
     label: str | None = Field(default=None, description="Optional label for the captured scene.")
     is_roi: bool = Field(default=False, description="True if captured from a drawn bounding box.")
+
 
 
 class UploadResponse(Strict):
