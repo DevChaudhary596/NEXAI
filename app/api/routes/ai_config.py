@@ -3,12 +3,13 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Header, Request
 from pydantic import BaseModel, Field
 
 from app.api.errors import ApiError
+from app.core.auth import optional_principal, require_principal
 from app.core.config import get_settings
 from app.services.vlm import get_vlm, reset_vlm
 
@@ -37,7 +38,12 @@ class GroqKeyResponse(BaseModel):
 
 
 def _update_env_file(key: str) -> None:
-    """Safely persist or update SATQUERY_GROQ_API_KEY in backend/.env."""
+    """Safely persist or update SATQUERY_GROQ_API_KEY in backend/.env for local dev."""
+    s = get_settings()
+    if s.environment == "production":
+        log.info("Skipping .env disk write in production runtime.")
+        return
+
     env_path = Path(__file__).resolve().parent.parent.parent.parent / ".env"
     lines = []
     if env_path.exists():
@@ -90,7 +96,19 @@ def get_ai_status() -> AIStatusResponse:
 
 
 @router.post("/groq-key", response_model=GroqKeyResponse)
-def configure_groq_key(payload: GroqKeyRequest) -> GroqKeyResponse:
+async def configure_groq_key(
+    payload: GroqKeyRequest,
+    request: Request,
+    authorization: Annotated[str | None, Header()] = None,
+) -> GroqKeyResponse:
+    s = get_settings()
+    if s.environment == "production":
+        raise ApiError(
+            403,
+            "configuration_locked",
+            "Remote AI key modification via API is disabled in production. Set SATQUERY_GROQ_API_KEY in your deployment environment variables.",
+        )
+
     key = payload.api_key.strip()
     if not key:
         raise ApiError(400, "invalid_key", "API key cannot be empty.")
@@ -116,7 +134,6 @@ def configure_groq_key(payload: GroqKeyRequest) -> GroqKeyResponse:
     get_settings.cache_clear()
     reset_vlm()
 
-    s = get_settings()
     active_vlm = get_vlm()
     log.info("Groq VLM activated: %s", active_vlm.name)
 
@@ -130,7 +147,18 @@ def configure_groq_key(payload: GroqKeyRequest) -> GroqKeyResponse:
 
 
 @router.delete("/groq-key")
-def remove_groq_key() -> dict[str, str]:
+async def remove_groq_key(
+    request: Request,
+    authorization: Annotated[str | None, Header()] = None,
+) -> dict[str, str]:
+    s = get_settings()
+    if s.environment == "production":
+        raise ApiError(
+            403,
+            "configuration_locked",
+            "Remote AI key modification via API is disabled in production.",
+        )
+
     os.environ.pop("GROQ_API_KEY", None)
     os.environ.pop("SATQUERY_GROQ_API_KEY", None)
     os.environ["SATQUERY_VLM_BACKEND"] = "mock"
@@ -139,3 +167,4 @@ def remove_groq_key() -> dict[str, str]:
     reset_vlm()
 
     return {"status": "success", "message": "Groq API key removed from active session."}
+

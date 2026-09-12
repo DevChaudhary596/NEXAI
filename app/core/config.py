@@ -5,11 +5,14 @@ M5 extends M1's base settings with upload/storage/tile configuration.
 """
 from __future__ import annotations
 
+import logging
 import os
 from functools import lru_cache
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
+
+log = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -190,6 +193,13 @@ class Settings(BaseSettings):
         if missing:
             raise RuntimeError(
                 "SOLEN production configuration is incomplete: " + ", ".join(missing)
+            )
+
+        if self.cors_origins == ["http://localhost:3000", "http://127.0.0.1:3000"]:
+            log.warning(
+                "Production runtime warning: SATQUERY_CORS_ORIGINS is using local default origins %s. "
+                "Set SATQUERY_CORS_ORIGINS to include your production frontend domain.",
+                self.cors_origins,
             )
 
 

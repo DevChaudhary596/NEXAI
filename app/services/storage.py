@@ -16,6 +16,7 @@ import logging
 import os
 import json
 import hashlib
+import re
 import shutil
 import uuid
 from dataclasses import dataclass, field
@@ -26,6 +27,16 @@ from typing import Any
 from app.core.config import get_settings
 
 log = logging.getLogger(__name__)
+
+_SAFE_ID_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
+
+
+def validate_safe_identifier(val: str, field_name: str = "identifier") -> str:
+    """Ensure identifiers (scene_id, overlay name) do not contain path traversal characters."""
+    if not val or not _SAFE_ID_RE.match(val):
+        raise ValueError(f"Invalid {field_name}: '{val}' contains illegal characters or path traversal sequences.")
+    return val
+
 
 
 @dataclass
@@ -111,7 +122,10 @@ class StorageService:
 
     def save_scene(self, scene_id: str, data: bytes, filename: str) -> Path:
         """Persist raw GeoTIFF bytes to disk."""
-        scene_dir = self._scenes_dir / scene_id
+        validate_safe_identifier(scene_id, "scene_id")
+        scene_dir = (self._scenes_dir / scene_id).resolve()
+        if not scene_dir.is_relative_to(self._scenes_dir.resolve()):
+            raise ValueError("Path traversal attempt detected in scene_id")
         scene_dir.mkdir(parents=True, exist_ok=True)
         dest = scene_dir / "scene.tif"
         dest.write_bytes(data)
@@ -132,7 +146,10 @@ class StorageService:
         return dest
 
     def update_scene_provenance(self, scene_id: str, **values: Any) -> None:
-        path = self._scenes_dir / scene_id / "provenance.json"
+        validate_safe_identifier(scene_id, "scene_id")
+        path = (self._scenes_dir / scene_id / "provenance.json").resolve()
+        if not path.is_relative_to(self._scenes_dir.resolve()):
+            raise ValueError("Path traversal attempt detected in scene_id")
         current = self.get_scene_provenance(scene_id)
         current.update({key: value for key, value in values.items() if value is not None})
         path.write_text(json.dumps(current, sort_keys=True), encoding="utf-8")
@@ -140,7 +157,10 @@ class StorageService:
             self._object_store.put_bytes(f"scenes/{scene_id}/provenance.json", json.dumps(current, sort_keys=True).encode(), "application/json")
 
     def get_scene_provenance(self, scene_id: str) -> dict[str, Any]:
-        path = self._scenes_dir / scene_id / "provenance.json"
+        validate_safe_identifier(scene_id, "scene_id")
+        path = (self._scenes_dir / scene_id / "provenance.json").resolve()
+        if not path.is_relative_to(self._scenes_dir.resolve()):
+            raise ValueError("Path traversal attempt detected in scene_id")
         if not path.exists() and self._object_store:
             self._object_store.download(f"scenes/{scene_id}/provenance.json", path)
         if not path.exists():
@@ -262,20 +282,26 @@ class StorageService:
     def resolve_scene(self, scene_id: str) -> Path:
         """Return the path to the scene GeoTIFF. Raises FileNotFoundError
         if the scene was never uploaded (mock mode tolerates this)."""
-        path = self._scenes_dir / scene_id / "scene.tif"
+        validate_safe_identifier(scene_id, "scene_id")
+        path = (self._scenes_dir / scene_id / "scene.tif").resolve()
+        if not path.is_relative_to(self._scenes_dir.resolve()):
+            raise ValueError("Path traversal attempt detected in scene_id")
         if not path.exists() and self._object_store:
             self._object_store.download(f"scenes/{scene_id}/scene.tif", path)
         if not path.exists():
             # Fallback: check flat naming from M1's convention
-            flat = self._scenes_dir / f"{scene_id}.tif"
-            if flat.exists():
+            flat = (self._scenes_dir / f"{scene_id}.tif").resolve()
+            if flat.is_relative_to(self._scenes_dir.resolve()) and flat.exists():
                 return flat
             raise FileNotFoundError(f"scene not found: {scene_id}")
         return path
 
     def get_thumbnail_path(self, scene_id: str) -> Path | None:
         """Return thumbnail path or None if it doesn't exist."""
-        path = self._thumbs_dir / f"{scene_id}.jpg"
+        validate_safe_identifier(scene_id, "scene_id")
+        path = (self._thumbs_dir / f"{scene_id}.jpg").resolve()
+        if not path.is_relative_to(self._thumbs_dir.resolve()):
+            raise ValueError("Path traversal attempt detected in scene_id")
         if not path.exists() and self._object_store:
             self._object_store.download(f"thumbnails/{scene_id}.jpg", path)
         return path if path.exists() else None
@@ -319,11 +345,14 @@ class StorageService:
 
     def delete_scene(self, scene_id: str) -> bool:
         """Remove a scene and its thumbnail."""
-        scene_dir = self._scenes_dir / scene_id
+        validate_safe_identifier(scene_id, "scene_id")
+        scene_dir = (self._scenes_dir / scene_id).resolve()
+        if not scene_dir.is_relative_to(self._scenes_dir.resolve()):
+            raise ValueError("Path traversal attempt detected in scene_id")
         if scene_dir.exists():
             shutil.rmtree(scene_dir)
-        thumb = self._thumbs_dir / f"{scene_id}.jpg"
-        if thumb.exists():
+        thumb = (self._thumbs_dir / f"{scene_id}.jpg").resolve()
+        if thumb.is_relative_to(self._thumbs_dir.resolve()) and thumb.exists():
             thumb.unlink()
         if self._object_store:
             self._object_store.delete_prefix(f"scenes/{scene_id}/")
@@ -336,16 +365,26 @@ class StorageService:
 
     def save_overlay(self, scene_id: str, name: str, data: bytes) -> Path:
         """Save a raster overlay (RGBA PNG from M3's spectral output)."""
-        overlay_dir = self._overlays_dir / scene_id
+        validate_safe_identifier(scene_id, "scene_id")
+        validate_safe_identifier(name, "overlay_name")
+        overlay_dir = (self._overlays_dir / scene_id).resolve()
+        if not overlay_dir.is_relative_to(self._overlays_dir.resolve()):
+            raise ValueError("Path traversal attempt detected in scene_id")
         overlay_dir.mkdir(parents=True, exist_ok=True)
-        dest = overlay_dir / f"{name}.png"
+        dest = (overlay_dir / f"{name}.png").resolve()
+        if not dest.is_relative_to(self._overlays_dir.resolve()):
+            raise ValueError("Path traversal attempt detected in overlay name")
         dest.write_bytes(data)
         if self._object_store:
             self._object_store.put_bytes(f"overlays/{scene_id}/{name}.png", data, "image/png")
         return dest
 
     def resolve_overlay(self, scene_id: str, name: str) -> Path:
-        path = self._overlays_dir / scene_id / f"{name}.png"
+        validate_safe_identifier(scene_id, "scene_id")
+        validate_safe_identifier(name, "overlay_name")
+        path = (self._overlays_dir / scene_id / f"{name}.png").resolve()
+        if not path.is_relative_to(self._overlays_dir.resolve()):
+            raise ValueError("Path traversal attempt detected in overlay path")
         if not path.exists() and self._object_store:
             self._object_store.download(f"overlays/{scene_id}/{name}.png", path)
         if not path.exists():

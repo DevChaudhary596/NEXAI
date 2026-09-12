@@ -14,12 +14,14 @@ import io
 import logging
 import re
 from datetime import datetime, timezone
+from typing import Annotated
 
 import httpx
-from fastapi import APIRouter, File, UploadFile
+from fastapi import APIRouter, File, Header, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 
 from app.api.errors import ApiError
+from app.core.auth import require_principal
 from app.core.config import get_settings
 from app.core.schemas import (
     FetchSatelliteRequest,
@@ -170,6 +172,10 @@ async def create_snapshot_scene(req: SnapshotSceneRequest) -> UploadResponse:
     except Exception as exc:
         raise ApiError(400, "invalid_image_base64", f"Could not decode base64 image: {exc}")
 
+    max_snapshot_bytes = 15 * 1024 * 1024  # 15 MB decoded ceiling
+    if len(image_bytes) > max_snapshot_bytes:
+        raise ApiError(413, "payload_too_large", "Snapshot image exceeds the 15MB limit.")
+
     try:
         from PIL import Image
         import numpy as np
@@ -271,7 +277,10 @@ def list_scenes() -> SceneListResponse:
 def get_thumbnail(scene_id: str) -> FileResponse:
     """Serve the JPEG thumbnail for a scene."""
     storage = get_storage()
-    path = storage.get_thumbnail_path(scene_id)
+    try:
+        path = storage.get_thumbnail_path(scene_id)
+    except ValueError as exc:
+        raise ApiError(400, "invalid_scene_id", str(exc)) from exc
     if path is None:
         raise ApiError(404, "thumbnail_not_found", f"No thumbnail for scene: {scene_id}")
     return FileResponse(path, media_type="image/jpeg")
@@ -287,19 +296,31 @@ def get_overlay(scene_id: str, name: str) -> FileResponse:
     storage = get_storage()
     try:
         path = storage.resolve_overlay(scene_id, name)
+    except ValueError as exc:
+        raise ApiError(400, "invalid_identifier", str(exc)) from exc
     except FileNotFoundError:
         raise ApiError(404, "overlay_not_found", f"No overlay '{name}' for scene: {scene_id}")
     return FileResponse(path, media_type="image/png")
 
 
 @router.delete("/scenes/{scene_id}")
-def delete_scene(scene_id: str) -> Response:
+async def delete_scene(
+    scene_id: str,
+    request: Request,
+    authorization: Annotated[str | None, Header()] = None,
+) -> Response:
     """Remove a scene and its thumbnail from storage."""
     from fastapi.responses import Response as RawResponse
+
+    s = get_settings()
+    if s.environment == "production":
+        await require_principal(request, authorization)
 
     storage = get_storage()
     try:
         storage.resolve_scene(scene_id)
+    except ValueError as exc:
+        raise ApiError(400, "invalid_scene_id", str(exc)) from exc
     except FileNotFoundError:
         raise ApiError(404, "scene_not_found", f"Scene not found: {scene_id}")
     storage.delete_scene(scene_id)
