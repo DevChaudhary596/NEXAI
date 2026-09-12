@@ -13,6 +13,13 @@ class FetchSatelliteRequest(Strict):
     """POST /api/v1/scenes/fetch-satellite request body."""
 
     bbox: BBox = Field(description="Area of interest, EPSG:4326.")
+    target_date: str | None = Field(
+        default=None,
+        description=(
+            "Optional ISO date (YYYY-MM-DD). When set, fetches the low-cloud "
+            "Sentinel-2 pass closest to this date instead of the latest."
+        ),
+    )
 
 
 class SnapshotSceneRequest(Strict):
@@ -62,6 +69,9 @@ class SceneListItem(Strict):
     uploaded_at: str
     bounds: list[float] | None = None
     crs: str | None = None
+    satellite: str | None = None
+    capture_date: str | None = None
+    cloud_cover_pct: float | None = Field(default=None, ge=0, le=100)
 
 
 class SceneListResponse(Strict):

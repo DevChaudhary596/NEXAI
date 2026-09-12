@@ -12,6 +12,7 @@ from __future__ import annotations
 import base64
 import io
 import logging
+import re
 from datetime import datetime, timezone
 
 import httpx
@@ -86,16 +87,17 @@ async def upload_scene(file: UploadFile = File(...)) -> UploadResponse:
 
 @router.post("/scenes/fetch-satellite", response_model=UploadResponse, status_code=201)
 async def fetch_satellite_scene(req: FetchSatelliteRequest) -> UploadResponse:
-    """Fetch the freshest low-cloud Sentinel-2 pass for an AOI and register
-    it as a scene — the "no GeoTIFF required" path. Same response shape as
-    /upload, so the frontend treats it identically once it comes back.
+    """Fetch a low-cloud Sentinel-2 pass for an AOI and register it as a scene.
+
+    Without ``target_date``, uses the freshest pass. With a date, picks the
+    closest pass within ±45 days. Same response shape as /upload.
     """
     storage = get_storage()
     bbox = req.bbox
 
     try:
-        item = await satellite_fetch.find_latest_scene(
-            bbox.west, bbox.south, bbox.east, bbox.north
+        item = await satellite_fetch.find_scene_for_aoi(
+            bbox.west, bbox.south, bbox.east, bbox.north, target_date=req.target_date
         )
     except satellite_fetch.NoImageryFoundError as exc:
         raise ApiError(404, "no_imagery_found", str(exc))
@@ -111,23 +113,25 @@ async def fetch_satellite_scene(req: FetchSatelliteRequest) -> UploadResponse:
         raise ApiError(502, "imagery_provider_error", f"Could not read Sentinel-2 imagery: {exc}")
 
     filename = satellite_fetch.scene_label(item)
+    capture_info = satellite_fetch.scene_capture_info(item)
     scene_id = storage.mint_scene_id()
     scene_path = storage.save_scene(scene_id, data, filename)
     storage.update_scene_provenance(
         scene_id,
         source_type="copernicus_planetary_computer",
         source_item_id=item["id"],
-        capture_date=satellite_fetch.scene_capture_info(item)["capture_date"],
+        capture_date=capture_info["capture_date"],
+        satellite=capture_info["satellite"],
+        cloud_cover_pct=capture_info["cloud_cover_pct"],
     )
     storage.generate_thumbnail(scene_id, scene_path)
     meta = storage.extract_metadata(scene_path)
 
     log.info(
-        "satellite fetch complete: scene_id=%s item=%s bbox=%s",
-        scene_id, item["id"], (bbox.west, bbox.south, bbox.east, bbox.north),
+        "satellite fetch complete: scene_id=%s item=%s bbox=%s target_date=%s",
+        scene_id, item["id"], (bbox.west, bbox.south, bbox.east, bbox.north), req.target_date,
     )
 
-    capture_info = satellite_fetch.scene_capture_info(item)
     return UploadResponse(
         scene_id=scene_id,
         filename=filename,
@@ -232,8 +236,21 @@ def list_scenes() -> SceneListResponse:
     """Return all uploaded scenes with their metadata."""
     storage = get_storage()
     scenes = storage.list_scenes()
-    return SceneListResponse(
-        scenes=[
+    items: list[SceneListItem] = []
+    for s in scenes:
+        prov = storage.get_scene_provenance(s.scene_id)
+        cloud = prov.get("cloud_cover_pct")
+        try:
+            cloud_pct = float(cloud) if cloud is not None else None
+        except (TypeError, ValueError):
+            cloud_pct = None
+        capture_date = prov.get("capture_date")
+        if not capture_date:
+            # Recover from STAC-style filenames like Sentinel-2_2024-05-12.tif
+            match = re.search(r"(20\d{2}-\d{2}-\d{2})", s.filename or "")
+            if match:
+                capture_date = match.group(1)
+        items.append(
             SceneListItem(
                 scene_id=s.scene_id,
                 filename=s.filename,
@@ -242,11 +259,12 @@ def list_scenes() -> SceneListResponse:
                 uploaded_at=s.uploaded_at,
                 bounds=s.bounds,
                 crs=s.crs,
+                satellite=prov.get("satellite"),
+                capture_date=capture_date,
+                cloud_cover_pct=cloud_pct,
             )
-            for s in scenes
-        ],
-        total=len(scenes),
-    )
+        )
+    return SceneListResponse(scenes=items, total=len(items))
 
 
 @router.get("/scenes/{scene_id}/thumbnail")
