@@ -192,7 +192,16 @@ def route_by_rules(prompt: str) -> RoutingDecision | None:
     """Deterministic pass. Returns None when it is not confident."""
     text = prompt.lower().strip()
 
-    # 0. Explicit index acronyms ("ndvi", "ndwi", "ndbi"), vegetation health, or explicit threshold with spectral keywords -> Spectral
+    # 0. Educational / informational queries about spectral indices -> General VQA
+    if re.search(r"\b(what is ndvi|what is ndwi|what is ndbi|how does ndvi work|how does ndwi work|how does ndbi work|explain ndvi|explain ndwi|explain ndbi|define ndvi|define ndwi|define ndbi)\b", text):
+        return RoutingDecision(
+            tool_call=VQACall(),
+            confidence=0.95,
+            rationale="educational/informational query about spectral index",
+            source=RoutingSource.RULES,
+        )
+
+    # 1. Explicit index acronyms ("ndvi", "ndwi", "ndbi"), vegetation health, or explicit threshold with spectral keywords -> Spectral
     if (
         re.search(r"\b(ndvi|ndwi|ndbi|healthy vegetation|vegetation health|crop health|plant health)\b", text)
         or (_extract_threshold(text)[0] is not None and _detect_index(text) is not None)

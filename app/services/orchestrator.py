@@ -322,8 +322,17 @@ def handle_query(req: QueryRequest) -> QueryResponse:
         except Exception as exc:
             log.debug("resolution lookup skipped for caveat: %s", exc)
         context = _summarise(decision.tool_call, stats, fc, has_roi=bool(req.roi), resolution_m=resolution_m)
-    elif decision.tool_call.action != ToolAction.GENERAL_VQA:
+    elif scene and scene.exists() and decision.tool_call.action != ToolAction.GENERAL_VQA:
         context = _summarise(decision.tool_call, stats, fc, has_roi=bool(req.roi))
+    elif scene is None or not scene.exists():
+        if decision.tool_call.action != ToolAction.GENERAL_VQA:
+            target_name = getattr(decision.tool_call, "target", None)
+            if not target_name:
+                idx = getattr(decision.tool_call, "index", None)
+                target_name = getattr(idx, "value", "spectral features")
+            context = f"NO_SCENE_BOUND: No satellite scene or active Region of Interest (AOI) is currently loaded to scan for '{target_name}'."
+        else:
+            context = ""
 
     history = _history_as_dicts(req.history, s.max_history_turns)
     system_prompt = build_system_prompt(decision.tool_call, req.prompt)
