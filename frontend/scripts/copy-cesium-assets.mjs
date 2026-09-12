@@ -19,4 +19,6 @@ for (const dir of ["Workers", "Assets", "ThirdParty", "Widgets"]) {
   cpSync(path.join(source, dir), path.join(dest, dir), { recursive: true });
 }
 
-console.log("[copy-cesium-assets] copied Cesium static assets to public/cesium");
+cpSync(path.join(source, "Cesium.js"), path.join(dest, "Cesium.js"));
+
+console.log("[copy-cesium-assets] copied Cesium static assets and Cesium.js to public/cesium");

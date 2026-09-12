@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "@/styles/globals.css";
 import Providers from "@/components/Providers";
 import AuthGate from "@/components/AuthGate";
@@ -42,8 +43,21 @@ export default function RootLayout({
         <link rel="icon" type="image/png" sizes="32x32" href="/images/solen_app_icon.png?v=solen" />
         <link rel="shortcut icon" href="/favicon.ico?v=solen" />
         <link rel="apple-touch-icon" href="/apple-icon.png?v=solen" />
+        <link rel="stylesheet" href="/cesium/Widgets/widgets.css" />
       </head>
       <body>
+        <Script
+          id="cesium-base-url"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `window.CESIUM_BASE_URL = "/cesium";`,
+          }}
+        />
+        <Script
+          id="cesium-runtime"
+          src="/cesium/Cesium.js"
+          strategy="beforeInteractive"
+        />
         <a href="#main-operations" className="skip-to-content">
           Skip to main operations
         </a>

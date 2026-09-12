@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import * as Cesium from "cesium";
-import "cesium/Build/Cesium/Widgets/widgets.css";
+import type * as CesiumTypes from "cesium";
 import {
   Navigation,
   Maximize2,
@@ -26,10 +25,29 @@ import type { FeatureCollection, FeatureSource, RasterOverlay, ROI } from "@/typ
 import { getTileUrl } from "@/lib/api";
 import { searchPlaces, GeocodeResult } from "@/lib/geocode";
 
+declare global {
+  interface Window {
+    CESIUM_BASE_URL?: string;
+    Cesium?: typeof CesiumTypes;
+  }
+}
+
 // Ensure Cesium finds static workers & assets
 if (typeof window !== "undefined") {
-  (window as unknown as { CESIUM_BASE_URL?: string }).CESIUM_BASE_URL = "/cesium";
+  window.CESIUM_BASE_URL = "/cesium";
 }
+
+// Access Cesium loaded via beforeInteractive Script tag or fallback Proxy
+const Cesium = (typeof window !== "undefined" && window.Cesium
+  ? window.Cesium
+  : new Proxy({} as typeof CesiumTypes, {
+      get(_target, prop) {
+        if (typeof window !== "undefined" && window.Cesium) {
+          return (window.Cesium as any)[prop];
+        }
+        return undefined;
+      },
+    })) as typeof CesiumTypes;
 
 export interface FlyToTarget {
   lon: number;
@@ -174,7 +192,7 @@ function computeOrbitCartesian(
   inclinationDeg: number,
   raanDeg: number,
   anomalyDeg: number
-): Cesium.Cartesian3 {
+): CesiumTypes.Cartesian3 {
   const r = 6378137 + altitudeKm * 1000;
   const inc = Cesium.Math.toRadians(inclinationDeg);
   const raan = Cesium.Math.toRadians(raanDeg);
@@ -208,22 +226,41 @@ export default function Cesium3DView({
   onRegisterDrawAOI,
 }: Cesium3DViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const viewerRef = useRef<Cesium.Viewer | null>(null);
-  const baseImageryLayerRef = useRef<Cesium.ImageryLayer | null>(null);
-  const labelsImageryLayerRef = useRef<Cesium.ImageryLayer | null>(null);
-  const sceneLayerRef = useRef<Cesium.ImageryLayer | null>(null);
-  const sceneFrameEntityRef = useRef<Cesium.Entity | null>(null);
-  const resultsDataSourceRef = useRef<Cesium.CustomDataSource | null>(null);
-  const satellitesDataSourceRef = useRef<Cesium.CustomDataSource | null>(null);
-  const overlayLayersRef = useRef<Cesium.ImageryLayer[]>([]);
+  const viewerRef = useRef<CesiumTypes.Viewer | null>(null);
+  const baseImageryLayerRef = useRef<CesiumTypes.ImageryLayer | null>(null);
+  const labelsImageryLayerRef = useRef<CesiumTypes.ImageryLayer | null>(null);
+  const sceneLayerRef = useRef<CesiumTypes.ImageryLayer | null>(null);
+  const sceneFrameEntityRef = useRef<CesiumTypes.Entity | null>(null);
+  const resultsDataSourceRef = useRef<CesiumTypes.CustomDataSource | null>(null);
+  const satellitesDataSourceRef = useRef<CesiumTypes.CustomDataSource | null>(null);
+  const overlayLayersRef = useRef<CesiumTypes.ImageryLayer[]>([]);
 
   // ROI drawing & persistent visualization refs
-  const roiEntityRef = useRef<Cesium.Entity | null>(null);
-  const drawHandlerRef = useRef<Cesium.ScreenSpaceEventHandler | null>(null);
-  const drawingEntityRef = useRef<Cesium.Entity | null>(null);
+  const roiEntityRef = useRef<CesiumTypes.Entity | null>(null);
+  const drawHandlerRef = useRef<CesiumTypes.ScreenSpaceEventHandler | null>(null);
+  const drawingEntityRef = useRef<CesiumTypes.Entity | null>(null);
   const [isDrawingAOI, setIsDrawingAOI] = useState(false);
 
   const [ready, setReady] = useState(false);
+  const [cesiumReady, setCesiumReady] = useState(
+    () => typeof window !== "undefined" && !!window.Cesium
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.Cesium) {
+      setCesiumReady(true);
+      return;
+    }
+    const timer = setInterval(() => {
+      if (window.Cesium) {
+        setCesiumReady(true);
+        clearInterval(timer);
+      }
+    }, 50);
+    return () => clearInterval(timer);
+  }, []);
+
   const [webglError, setWebglError] = useState(false);
   const [coords, setCoords] = useState({
     lat: "28.6139° N",
@@ -322,11 +359,11 @@ export default function Cesium3DView({
 
   // ── Initialize the Cesium 3D Globe with Web Mercator High-Res Tiling ──
   useEffect(() => {
-    if (!containerRef.current || viewerRef.current) return;
+    if (!containerRef.current || viewerRef.current || !cesiumReady) return;
 
-    let viewer: Cesium.Viewer;
+    let viewer: CesiumTypes.Viewer;
     let removePreRender: (() => void) | undefined;
-    let handler: Cesium.ScreenSpaceEventHandler | undefined;
+    let handler: CesiumTypes.ScreenSpaceEventHandler | undefined;
 
     try {
       if (containerRef.current) {
@@ -440,7 +477,7 @@ export default function Cesium3DView({
       currentAnomalies[sat.id] = sat.initialAnomalyDeg;
 
       // Draw dashed cyan orbital trajectory path
-      const orbitPoints: Cesium.Cartesian3[] = [];
+      const orbitPoints: CesiumTypes.Cartesian3[] = [];
       for (let deg = 0; deg <= 360; deg += 3) {
         orbitPoints.push(
           computeOrbitCartesian(sat.altitudeKm, sat.inclinationDeg, sat.raanDeg, deg)
@@ -467,7 +504,7 @@ export default function Cesium3DView({
           sat.raanDeg,
           currentAnomalies[sat.id]
         );
-      }, false) as unknown as Cesium.PositionProperty;
+      }, false) as unknown as CesiumTypes.PositionProperty;
 
       satellitesDataSource.entities.add({
         id: sat.id,
@@ -525,7 +562,7 @@ export default function Cesium3DView({
 
     // ── Dynamic Live Coordinates Tracker on Mouse Move ──────────────────
     handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
-    handler.setInputAction((movement: { endPosition: Cesium.Cartesian2 }) => {
+    handler.setInputAction((movement: { endPosition: CesiumTypes.Cartesian2 }) => {
       const cartesian = viewer.camera.pickEllipsoid(
         movement.endPosition,
         viewer.scene.globe.ellipsoid
@@ -584,7 +621,7 @@ export default function Cesium3DView({
       satellitesDataSourceRef.current = null;
       setReady(false);
     };
-  }, []);
+  }, [cesiumReady]);
 
   // Resize Cesium viewer when entering or exiting full screen
   useEffect(() => {
@@ -695,7 +732,7 @@ export default function Cesium3DView({
     let currLat = 0;
     let isMouseDown = false;
 
-    handler.setInputAction((click: { position: Cesium.Cartesian2 }) => {
+    handler.setInputAction((click: { position: CesiumTypes.Cartesian2 }) => {
       const ray = viewer.camera.getPickRay(click.position);
       if (!ray) return;
       const cartesian = viewer.scene.globe.pick(ray, viewer.scene);
@@ -728,7 +765,7 @@ export default function Cesium3DView({
       });
     }, Cesium.ScreenSpaceEventType.LEFT_DOWN);
 
-    handler.setInputAction((movement: { endPosition: Cesium.Cartesian2 }) => {
+    handler.setInputAction((movement: { endPosition: CesiumTypes.Cartesian2 }) => {
       if (!isMouseDown) return;
       const ray = viewer.camera.getPickRay(movement.endPosition);
       if (!ray) return;
