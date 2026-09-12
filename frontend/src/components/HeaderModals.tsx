@@ -61,7 +61,7 @@ const INITIAL_NOTIFICATIONS: NotificationItem[] = [
   },
   {
     id: "notif-4",
-    title: "SatQuery VLM Weights Synced",
+    title: "SOLEN VLM Weights Synced",
     desc: "Vision-Language intent grounding model calibrated with zero-count hallucination verification.",
     time: "5h ago",
     type: "info",
@@ -84,7 +84,7 @@ export function NotificationsDrawer({
 
   useEffect(() => {
     if (isOpen) {
-      listAlerts("analyst@satquery.io")
+      listAlerts("analyst@solen.ai")
         .then((res) => {
           if (res.alerts && res.alerts.length > 0) {
             const mapped: NotificationItem[] = res.alerts.map((a) => ({
@@ -282,7 +282,7 @@ export function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
           <div className="flex items-center gap-3">
             <div className="profile-avatar-large">SQ</div>
             <div>
-              <h3 className="profile-modal-name">{user?.displayName || "SatQuery Intelligence Operator"}</h3>
+              <h3 className="profile-modal-name">{user?.displayName || "SOLEN Intelligence Operator"}</h3>
               <p className="profile-modal-sub">
                 {user?.email ? `${user.email} • RBAC Analyst Access` : "Sovereign Operations • Dedicated Local Engine"}
               </p>
@@ -452,24 +452,32 @@ export function CommandPalette({
       },
     },
     {
-      label: "Bi-Temporal Surface Change Detection",
-      category: "Analysis",
+      label: "Bi-Temporal Surface Change Detection (Coming Soon)",
+      category: "Analysis (Locked)",
       action: () => {
         onOpenWorkspace("compare");
       },
     },
     {
-      label: "Configure Persistent Sentinel Watch",
-      category: "Surveillance",
+      label: "Configure Persistent Sentinel Watch (Coming Soon)",
+      category: "Surveillance (Locked)",
       action: () => {
         onOpenWorkspace("monitor");
       },
     },
     {
-      label: "Export Formal PDF Intelligence Dossier",
-      category: "Reporting",
+      label: "Export Formal PDF Intelligence Dossier (Coming Soon)",
+      category: "Reporting (Locked)",
       action: () => {
         onOpenWorkspace("reports");
+      },
+    },
+    {
+      label: "Replay SOLEN Cinematic Opening Video Animation",
+      category: "Experience",
+      action: () => {
+        onClose();
+        window.dispatchEvent(new CustomEvent("solen:replay-intro"));
       },
     },
   ];

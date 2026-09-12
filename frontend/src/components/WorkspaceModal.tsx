@@ -25,7 +25,25 @@ import {
   ChevronLeft,
   ChevronRight,
   FolderGit2,
+  Crosshair,
+  Navigation,
+  AlertTriangle,
+  Crop,
+  Lock,
 } from "lucide-react";
+
+export interface DetectedZoneItem {
+  id: string;
+  zoneNumber: number;
+  label: string;
+  areaM2: number;
+  areaKm2: number;
+  areaHectares: number;
+  centerLon: number;
+  centerLat: number;
+  coordsFormatted: string;
+  spanMeters: number;
+}
 import { NavItemKey } from "./Sidebar";
 import {
   listWatches,
@@ -36,6 +54,7 @@ import {
   listScenes,
   deleteScene,
   fetchSatelliteScene,
+  createSnapshotScene,
 } from "@/lib/api";
 import { exportIntelligenceReport } from "@/lib/pdfReport";
 import type { FlyToTarget } from "./Cesium3DView";
@@ -52,6 +71,7 @@ import type {
 interface WorkspaceModalProps {
   activeTab: NavItemKey;
   onClose: () => void;
+  onTabChange?: (tab: NavItemKey) => void;
   onFlyTo: (target: FlyToTarget) => void;
   onApplyGeoJSON: (geojson: FeatureCollection) => void;
   onApplyOverlay: (overlays: RasterOverlay[]) => void;
@@ -62,6 +82,13 @@ interface WorkspaceModalProps {
   currentSceneId: string | null;
   roi: ROI | null;
   projects?: ProjectResponse[];
+  onStartDrawAOI?: () => void;
+  onCaptureLiveViewport?: () => Promise<{
+    image_base64: string;
+    bounds: number[];
+    label?: string;
+    is_roi?: boolean;
+  } | null>;
 }
 
 // Global Hotspots for "Explore" (Top-down Nadir Satellite View: pitch: -90)
@@ -140,9 +167,75 @@ const GLOBAL_HOTSPOTS = [
   },
 ];
 
+function WorkspaceFeatureLocked({
+  featureName,
+  description,
+  roadmapPoints,
+  icon: Icon,
+  onExploreLive,
+  onClose,
+}: {
+  featureName: string;
+  description: string;
+  roadmapPoints: string[];
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  onExploreLive: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="workspace-locked-state">
+      <div className="workspace-locked-card">
+        <div className="workspace-locked-badge">
+          <Lock size={12} className="text-amber-400 shrink-0" />
+          <span>FEATURE LOCKED · COMING SOON</span>
+        </div>
+
+        <div className="workspace-locked-icon-halo">
+          <Icon size={38} className="text-amber-400" />
+        </div>
+
+        <h3 className="workspace-locked-title">{featureName} is Under Active Construction</h3>
+        <p className="workspace-locked-desc">{description}</p>
+
+        <div className="workspace-locked-roadmap">
+          <h4 className="workspace-locked-roadmap-title">What to expect in the upcoming release:</h4>
+          <ul className="workspace-locked-roadmap-list">
+            {roadmapPoints.map((point, i) => (
+              <li key={i} className="workspace-locked-roadmap-item">
+                <span className="workspace-locked-roadmap-dot" />
+                <span>{point}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="workspace-locked-actions">
+          <button
+            type="button"
+            onClick={onExploreLive}
+            className="workspace-locked-primary-btn"
+          >
+            <Scan size={15} />
+            <span>Switch to Live Object Detections</span>
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="workspace-locked-secondary-btn"
+          >
+            <X size={14} />
+            <span>Return to Workspace</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function WorkspaceModal({
   activeTab,
   onClose,
+  onTabChange,
   onFlyTo,
   onApplyGeoJSON,
   onApplyOverlay,
@@ -153,6 +246,8 @@ export default function WorkspaceModal({
   currentSceneId,
   roi,
   projects = [],
+  onStartDrawAOI,
+  onCaptureLiveViewport,
 }: WorkspaceModalProps) {
   useEffect(() => {
     if (!activeTab || activeTab === "dashboard") return;
@@ -181,6 +276,13 @@ export default function WorkspaceModal({
     meanVal: number;
     pctCover: string;
   } | null>(null);
+  const [computedTarget, setComputedTarget] = useState<FlyToTarget | null>(null);
+  const [detectedZones, setDetectedZones] = useState<DetectedZoneItem[]>([]);
+  const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
+  const [zoneSearchQuery, setZoneSearchQuery] = useState<string>("");
+  const [zoneSortBy, setZoneSortBy] = useState<"area-desc" | "area-asc" | "number">("area-desc");
+  const [zonePage, setZonePage] = useState<number>(1);
+  const ZONE_PAGE_SIZE = 8;
 
   // ── Target Detection State ─────────────────────────────────────
   const [selectedClasses, setSelectedClasses] = useState<string[]>([
@@ -217,20 +319,26 @@ export default function WorkspaceModal({
   }, [displayedDetections, detectionPage, detectionPageSize]);
 
   // ── Bi-Temporal Compare State ──────────────────────────────────
-  const [compareDateA, setCompareDateA] = useState("2024-05-12");
-  const [compareDateB, setCompareDateB] = useState("2024-08-28");
+  const [compareSceneIdA, setCompareSceneIdA] = useState("");
+  const [compareSceneIdB, setCompareSceneIdB] = useState("");
+  const [compareFetchDateA, setCompareFetchDateA] = useState("");
+  const [compareFetchDateB, setCompareFetchDateB] = useState("");
+  const [compareIndex, setCompareIndex] = useState<"ndvi" | "ndwi" | "ndbi">("ndvi");
   const [isComparing, setIsComparing] = useState(false);
+  const [fetchingComparePass, setFetchingComparePass] = useState<"A" | "B" | null>(null);
+  const [compareError, setCompareError] = useState<string | null>(null);
   const [compareOutput, setCompareOutput] = useState<{
     changedAreaKm2: number;
-    pctDelta: string;
-    degradedZones: number;
+    threshold: number;
+    changePolygons: number;
+    answer: string;
   } | null>(null);
 
   // ── Monitor (Watches) State ────────────────────────────────────
   const [watches, setWatches] = useState<WatchResponse[]>([]);
   const [loadingWatches, setLoadingWatches] = useState(false);
   const [newWatchLabel, setNewWatchLabel] = useState("");
-  const [newWatchEmail, setNewWatchEmail] = useState("analyst@satquery.io");
+  const [newWatchEmail, setNewWatchEmail] = useState("analyst@solen.ai");
   const [newWatchType, setNewWatchType] = useState<"flood" | "fire" | "vessel">("flood");
   const [watchSubmitting, setWatchSubmitting] = useState(false);
 
@@ -278,16 +386,23 @@ export default function WorkspaceModal({
   };
 
   useEffect(() => {
-    if (activeTab === "data-library") {
+    if (activeTab === "data-library" || activeTab === "compare") {
       loadScenes();
     }
   }, [activeTab, loadScenes]);
+
+  useEffect(() => {
+    if (activeTab !== "compare") return;
+    if (currentSceneId) {
+      setCompareSceneIdA((prev) => prev || currentSceneId);
+    }
+  }, [activeTab, currentSceneId]);
 
   // Load watches when Monitor tab opens
   useEffect(() => {
     if (activeTab === "monitor") {
       setLoadingWatches(true);
-      listWatches("analyst@satquery.io")
+      listWatches("analyst@solen.ai")
         .then((res) => {
           setWatches(res.watches);
         })
@@ -298,23 +413,253 @@ export default function WorkspaceModal({
     }
   }, [activeTab]);
 
+  // Resolve the active scene dynamically: currentSceneId -> or backing scene if ROI drawn
+  // NEVER silently fall back to random database scenes if no reference (AOI or scene) is active!
+  const getEffectiveSceneId = async (): Promise<string | null> => {
+    if (currentSceneId) return currentSceneId;
+    if (roi && onCaptureLiveViewport) {
+      try {
+        const snap = await onCaptureLiveViewport();
+        if (snap && snap.image_base64) {
+          const registered = await createSnapshotScene({
+            image_base64: snap.image_base64,
+            bounds: snap.bounds,
+            label: snap.label,
+            is_roi: snap.is_roi,
+          });
+          onSelectScene?.(registered.scene_id, null, registered.filename);
+          return registered.scene_id;
+        }
+      } catch (e) {
+        console.warn("Could not capture AOI snapshot, falling back:", e);
+      }
+    }
+    if (roi) {
+      if (scenes && scenes.length > 0) return scenes[0].scene_id;
+      try {
+        const res = await listScenes();
+        if (res.scenes && res.scenes.length > 0) {
+          setScenes(res.scenes);
+          return res.scenes[0].scene_id;
+        }
+      } catch (e) {
+        console.warn("Could not load scenes for ROI fallback:", e);
+      }
+    }
+    // No active mounted scene and no drawn ROI - cannot run empty!
+    return null;
+  };
+
+  // Memoized filtered & sorted detected zones for Spectral Index analysis
+  const filteredAndSortedZones = useMemo(() => {
+    let list = [...detectedZones];
+
+    if (zoneSearchQuery.trim()) {
+      const q = zoneSearchQuery.toLowerCase().trim();
+      list = list.filter(
+        (z) =>
+          z.label.toLowerCase().includes(q) ||
+          z.coordsFormatted.toLowerCase().includes(q) ||
+          z.id.toLowerCase().includes(q) ||
+          String(z.zoneNumber).includes(q) ||
+          `${z.centerLat.toFixed(4)}, ${z.centerLon.toFixed(4)}`.includes(q)
+      );
+    }
+
+    if (zoneSortBy === "area-desc") {
+      list.sort((a, b) => b.areaM2 - a.areaM2);
+    } else if (zoneSortBy === "area-asc") {
+      list.sort((a, b) => a.areaM2 - b.areaM2);
+    } else if (zoneSortBy === "number") {
+      list.sort((a, b) => a.zoneNumber - b.zoneNumber);
+    }
+
+    return list;
+  }, [detectedZones, zoneSearchQuery, zoneSortBy]);
+
+  const totalZonePages = Math.ceil(filteredAndSortedZones.length / ZONE_PAGE_SIZE) || 1;
+  const pagedZones = useMemo(() => {
+    const start = (zonePage - 1) * ZONE_PAGE_SIZE;
+    return filteredAndSortedZones.slice(start, start + ZONE_PAGE_SIZE);
+  }, [filteredAndSortedZones, zonePage, ZONE_PAGE_SIZE]);
+
+  const handleFlyToZone = (zone: DetectedZoneItem) => {
+    setSelectedZoneId(zone.id);
+    const altitude = Math.max(500, Math.min(zone.spanMeters * 3.0, 1600));
+    onFlyTo({
+      lon: zone.centerLon,
+      lat: zone.centerLat,
+      height: altitude,
+      pitch: -90,
+    });
+    onClose();
+  };
+
+  const handleFlyToOverview = () => {
+    if (computedTarget) {
+      onFlyTo(computedTarget);
+      onClose();
+    } else if (detectedZones.length > 0) {
+      const avgLon = detectedZones.reduce((s, z) => s + z.centerLon, 0) / detectedZones.length;
+      const avgLat = detectedZones.reduce((s, z) => s + z.centerLat, 0) / detectedZones.length;
+      onFlyTo({
+        lon: avgLon,
+        lat: avgLat,
+        height: 2500,
+        pitch: -90,
+      });
+      onClose();
+    }
+  };
+
   // Handler: Run Spectral Computation (100% Real GDAL/Rasterio GIS Engine)
   const handleRunSpectralIndex = async () => {
     setIsCalculatingIndex(true);
     setIndexResult(null);
+    setDetectedZones([]);
+    setZonePage(1);
     try {
-      const activeScene = currentSceneId || "d1f2e30941c2_20260903T094411";
+      const activeScene = await getEffectiveSceneId();
+      if (!activeScene) {
+        alert("Spatial reference required: Please draw an Area of Interest (AOI) box on the 3D globe or mount a satellite scene from the Data Library first.");
+        setIsCalculatingIndex(false);
+        return;
+      }
       const res = await queryScene({
         scene_id: activeScene,
         prompt: `Compute ${selectedIndex.toUpperCase()} index with threshold > ${indexThreshold}. Highlight anomalous pixels and compute surface area in square kilometers.`,
         roi: roi || undefined,
       });
 
-      if (res.geojson && res.geojson.features.length > 0) {
+      let flyTarget: FlyToTarget | null = null;
+      const zonesList: DetectedZoneItem[] = [];
+
+      if (res.geojson && res.geojson.features && res.geojson.features.length > 0) {
         onApplyGeoJSON(res.geojson);
+        let clusterMinLon = 180, clusterMaxLon = -180, clusterMinLat = 90, clusterMaxLat = -90;
+        let hasCoords = false;
+
+        res.geojson.features.forEach((feat, idx) => {
+          let ringCoords: number[][] = [];
+          if (feat.geometry?.type === "Polygon" && feat.geometry.coordinates?.[0]?.length) {
+            ringCoords = feat.geometry.coordinates[0];
+          } else if (feat.geometry?.type === "MultiPolygon" && feat.geometry.coordinates?.[0]?.[0]?.length) {
+            ringCoords = feat.geometry.coordinates[0][0];
+          }
+
+          let centerLon = 0;
+          let centerLat = 0;
+          let zMinLon = 180, zMaxLon = -180, zMinLat = 90, zMaxLat = -90;
+
+          if (ringCoords.length > 0) {
+            let sumLon = 0;
+            let sumLat = 0;
+            for (const pt of ringCoords) {
+              const [lon, lat] = pt;
+              sumLon += lon;
+              sumLat += lat;
+              zMinLon = Math.min(zMinLon, lon);
+              zMaxLon = Math.max(zMaxLon, lon);
+              zMinLat = Math.min(zMinLat, lat);
+              zMaxLat = Math.max(zMaxLat, lat);
+              clusterMinLon = Math.min(clusterMinLon, lon);
+              clusterMaxLon = Math.max(clusterMaxLon, lon);
+              clusterMinLat = Math.min(clusterMinLat, lat);
+              clusterMaxLat = Math.max(clusterMaxLat, lat);
+              hasCoords = true;
+            }
+            centerLon = sumLon / ringCoords.length;
+            centerLat = sumLat / ringCoords.length;
+          } else if (feat.geometry?.type === "Point" && feat.geometry.coordinates) {
+            centerLon = feat.geometry.coordinates[0];
+            centerLat = feat.geometry.coordinates[1];
+            zMinLon = zMaxLon = centerLon;
+            zMinLat = zMaxLat = centerLat;
+            clusterMinLon = Math.min(clusterMinLon, centerLon);
+            clusterMaxLon = Math.max(clusterMaxLon, centerLon);
+            clusterMinLat = Math.min(clusterMinLat, centerLat);
+            clusterMaxLat = Math.max(clusterMaxLat, centerLat);
+            hasCoords = true;
+          }
+
+          const spanDegrees = Math.max(Math.abs(zMaxLon - zMinLon), Math.abs(zMaxLat - zMinLat), 0.0005);
+          const spanMeters = spanDegrees * 111000;
+
+          let areaM2 = 0;
+          if (typeof feat.properties?.area_m2 === "number") {
+            areaM2 = feat.properties.area_m2;
+          } else if (typeof feat.properties?.extra?.area_m2 === "number") {
+            areaM2 = feat.properties.extra.area_m2;
+          } else {
+            areaM2 = Math.round(Math.abs(zMaxLon - zMinLon) * 111000 * Math.abs(zMaxLat - zMinLat) * 111000 * 0.7);
+          }
+
+          const areaKm2 = +(areaM2 / 1_000_000).toFixed(4);
+          const areaHectares = +(areaM2 / 10_000).toFixed(2);
+          const latDir = centerLat >= 0 ? "N" : "S";
+          const lonDir = centerLon >= 0 ? "E" : "W";
+          const coordsFormatted = `${Math.abs(centerLat).toFixed(4)}° ${latDir}, ${Math.abs(centerLon).toFixed(4)}° ${lonDir}`;
+
+          zonesList.push({
+            id: `zone-${idx + 1}`,
+            zoneNumber: idx + 1,
+            label: `${selectedIndex.toUpperCase()} Sector #${String(idx + 1).padStart(2, "0")}`,
+            areaM2: Math.round(areaM2),
+            areaKm2,
+            areaHectares,
+            centerLon: +centerLon.toFixed(6),
+            centerLat: +centerLat.toFixed(6),
+            coordsFormatted,
+            spanMeters: Math.round(spanMeters),
+          });
+        });
+
+        if (hasCoords) {
+          const span = Math.max(Math.abs(clusterMaxLon - clusterMinLon), Math.abs(clusterMaxLat - clusterMinLat), 0.01);
+          flyTarget = {
+            lon: (clusterMinLon + clusterMaxLon) / 2,
+            lat: (clusterMinLat + clusterMaxLat) / 2,
+            height: Math.max(1200, Math.min(span * 111000 * 2.2, 50000)),
+            pitch: -90,
+          };
+        }
       }
+
       if (res.overlays && res.overlays.length > 0) {
         onApplyOverlay(res.overlays);
+        if (!flyTarget && res.overlays[0].bounds && res.overlays[0].bounds.length === 4) {
+          const [west, south, east, north] = res.overlays[0].bounds;
+          const span = Math.max(Math.abs(east - west), Math.abs(north - south), 0.01);
+          flyTarget = {
+            lon: (west + east) / 2,
+            lat: (south + north) / 2,
+            height: Math.max(1400, Math.min(span * 111000 * 1.8, 50000)),
+            pitch: -90,
+          };
+        }
+      }
+
+      const foundScene = scenes.find((s) => s.scene_id === activeScene);
+      if (!flyTarget && foundScene && foundScene.bounds && foundScene.bounds.length === 4) {
+        const [west, south, east, north] = foundScene.bounds;
+        const span = Math.max(Math.abs(east - west), Math.abs(north - south), 0.01);
+        flyTarget = {
+          lon: (west + east) / 2,
+          lat: (south + north) / 2,
+          height: Math.max(1800, Math.min(span * 111000 * 1.8, 50000)),
+          pitch: -90,
+        };
+      }
+
+      if (flyTarget) {
+        setComputedTarget(flyTarget);
+        // Note: Do NOT auto-fly here so the user can review zones and choose where to navigate
+      }
+
+      setDetectedZones(zonesList);
+
+      if (onSelectScene && activeScene && activeScene !== currentSceneId) {
+        onSelectScene(activeScene, null, foundScene?.filename);
       }
 
       const area = typeof res.stats?.area_km2 === "number" ? res.stats.area_km2 : 0;
@@ -340,9 +685,14 @@ export default function WorkspaceModal({
     setIsDetecting(true);
     setDetectionResults(null);
     try {
-      const activeScene = currentSceneId || "043267413b48_20260903T034939";
-      // Map selectedClasses to unambiguous router target prompts
-      let targetsPrompt = "all targets";
+      const activeScene = await getEffectiveSceneId();
+      if (!activeScene) {
+        alert("Spatial reference required: Please draw an Area of Interest (AOI) box on the 3D globe or mount a satellite scene from the Data Library first.");
+        setIsDetecting(false);
+        return;
+      }
+      // Map selectedClasses to specific target prompts
+      let targetsPrompt = "maritime vessels, aircraft, storage tanks, ground vehicles";
       if (selectedClasses.length === 1) {
         const id = selectedClasses[0];
         if (id === "vehicles") targetsPrompt = "vehicles";
@@ -350,8 +700,15 @@ export default function WorkspaceModal({
         else if (id === "vessels") targetsPrompt = "ships";
         else if (id === "storage_tanks") targetsPrompt = "storage tanks";
         else targetsPrompt = id;
-      } else {
-        targetsPrompt = "all targets";
+      } else if (selectedClasses.length > 0) {
+        const mapped = selectedClasses.map((c) => {
+          if (c === "vehicles") return "vehicles";
+          if (c === "aviation") return "aircraft";
+          if (c === "vessels") return "ships";
+          if (c === "storage_tanks") return "storage tanks";
+          return c;
+        });
+        targetsPrompt = mapped.join(", ");
       }
 
       const res = await queryScene({
@@ -362,13 +719,19 @@ export default function WorkspaceModal({
 
       const rawFeatures = res.geojson?.features || [];
       const features = rawFeatures.filter((f) => {
-        if (selectedClasses.length >= 4 || selectedClasses.length === 0) return true;
+        // 1. Enforce confidence threshold strictly against user's slider
+        const score = typeof f.properties?.score === "number" ? f.properties.score : 0.5;
+        if (score < confidenceCutoff) {
+          return false;
+        }
+
+        // 2. Strict category matching - NEVER let unrelated DOTA classes (like basketball court) through!
         const lbl = (f.properties?.label || "").toLowerCase();
         return selectedClasses.some((id) => {
           if (id === "vehicles") return lbl.includes("vehicle") || lbl.includes("car") || lbl.includes("truck") || lbl.includes("sedan") || lbl.includes("van") || lbl.includes("bus");
-          if (id === "aviation") return lbl.includes("plane") || lbl.includes("aircraft") || lbl.includes("jet");
-          if (id === "vessels") return lbl.includes("ship") || lbl.includes("vessel") || lbl.includes("boat");
-          if (id === "storage_tanks") return lbl.includes("tank") || lbl.includes("silo");
+          if (id === "aviation") return lbl.includes("plane") || lbl.includes("aircraft") || lbl.includes("jet") || lbl.includes("airliner");
+          if (id === "vessels") return lbl.includes("ship") || lbl.includes("vessel") || lbl.includes("boat") || lbl.includes("cargo") || lbl.includes("tanker");
+          if (id === "storage_tanks") return lbl.includes("tank") || lbl.includes("silo") || lbl.includes("storage");
           return false;
         });
       });
@@ -430,15 +793,97 @@ export default function WorkspaceModal({
     }
   };
 
-  // Handler: Run Bi-Temporal Compare
+  // Handler: Run Bi-Temporal Compare (requires two real scene IDs)
+  const parseSceneCaptureDate = (sc: SceneListItem): string | null => {
+    if (sc.capture_date) return sc.capture_date.slice(0, 10);
+    const fromName = sc.filename.match(/(\d{4}-\d{2}-\d{2})/);
+    return fromName ? fromName[1] : null;
+  };
+
+  const formatCoord = (value: number, axis: "lat" | "lon") => {
+    const abs = Math.abs(value).toFixed(4);
+    if (axis === "lat") return `${abs}°${value >= 0 ? "N" : "S"}`;
+    return `${abs}°${value >= 0 ? "E" : "W"}`;
+  };
+
+  const formatBBoxLabel = (bbox: { west: number; south: number; east: number; north: number }) =>
+    `${formatCoord(bbox.south, "lat")}–${formatCoord(bbox.north, "lat")}, ${formatCoord(bbox.west, "lon")}–${formatCoord(bbox.east, "lon")}`;
+
+  const compareAoi = useMemo(() => {
+    if (roi?.bbox) {
+      return { source: "roi" as const, bbox: roi.bbox };
+    }
+    const sceneA = scenes.find((s) => s.scene_id === compareSceneIdA);
+    const sceneB = scenes.find((s) => s.scene_id === compareSceneIdB);
+    const bounds = sceneA?.bounds ?? sceneB?.bounds ?? null;
+    if (bounds && bounds.length === 4) {
+      const [west, south, east, north] = bounds;
+      return {
+        source: "scene" as const,
+        bbox: { west, south, east, north },
+      };
+    }
+    return null;
+  }, [roi, scenes, compareSceneIdA, compareSceneIdB]);
+
+  const compareSceneA = scenes.find((s) => s.scene_id === compareSceneIdA) ?? null;
+  const compareSceneB = scenes.find((s) => s.scene_id === compareSceneIdB) ?? null;
+
+  const handleFetchComparePass = async (pass: "A" | "B") => {
+    if (!compareAoi) {
+      setCompareError(
+        "Set a place first: draw an AOI on the globe, or select a catalog scene that already has bounds."
+      );
+      return;
+    }
+    const targetDate = pass === "A" ? compareFetchDateA : compareFetchDateB;
+    if (!targetDate) {
+      setCompareError(`Choose a target capture date for Pass ${pass}, then fetch Sentinel-2 for this AOI.`);
+      return;
+    }
+    setFetchingComparePass(pass);
+    setCompareError(null);
+    try {
+      const res = await fetchSatelliteScene(compareAoi.bbox, targetDate);
+      onUploadSuccess(res);
+      await loadScenes();
+      if (pass === "A") setCompareSceneIdA(res.scene_id);
+      else setCompareSceneIdB(res.scene_id);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Satellite fetch failed";
+      setCompareError(msg);
+    } finally {
+      setFetchingComparePass(null);
+    }
+  };
+
   const handleRunCompare = async () => {
+    if (!compareSceneIdA || !compareSceneIdB) {
+      setCompareError("Select both Pass A (baseline) and Pass B (observation) scenes.");
+      return;
+    }
+    if (compareSceneIdA === compareSceneIdB) {
+      setCompareError("Pass A and Pass B must be two different scenes.");
+      return;
+    }
+
     setIsComparing(true);
     setCompareOutput(null);
+    setCompareError(null);
     try {
-      const activeScene = currentSceneId || "d1f2e30941c2_20260903T094411";
+      const indexName = compareIndex.toUpperCase();
+      const dateA = compareSceneA ? parseSceneCaptureDate(compareSceneA) : null;
+      const dateB = compareSceneB ? parseSceneCaptureDate(compareSceneB) : null;
+      const dateClause =
+        dateA && dateB
+          ? ` comparing ${dateA} (baseline) with ${dateB} (observation)`
+          : "";
+
       const res = await queryScene({
-        scene_id: activeScene,
-        prompt: `Run bi-temporal change detection comparing ${compareDateA} with ${compareDateB}. Segment surface differences and calculate changed area.`,
+        scene_id: compareSceneIdA,
+        scene_id_b: compareSceneIdB,
+        roi: roi || undefined,
+        prompt: `Run bi-temporal ${indexName} change detection${dateClause}. Segment surface differences and calculate changed area.`,
       });
 
       if (res.geojson && res.geojson.features.length > 0) {
@@ -448,18 +893,56 @@ export default function WorkspaceModal({
         onApplyOverlay(res.overlays);
       }
 
-      const changedArea = typeof res.stats?.changed_area_km2 === "number" ? res.stats.changed_area_km2 : (typeof res.stats?.area_km2 === "number" ? res.stats.area_km2 : 0);
-      const polyCount = res.geojson?.features?.length ?? 0;
+      const changedArea =
+        typeof res.stats?.changed_area_km2 === "number"
+          ? res.stats.changed_area_km2
+          : typeof res.stats?.area_km2 === "number"
+            ? res.stats.area_km2
+            : 0;
+      const polyCount =
+        typeof res.stats?.polygon_count === "number"
+          ? res.stats.polygon_count
+          : (res.geojson?.features?.length ?? 0);
+      const threshold =
+        typeof res.stats?.threshold === "number" ? res.stats.threshold : 0;
+
+      const aoiCenter = compareAoi
+        ? {
+            lon: (compareAoi.bbox.west + compareAoi.bbox.east) / 2,
+            lat: (compareAoi.bbox.south + compareAoi.bbox.north) / 2,
+          }
+        : null;
+      if (aoiCenter) {
+        const span = compareAoi
+          ? Math.max(
+              Math.abs(compareAoi.bbox.east - compareAoi.bbox.west),
+              Math.abs(compareAoi.bbox.north - compareAoi.bbox.south),
+              0.01
+            )
+          : 0.05;
+        setComputedTarget({
+          lon: aoiCenter.lon,
+          lat: aoiCenter.lat,
+          height: Math.max(1500, Math.min(span * 111000 * 1.8, 50000)),
+          pitch: -90,
+        });
+      }
 
       setCompareOutput({
         changedAreaKm2: +changedArea.toFixed(2),
-        pctDelta: changedArea > 0 ? `+${(changedArea * 0.8).toFixed(1)}%` : "0.0%",
-        degradedZones: polyCount,
+        threshold,
+        changePolygons: Math.round(polyCount),
+        answer: res.answer,
       });
-      onAskAI(`Bi-temporal surface comparison completed between ${compareDateA} and ${compareDateB}. Detected surface delta: ${changedArea.toFixed(2)} km² across ${polyCount} zones.`);
+      onAskAI(
+        `Bi-temporal ${indexName} comparison completed` +
+          (dateA && dateB ? ` (${dateA} → ${dateB})` : "") +
+          (compareAoi ? ` over AOI ${formatBBoxLabel(compareAoi.bbox)}` : "") +
+          `. Detected surface delta: ${changedArea.toFixed(2)} km² across ${Math.round(polyCount)} zones.`
+      );
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Comparison failed";
-      alert(`Change Detection Error: ${msg}`);
+      setCompareError(msg);
     } finally {
       setIsComparing(false);
     }
@@ -567,43 +1050,49 @@ export default function WorkspaceModal({
       case "compare":
         return {
           title: "Bi-Temporal Surface Change Detection",
-          sub: "Isolate surface elevation shifts, flood inundation, and deforestation scars across multi-pass satellite captures.",
+          sub: "Feature Locked: Multi-pass Sentinel-2 delta analysis and surface change detection is coming soon in the next release.",
           icon: GitCompare,
+          isLocked: true,
         };
       case "monitor":
         return {
           title: "Autonomous Persistent Sentinel Watches",
-          sub: "Configure persistent cron-driven triggers and email intelligence alerts for critical areas of interest (AOIs).",
+          sub: "Feature Locked: Automated cron-driven surveillance triggers and alert feeds are coming soon in the next release.",
           icon: Clock,
+          isLocked: true,
         };
       case "projects":
         return {
           title: "Investigation Projects Portfolio",
           sub: "Organize, review, and collaborate on multi-mission geospatial intelligence investigations.",
           icon: Folder,
+          isLocked: false,
         };
       case "data-library":
         return {
           title: "Upload & Satellite Scene Ingestion",
           sub: "Upload native raster GeoTIFF files (.tif, .tiff), ingest Sentinel-2 / PlanetScope scenes, and manage catalog pyramids.",
           icon: UploadCloud,
+          isLocked: false,
         };
       case "reports":
         return {
           title: "Intelligence Dossiers & Export Center",
-          sub: "Generate, preview, and download formal multi-page PDF intelligence briefs for operational stakeholders.",
+          sub: "Feature Locked: Multi-page operational mission briefings and PDF dossier generation is coming soon in the next release.",
           icon: FileText,
+          isLocked: true,
         };
       default:
         return {
-          title: "SatQuery Workspace",
+          title: "SOLEN Workspace",
           sub: "Enterprise remote sensing platform.",
           icon: Compass,
+          isLocked: false,
         };
     }
   };
 
-  const { title, sub, icon: HeaderIcon } = getTabHeader();
+  const { title, sub, icon: HeaderIcon, isLocked } = getTabHeader();
 
   if (!activeTab || activeTab === "dashboard") return null;
 
@@ -616,11 +1105,23 @@ export default function WorkspaceModal({
         {/* ── Modal Header ────────────────────────────────────────── */}
         <div className="workspace-modal-header">
           <div className="workspace-modal-header__left">
-            <div className="workspace-modal-header__icon">
-              <HeaderIcon size={22} color="#22d3ee" />
+            <div className={`workspace-modal-header__icon ${isLocked ? "workspace-modal-header__icon--locked" : ""}`}>
+              {isLocked ? (
+                <Lock size={20} color="#f59e0b" />
+              ) : (
+                <HeaderIcon size={22} color="#22d3ee" />
+              )}
             </div>
             <div>
-              <h2 className="workspace-modal-header__title">{title}</h2>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="workspace-modal-header__title">{title}</h2>
+                {isLocked && (
+                  <span className="workspace-header__coming-soon-badge">
+                    <Lock size={10} />
+                    COMING SOON
+                  </span>
+                )}
+              </div>
               <p className="workspace-modal-header__sub">{sub}</p>
             </div>
           </div>
@@ -765,6 +1266,85 @@ export default function WorkspaceModal({
                   <span className="workspace-card__title">Select Multispectral Index</span>
                 </div>
 
+                {/* Spatial Reference Status Card */}
+                {roi ? (
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-emerald-950/40 border border-emerald-500/40 mb-3.5">
+                    <div className="flex items-center gap-2.5">
+                      <Crosshair size={16} className="text-emerald-400 shrink-0" />
+                      <div>
+                        <div className="text-xs font-semibold text-emerald-300 flex items-center gap-1.5">
+                          <span>Spatial Reference: Drawn AOI</span>
+                          <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/30">Active</span>
+                        </div>
+                        <div className="text-[11px] text-slate-300 font-mono mt-0.5">
+                          Bounding Box: {roi.bbox.south.toFixed(4)}°N, {roi.bbox.west.toFixed(4)}°E → {roi.bbox.north.toFixed(4)}°N, {roi.bbox.east.toFixed(4)}°E
+                        </div>
+                      </div>
+                    </div>
+                    {onStartDrawAOI && (
+                      <button
+                        type="button"
+                        onClick={onStartDrawAOI}
+                        className="px-2.5 py-1 rounded text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all cursor-pointer flex items-center gap-1.5"
+                        title="Redraw Area of Interest on 3D globe"
+                      >
+                        <Crop size={12} className="text-emerald-400" />
+                        <span>Redraw AOI</span>
+                      </button>
+                    )}
+                  </div>
+                ) : currentSceneId ? (
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-cyan-950/40 border border-cyan-500/40 mb-3.5">
+                    <div className="flex items-center gap-2.5">
+                      <Layers size={16} className="text-cyan-400 shrink-0" />
+                      <div>
+                        <div className="text-xs font-semibold text-cyan-300 flex items-center gap-1.5">
+                          <span>Spatial Reference: Mounted Satellite Scene</span>
+                          <span className="text-[10px] bg-cyan-500/20 text-cyan-400 px-1.5 py-0.5 rounded border border-cyan-500/30">Mounted</span>
+                        </div>
+                        <div className="text-[11px] text-slate-300 font-mono mt-0.5 truncate max-w-[320px]">
+                          Scene ID: {currentSceneId}
+                        </div>
+                      </div>
+                    </div>
+                    {onStartDrawAOI && (
+                      <button
+                        type="button"
+                        onClick={onStartDrawAOI}
+                        className="px-2.5 py-1 rounded text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all cursor-pointer flex items-center gap-1.5"
+                        title="Crop a localized sub-region AOI"
+                      >
+                        <Crop size={12} className="text-cyan-400" />
+                        <span>Crop AOI Box</span>
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-3.5 rounded-lg bg-amber-950/30 border border-amber-500/40 mb-3.5 shadow-sm">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle size={18} className="text-amber-400 shrink-0 mt-0.5" />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-bold text-amber-300">Spatial Reference Required</div>
+                        <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
+                          Spectral index computation cannot run without a target reference. Please draw an <strong>Area of Interest (AOI) box on the 3D globe</strong> or select a satellite scene from the Data Library.
+                        </p>
+                        <div className="flex items-center gap-2 mt-2.5">
+                          {onStartDrawAOI && (
+                            <button
+                              type="button"
+                              onClick={onStartDrawAOI}
+                              className="px-3 py-1.5 rounded-md text-xs font-semibold bg-amber-500/25 hover:bg-amber-500/40 text-amber-200 border border-amber-500/50 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm hover:scale-[1.02]"
+                            >
+                              <Crop size={14} className="text-amber-300" />
+                              <span>Draw AOI on 3D Globe</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="workspace-indices-grid">
                   {[
                     {
@@ -842,13 +1422,19 @@ export default function WorkspaceModal({
                   <button
                     type="button"
                     onClick={handleRunSpectralIndex}
-                    disabled={isCalculatingIndex}
-                    className="workspace-primary-btn"
+                    disabled={isCalculatingIndex || (!roi && !currentSceneId)}
+                    className="workspace-primary-btn disabled:opacity-40 disabled:cursor-not-allowed"
+                    title={!roi && !currentSceneId ? "Spatial reference required: Please draw an AOI on the globe or mount a scene first" : undefined}
                   >
                     {isCalculatingIndex ? (
                       <>
                         <RefreshCw size={15} className="animate-spin" />
                         <span>Computing Raster Index…</span>
+                      </>
+                    ) : !roi && !currentSceneId ? (
+                      <>
+                        <AlertTriangle size={15} className="text-amber-400" />
+                        <span>Spatial Reference Required (Draw AOI First)</span>
                       </>
                     ) : (
                       <>
@@ -859,13 +1445,40 @@ export default function WorkspaceModal({
                   </button>
                 </div>
 
-                {/* Output Stats */}
+                {/* Output Stats & Distinct Zones Directory */}
                 {indexResult && (
                   <div className="workspace-results-box">
-                    <div className="workspace-results-box__title">Spectral Computation Results</div>
+                    {/* Top Status & Master Action */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2 pb-3 border-b border-slate-800/80">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Check size={16} className="text-emerald-400 shrink-0" />
+                          <span className="text-xs font-bold text-emerald-400 tracking-wide uppercase">
+                            Scan Complete — {detectedZones.length > 0 ? `${detectedZones.length} Distinct Zones Detected` : "Layer Ready on Globe"}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          {detectedZones.length > 0
+                            ? "Review coordinates below and select any zone to fly directly to it, or view the full overview."
+                            : "The computed spectral overlay is active on the globe."}
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleFlyToOverview}
+                        className="px-3.5 py-2 rounded-lg text-xs font-semibold bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/40 transition-all flex items-center gap-2 cursor-pointer shrink-0 shadow-lg shadow-emerald-950/40"
+                        title="Fly out to view all detected zones at once"
+                      >
+                        <Navigation size={13} className="text-emerald-400" />
+                        <span>✈️ Fly to Full Cluster ({detectedZones.length > 0 ? `${detectedZones.length} Zones` : "Overview"})</span>
+                      </button>
+                    </div>
+
+                    {/* Stats Grid */}
                     <div className="workspace-results-grid">
                       <div className="workspace-stat-item">
-                        <span className="workspace-stat-lbl">Detected Area</span>
+                        <span className="workspace-stat-lbl">Total Detected Area</span>
                         <span className="workspace-stat-val text-emerald-400">
                           {indexResult.areaKm2} km²
                         </span>
@@ -877,12 +1490,145 @@ export default function WorkspaceModal({
                         </span>
                       </div>
                       <div className="workspace-stat-item">
-                        <span className="workspace-stat-lbl">Sector Coverage</span>
+                        <span className="workspace-stat-lbl">Distinct Zones</span>
                         <span className="workspace-stat-val text-amber-400">
-                          {indexResult.pctCover}
+                          {detectedZones.length > 0 ? `${detectedZones.length} zones` : indexResult.pctCover}
                         </span>
                       </div>
                     </div>
+
+                    {/* Distinct Zones Menu & Coordinates Directory */}
+                    {detectedZones.length > 0 ? (
+                      <div className="mt-3 pt-3 border-t border-slate-800/80">
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-slate-200 tracking-wide">
+                              🎯 Choose Zone to Fly to:
+                            </span>
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-emerald-400 border border-emerald-500/30">
+                              {filteredAndSortedZones.length} zones
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {/* Filter input */}
+                            <div className="relative">
+                              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                              <input
+                                type="text"
+                                placeholder="Filter zones / coords..."
+                                value={zoneSearchQuery}
+                                onChange={(e) => {
+                                  setZoneSearchQuery(e.target.value);
+                                  setZonePage(1);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    if (pagedZones.length > 0) {
+                                      handleFlyToZone(pagedZones[0]);
+                                    }
+                                  }
+                                }}
+                                className="pl-7 pr-2.5 py-1 text-xs bg-slate-900/90 border border-slate-700/80 rounded-md text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500/60 w-44"
+                              />
+                            </div>
+
+                            {/* Sort select */}
+                            <select
+                              value={zoneSortBy}
+                              onChange={(e) => setZoneSortBy(e.target.value as any)}
+                              className="py-1 px-2 text-xs bg-slate-900/90 border border-slate-700/80 rounded-md text-slate-300 focus:outline-none focus:border-emerald-500/60 cursor-pointer"
+                            >
+                              <option value="area-desc">Largest Area</option>
+                              <option value="area-asc">Smallest Area</option>
+                              <option value="number">Zone # Order</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Zone Cards List */}
+                        <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                          {pagedZones.map((zone) => (
+                            <div
+                              key={zone.id}
+                              className={`flex items-center justify-between p-2.5 rounded-lg border transition-all gap-3 group ${
+                                selectedZoneId === zone.id
+                                  ? "bg-emerald-950/40 border-emerald-500/60 shadow-md shadow-emerald-950/30"
+                                  : "bg-slate-900/70 hover:bg-slate-800/80 border-slate-800/90 hover:border-emerald-500/40"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <span className="text-[11px] font-bold font-mono px-2 py-1 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shrink-0">
+                                  #{String(zone.zoneNumber).padStart(2, "0")}
+                                </span>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-semibold text-slate-200 truncate">
+                                      {zone.label}
+                                    </span>
+                                    <span className="text-[10px] text-slate-400 font-mono bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700/60 shrink-0">
+                                      {zone.areaM2 >= 10000 ? `${zone.areaKm2} km²` : `${zone.areaM2.toLocaleString()} m²`}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-mono mt-0.5">
+                                    <MapPin size={11} className="text-emerald-400/70 shrink-0" />
+                                    <span>{zone.coordsFormatted}</span>
+                                    <span className="text-[10px] text-slate-500">({zone.centerLat.toFixed(5)}, {zone.centerLon.toFixed(5)})</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => handleFlyToZone(zone)}
+                                className="px-3 py-1.5 rounded-md text-xs font-semibold bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-300 border border-emerald-500/40 hover:border-emerald-400 transition-all flex items-center gap-1.5 shrink-0 cursor-pointer shadow-sm group-hover:scale-105"
+                                title={`Fly to ${zone.label} at (${zone.coordsFormatted})`}
+                              >
+                                <span>Fly to Zone</span>
+                                <Crosshair size={13} className="text-emerald-400" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Pagination */}
+                        {totalZonePages > 1 && (
+                          <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-slate-800/60 text-xs text-slate-400">
+                            <span>
+                              Showing {(zonePage - 1) * ZONE_PAGE_SIZE + 1}–{Math.min(zonePage * ZONE_PAGE_SIZE, filteredAndSortedZones.length)} of {filteredAndSortedZones.length} zones
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                disabled={zonePage <= 1}
+                                onClick={() => setZonePage((p) => Math.max(1, p - 1))}
+                                className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1 text-[11px]"
+                              >
+                                <ChevronLeft size={13} />
+                                <span>Prev</span>
+                              </button>
+                              <span className="px-2 text-[11px] font-mono text-slate-300">
+                                {zonePage} / {totalZonePages}
+                              </span>
+                              <button
+                                type="button"
+                                disabled={zonePage >= totalZonePages}
+                                onClick={() => setZonePage((p) => Math.min(totalZonePages, p + 1))}
+                                className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1 text-[11px]"
+                              >
+                                <span>Next</span>
+                                <ChevronRight size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-slate-400 mt-2.5 pt-2 border-t border-slate-800/60">
+                        The computed {selectedIndex.toUpperCase()} overlay is actively projected onto the satellite scene. Click <strong>&quot;Fly to Full Cluster&quot;</strong> to inspect the highlighted regions.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -899,6 +1645,85 @@ export default function WorkspaceModal({
                   <Scan size={16} color="#fb923c" />
                   <span className="workspace-card__title">YOLOv8-OBB Detection Classes</span>
                 </div>
+
+                {/* Spatial Reference Status Card */}
+                {roi ? (
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-emerald-950/40 border border-emerald-500/40 mb-3.5">
+                    <div className="flex items-center gap-2.5">
+                      <Crosshair size={16} className="text-emerald-400 shrink-0" />
+                      <div>
+                        <div className="text-xs font-semibold text-emerald-300 flex items-center gap-1.5">
+                          <span>Spatial Reference: Drawn AOI</span>
+                          <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/30">Active</span>
+                        </div>
+                        <div className="text-[11px] text-slate-300 font-mono mt-0.5">
+                          Bounding Box: {roi.bbox.south.toFixed(4)}°N, {roi.bbox.west.toFixed(4)}°E → {roi.bbox.north.toFixed(4)}°N, {roi.bbox.east.toFixed(4)}°E
+                        </div>
+                      </div>
+                    </div>
+                    {onStartDrawAOI && (
+                      <button
+                        type="button"
+                        onClick={onStartDrawAOI}
+                        className="px-2.5 py-1 rounded text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all cursor-pointer flex items-center gap-1.5"
+                        title="Redraw Area of Interest on 3D globe"
+                      >
+                        <Crop size={12} className="text-emerald-400" />
+                        <span>Redraw AOI</span>
+                      </button>
+                    )}
+                  </div>
+                ) : currentSceneId ? (
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-cyan-950/40 border border-cyan-500/40 mb-3.5">
+                    <div className="flex items-center gap-2.5">
+                      <Layers size={16} className="text-cyan-400 shrink-0" />
+                      <div>
+                        <div className="text-xs font-semibold text-cyan-300 flex items-center gap-1.5">
+                          <span>Spatial Reference: Mounted Satellite Scene</span>
+                          <span className="text-[10px] bg-cyan-500/20 text-cyan-400 px-1.5 py-0.5 rounded border border-cyan-500/30">Mounted</span>
+                        </div>
+                        <div className="text-[11px] text-slate-300 font-mono mt-0.5 truncate max-w-[320px]">
+                          Scene ID: {currentSceneId}
+                        </div>
+                      </div>
+                    </div>
+                    {onStartDrawAOI && (
+                      <button
+                        type="button"
+                        onClick={onStartDrawAOI}
+                        className="px-2.5 py-1 rounded text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all cursor-pointer flex items-center gap-1.5"
+                        title="Crop a localized sub-region AOI"
+                      >
+                        <Crop size={12} className="text-cyan-400" />
+                        <span>Crop AOI Box</span>
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-3.5 rounded-lg bg-amber-950/30 border border-amber-500/40 mb-3.5 shadow-sm">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle size={18} className="text-amber-400 shrink-0 mt-0.5" />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-bold text-amber-300">Spatial Reference Required</div>
+                        <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
+                          Satellite object detection and target counting cannot run without a target reference. Please draw an <strong>Area of Interest (AOI) box on the 3D globe</strong> or mount a satellite scene from the Data Library.
+                        </p>
+                        <div className="flex items-center gap-2 mt-2.5">
+                          {onStartDrawAOI && (
+                            <button
+                              type="button"
+                              onClick={onStartDrawAOI}
+                              className="px-3 py-1.5 rounded-md text-xs font-semibold bg-amber-500/25 hover:bg-amber-500/40 text-amber-200 border border-amber-500/50 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm hover:scale-[1.02]"
+                            >
+                              <Crop size={14} className="text-amber-300" />
+                              <span>Draw AOI on 3D Globe</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="workspace-classes-grid">
                   {[
@@ -953,13 +1778,19 @@ export default function WorkspaceModal({
                   <button
                     type="button"
                     onClick={handleRunDetection}
-                    disabled={isDetecting || selectedClasses.length === 0}
-                    className="workspace-primary-btn"
+                    disabled={isDetecting || selectedClasses.length === 0 || (!roi && !currentSceneId)}
+                    className="workspace-primary-btn disabled:opacity-40 disabled:cursor-not-allowed"
+                    title={!roi && !currentSceneId ? "Spatial reference required: Please draw an AOI on the globe or mount a scene first" : undefined}
                   >
                     {isDetecting ? (
                       <>
                         <RefreshCw size={15} className="animate-spin" />
                         <span>Running YOLO-OBB Inference…</span>
+                      </>
+                    ) : !roi && !currentSceneId ? (
+                      <>
+                        <AlertTriangle size={15} className="text-amber-400" />
+                        <span>Spatial Reference Required (Draw AOI First)</span>
                       </>
                     ) : (
                       <>
@@ -1033,7 +1864,11 @@ export default function WorkspaceModal({
                               <td><code>{d.id}</code></td>
                               <td>{d.label}</td>
                               <td className="text-emerald-400">{(d.conf * 100).toFixed(1)}%</td>
-                              <td>{d.lat.toFixed(4)}°N, {d.lon.toFixed(4)}°E</td>
+                              <td>
+                                {Math.abs(d.lat) <= 90 && Math.abs(d.lon) <= 180
+                                  ? `${Math.abs(d.lat).toFixed(4)}°${d.lat >= 0 ? "N" : "S"}, ${Math.abs(d.lon).toFixed(4)}°${d.lon >= 0 ? "E" : "W"}`
+                                  : `UTM: ${d.lat.toFixed(0)}m N, ${d.lon.toFixed(0)}m E`}
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -1101,215 +1936,39 @@ export default function WorkspaceModal({
           )}
 
           {/* ═════════════════════════════════════════════════════════
-              TAB: COMPARE (Bi-Temporal Change Detection)
+              TAB: COMPARE (Bi-Temporal Change Detection) [LOCKED]
              ═════════════════════════════════════════════════════════ */}
           {activeTab === "compare" && (
-            <div className="workspace-compare">
-              <div className="workspace-card">
-                <div className="workspace-card__title-row">
-                  <GitCompare size={16} color="#a855f7" />
-                  <span className="workspace-card__title">Bi-Temporal Multi-Pass Differential</span>
-                </div>
-
-                <div className="workspace-compare-dates-grid">
-                  <div className="workspace-compare-date-box">
-                    <label className="workspace-lbl">Pass A (Baseline Scene):</label>
-                    <input
-                      type="date"
-                      value={compareDateA}
-                      onChange={(e) => setCompareDateA(e.target.value)}
-                      className="workspace-date-input"
-                    />
-                    <div className="workspace-date-meta">Sentinel-2 Tile 43QFB (0% Clouds)</div>
-                  </div>
-
-                  <div className="workspace-compare-divider">
-                    <GitCompare size={20} color="#94a3b8" />
-                  </div>
-
-                  <div className="workspace-compare-date-box">
-                    <label className="workspace-lbl">Pass B (Observation Scene):</label>
-                    <input
-                      type="date"
-                      value={compareDateB}
-                      onChange={(e) => setCompareDateB(e.target.value)}
-                      className="workspace-date-input"
-                    />
-                    <div className="workspace-date-meta">Sentinel-2 Tile 43QFB (1.2% Clouds)</div>
-                  </div>
-                </div>
-
-                <div className="workspace-action-row">
-                  <button
-                    type="button"
-                    onClick={handleRunCompare}
-                    disabled={isComparing}
-                    className="workspace-primary-btn"
-                  >
-                    {isComparing ? (
-                      <>
-                        <RefreshCw size={15} className="animate-spin" />
-                        <span>Computing Differential Delta…</span>
-                      </>
-                    ) : (
-                      <>
-                        <GitCompare size={15} />
-                        <span>Compute Surface Change Delta</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                {compareOutput && (
-                  <div className="workspace-results-box">
-                    <div className="workspace-results-box__title">Change Detection Verdict</div>
-                    <div className="workspace-results-grid">
-                      <div className="workspace-stat-item">
-                        <span className="workspace-stat-lbl">Net Changed Surface</span>
-                        <span className="workspace-stat-val text-red-400">
-                          {compareOutput.changedAreaKm2} km²
-                        </span>
-                      </div>
-                      <div className="workspace-stat-item">
-                        <span className="workspace-stat-lbl">Variance Percentage</span>
-                        <span className="workspace-stat-val text-amber-400">
-                          {compareOutput.pctDelta}
-                        </span>
-                      </div>
-                      <div className="workspace-stat-item">
-                        <span className="workspace-stat-lbl">Degraded Hotspot Clusters</span>
-                        <span className="workspace-stat-val text-cyan-400">
-                          {compareOutput.degradedZones} Polygons
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+            <WorkspaceFeatureLocked
+              featureName="Bi-Temporal Change Detection"
+              description="Automated pixel-level delta comparison across multi-pass Sentinel-2 and commercial satellite constellations is currently locked for algorithmic optimization."
+              roadmapPoints={[
+                "Automated cloud-shadow masking and coregistration alignment across temporal passes",
+                "Delta indices computation (NDVI vegetation gain/loss, NDWI flood inundation, NDBI urban growth)",
+                "Pixel-level change threshold segmentation with polygon vector export",
+              ]}
+              icon={GitCompare}
+              onExploreLive={() => (onTabChange ? onTabChange("detections") : onClose())}
+              onClose={onClose}
+            />
           )}
 
           {/* ═════════════════════════════════════════════════════════
-              TAB: MONITOR (Automated Watches)
+              TAB: MONITOR (Automated Watches) [LOCKED]
              ═════════════════════════════════════════════════════════ */}
           {activeTab === "monitor" && (
-            <div className="workspace-monitor">
-              {/* Form to create new watch */}
-              <div className="workspace-card">
-                <div className="workspace-card__title-row">
-                  <Plus size={16} color="#10b981" />
-                  <span className="workspace-card__title">Create Automated Sentinel Watch</span>
-                </div>
-
-                <form onSubmit={handleCreateWatch} className="workspace-watch-form">
-                  <div className="workspace-watch-form__row">
-                    <div className="workspace-form-field">
-                      <label>Watch Label / Sector Name:</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Mumbai Coastal Flood Sentinel"
-                        value={newWatchLabel}
-                        onChange={(e) => setNewWatchLabel(e.target.value)}
-                        required
-                        className="workspace-text-input"
-                      />
-                    </div>
-
-                    <div className="workspace-form-field">
-                      <label>Notification Recipient Email:</label>
-                      <input
-                        type="email"
-                        value={newWatchEmail}
-                        onChange={(e) => setNewWatchEmail(e.target.value)}
-                        required
-                        className="workspace-text-input"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="workspace-watch-form__row">
-                    <div className="workspace-form-field">
-                      <label>Anomaly Condition Trigger:</label>
-                      <select
-                        value={newWatchType}
-                        onChange={(e) => setNewWatchType(e.target.value as any)}
-                        className="workspace-select-input"
-                      >
-                        <option value="flood">Flood Inundation Alert (NDWI &gt; 0.0)</option>
-                        <option value="fire">Wildfire Scar Expansion (NBR Drop &gt; 15%)</option>
-                        <option value="vessel">Vessel Cluster Incursion (Vessels &gt; 5)</option>
-                      </select>
-                    </div>
-
-                    <div className="workspace-form-field" style={{ alignSelf: "flex-end" }}>
-                      <button
-                        type="submit"
-                        disabled={watchSubmitting || !newWatchLabel.trim()}
-                        className="workspace-primary-btn"
-                        style={{ width: "100%" }}
-                      >
-                        {watchSubmitting ? (
-                          <RefreshCw size={15} className="animate-spin" />
-                        ) : (
-                          <Plus size={15} />
-                        )}
-                        <span>Deploy Autonomous Watch</span>
-                      </button>
-                    </div>
-                  </div>
-                </form>
-              </div>
-
-              {/* Active Watches List */}
-              <div className="workspace-card">
-                <div className="workspace-card__title-row">
-                  <Clock size={16} color="#38bdf8" />
-                  <span className="workspace-card__title">Active Surveillance Monitors</span>
-                  <span className="workspace-card__badge">{watches.length} Registered</span>
-                </div>
-
-                {loadingWatches ? (
-                  <div className="workspace-loading-state">
-                    <RefreshCw size={18} className="animate-spin" />
-                    <span>Loading surveillance watches…</span>
-                  </div>
-                ) : watches.length === 0 ? (
-                  <div className="workspace-empty-state">
-                    No active monitors configured yet. Deploy your first watch above.
-                  </div>
-                ) : (
-                  <div className="workspace-watches-list">
-                    {watches.map((w) => (
-                      <div key={w.id} className="workspace-watch-item">
-                        <div className="workspace-watch-item__left">
-                          <div className="workspace-watch-item__status">
-                            <span className="workspace-status-dot workspace-status-dot--active" />
-                            <span className="workspace-watch-item__status-text">RUNNING</span>
-                          </div>
-                          <h4 className="workspace-watch-item__title">{w.label}</h4>
-                          <div className="workspace-watch-item__meta">
-                            <span>Recipient: {w.email}</span>
-                            <span>•</span>
-                            <span>Schedule: Daily on Satellite Pass</span>
-                          </div>
-                        </div>
-
-                        <div className="workspace-watch-item__right">
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteWatch(w.id)}
-                            className="workspace-watch-delete-btn"
-                            title="Deactivate watch"
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+            <WorkspaceFeatureLocked
+              featureName="Autonomous Sentinel Watches"
+              description="Autonomous orbital overpass monitoring and automated event triggers are currently locked pending cloud cron orchestration rollout."
+              roadmapPoints={[
+                "Scheduled Sentinel-2 overpass polling against user-drawn AOI bounding boxes",
+                "Automatic threshold alert triggers (flood inundation, maritime vessel clusters, deforestation)",
+                "Instant webhook, Slack, and email notifications with snapshot previews",
+              ]}
+              icon={Clock}
+              onExploreLive={() => (onTabChange ? onTabChange("detections") : onClose())}
+              onClose={onClose}
+            />
           )}
 
           {/* ═════════════════════════════════════════════════════════
@@ -1647,26 +2306,23 @@ export default function WorkspaceModal({
           )}
 
           {/* ═════════════════════════════════════════════════════════
-              TAB: REPORTS (Intelligence Dossiers)
+              TAB: REPORTS (Intelligence Dossiers) [LOCKED]
              ═════════════════════════════════════════════════════════ */}
           {activeTab === "reports" && (
-            <div className="workspace-reports">
-              <div className="workspace-card">
-                <div className="workspace-card__title-row">
-                  <FileText size={16} color="#38bdf8" />
-                  <span className="workspace-card__title">Generated Intelligence Dossiers</span>
-                  <span className="workspace-card__badge">A4 Standard Format</span>
-                </div>
-
-                <div className="workspace-reports-list">
-                  <div className="workspace-report-item">
-                    <h4 className="workspace-report-title">No completed reports in this workspace</h4>
-                    <p className="workspace-report-findings">Reports can only be exported from a completed analysis with its source scene and computed findings. Create an analysis in the copilot to generate the first dossier.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <WorkspaceFeatureLocked
+              featureName="Intelligence Dossiers & Export Center"
+              description="Automated multi-page intelligence dossier export and classified briefing report generation is currently locked for final PDF rendering certification."
+              roadmapPoints={[
+                "Formal PDF mission briefings with executive summary, metadata provenance, and bounding boxes",
+                "High-resolution raster map inserts with calibrated scale bars and North arrows",
+                "Classification watermarks (Unclassified, Restricted, Secret) and chain-of-custody hashes",
+              ]}
+              icon={FileText}
+              onExploreLive={() => (onTabChange ? onTabChange("detections") : onClose())}
+              onClose={onClose}
+            />
           )}
+
         </div>
       </div>
     </div>

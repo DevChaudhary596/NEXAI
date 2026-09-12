@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import io
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -55,13 +55,39 @@ async def find_latest_scene(
 ) -> dict[str, Any]:
     """Return the STAC item for the freshest low-cloud Sentinel-2 pass over
     this bbox, or raise NoImageryFoundError."""
-    body = {
+    return await find_scene_for_aoi(west, south, east, north, target_date=None)
+
+
+async def find_scene_for_aoi(
+    west: float,
+    south: float,
+    east: float,
+    north: float,
+    target_date: str | None = None,
+) -> dict[str, Any]:
+    """Return a low-cloud Sentinel-2 STAC item for this bbox.
+
+    Without ``target_date``, returns the freshest pass. With an ISO date
+    (YYYY-MM-DD), searches ±45 days and returns the pass closest to that day.
+    """
+    body: dict[str, Any] = {
         "collections": [COLLECTION],
         "bbox": [west, south, east, north],
         "query": {"eo:cloud_cover": {"lt": MAX_CLOUD_COVER}},
         "sortby": [{"field": "properties.datetime", "direction": "desc"}],
-        "limit": 1,
+        "limit": 1 if not target_date else 25,
     }
+
+    target_dt: datetime | None = None
+    if target_date:
+        try:
+            target_dt = datetime.fromisoformat(target_date).replace(tzinfo=timezone.utc)
+        except ValueError as exc:
+            raise NoImageryFoundError(f"Invalid target_date '{target_date}': {exc}") from exc
+        window_start = (target_dt - timedelta(days=45)).strftime("%Y-%m-%dT00:00:00Z")
+        window_end = (target_dt + timedelta(days=45)).strftime("%Y-%m-%dT23:59:59Z")
+        body["datetime"] = f"{window_start}/{window_end}"
+
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(STAC_SEARCH_URL, json=body)
         resp.raise_for_status()
@@ -69,11 +95,21 @@ async def find_latest_scene(
 
     features = data.get("features", [])
     if not features:
+        if target_date:
+            raise NoImageryFoundError(
+                f"No Sentinel-2 pass with <{MAX_CLOUD_COVER}% cloud cover near {target_date} for this area."
+            )
         raise NoImageryFoundError(
             f"No Sentinel-2 pass with <{MAX_CLOUD_COVER}% cloud cover found for this area."
         )
-    return features[0]
 
+    if target_dt is None:
+        return features[0]
+
+    def _distance(item: dict[str, Any]) -> float:
+        return abs((_scene_datetime(item) - target_dt).total_seconds())
+
+    return min(features, key=_distance)
 
 def crop_scene_to_geotiff(item: dict[str, Any], west: float, south: float, east: float, north: float) -> bytes:
     """Read the AOI window out of each of the item's Blue/Green/Red/NIR

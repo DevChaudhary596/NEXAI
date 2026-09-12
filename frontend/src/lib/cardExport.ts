@@ -91,7 +91,7 @@ export async function exportAnswerCardAsImage(params: {
   // 4. Header Bar
   ctx.fillStyle = "#22c55e";
   ctx.font = "bold 13px monospace";
-  ctx.fillText("SATQUERY AI // AUTONOMOUS GEOSPATIAL INTELLIGENCE DOSSIER", 60, 75);
+  ctx.fillText("SOLEN // AUTONOMOUS GEOSPATIAL INTELLIGENCE DOSSIER", 60, 75);
 
   // Classification Badge
   const classText = classification.toUpperCase();

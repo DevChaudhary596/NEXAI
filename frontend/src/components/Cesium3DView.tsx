@@ -19,6 +19,8 @@ import {
   Sparkles,
   X,
   SquareDashed,
+  BoxSelect,
+  GripVertical,
 } from "lucide-react";
 import type { FeatureCollection, FeatureSource, RasterOverlay, ROI } from "@/types";
 import { getTileUrl } from "@/lib/api";
@@ -58,6 +60,7 @@ interface Cesium3DViewProps {
   roi?: ROI | null;
   onROIChange?: (roi: ROI | null) => void;
   onRegisterCapture?: (fn: () => Promise<LiveViewportCapture | null>) => void;
+  onRegisterDrawAOI?: (fn: () => void) => void;
 }
 
 /** Low Earth Orbit Satellite Specification */
@@ -202,6 +205,7 @@ export default function Cesium3DView({
   roi,
   onROIChange,
   onRegisterCapture,
+  onRegisterDrawAOI,
 }: Cesium3DViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Cesium.Viewer | null>(null);
@@ -243,6 +247,78 @@ export default function Cesium3DView({
     return d.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
   });
   const [isHeroDismissed, setIsHeroDismissed] = useState(false);
+
+  // Draggable Globe Controls Toolbar State
+  const [controlsPos, setControlsPos] = useState<{ x: number; y: number } | null>(null);
+  const isDraggingControlsRef = useRef(false);
+  const controlsDragStartPointer = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const controlsDragStartPos = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  // Guarantee map controls are never lost off-screen: clear any legacy bad localStorage coordinates on mount
+  useEffect(() => {
+    try {
+      localStorage.removeItem("solen_globe_controls_pos");
+    } catch {
+      // ignore
+    }
+    setControlsPos(null);
+  }, []);
+
+  // Reset controls position to default whenever fullscreen mode toggles
+  useEffect(() => {
+    setControlsPos(null);
+  }, [isFullScreen]);
+
+  const handleControlsDragStart = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    isDraggingControlsRef.current = true;
+    controlsDragStartPointer.current = { x: e.clientX, y: e.clientY };
+
+    const controlsElem = document.querySelector(".globe-controls") as HTMLElement;
+    if (controlsElem) {
+      const rect = controlsElem.getBoundingClientRect();
+      const parentRect = controlsElem.parentElement?.getBoundingClientRect() || { left: 0, top: 0 };
+      controlsDragStartPos.current = {
+        x: rect.left - parentRect.left,
+        y: rect.top - parentRect.top,
+      };
+    }
+  }, []);
+
+  const handleControlsDragMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingControlsRef.current || !e.currentTarget.hasPointerCapture(e.pointerId)) return;
+    const dx = e.clientX - controlsDragStartPointer.current.x;
+    const dy = e.clientY - controlsDragStartPointer.current.y;
+
+    const controlsElem = document.querySelector(".globe-controls") as HTMLElement;
+    const parent = controlsElem?.parentElement;
+    const parentWidth = parent ? parent.clientWidth : window.innerWidth;
+    const parentHeight = parent ? parent.clientHeight : window.innerHeight;
+    const width = controlsElem ? controlsElem.offsetWidth : 44;
+    const height = controlsElem ? controlsElem.offsetHeight : 320;
+
+    const newX = Math.max(10, Math.min(parentWidth - width - 10, controlsDragStartPos.current.x + dx));
+    const newY = Math.max(10, Math.min(parentHeight - height - 10, controlsDragStartPos.current.y + dy));
+
+    setControlsPos({ x: newX, y: newY });
+  }, []);
+
+  const handleControlsDragEnd = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    isDraggingControlsRef.current = false;
+  }, []);
+
+  const resetControlsPosition = useCallback(() => {
+    setControlsPos(null);
+    try {
+      localStorage.removeItem("solen_globe_controls_pos");
+    } catch {
+      // ignore
+    }
+  }, []);
 
   // ── Initialize the Cesium 3D Globe with Web Mercator High-Res Tiling ──
   useEffect(() => {
@@ -786,6 +862,12 @@ export default function Cesium3DView({
     }
   }, [captureSnapshot, onRegisterCapture]);
 
+  useEffect(() => {
+    if (onRegisterDrawAOI) {
+      onRegisterDrawAOI(startDrawingAOI);
+    }
+  }, [onRegisterDrawAOI, startDrawingAOI]);
+
   // ── Drape Scene when loaded ──────────────────────────────────────────
   useEffect(() => {
     if (!ready || !viewerRef.current) return;
@@ -848,10 +930,29 @@ export default function Cesium3DView({
 
     if (!geojson || geojson.features.length === 0) return;
 
+    let minLon = 180, maxLon = -180, minLat = 90, maxLat = -90;
+    let hasCoords = false;
+
     for (const feature of geojson.features) {
       const source = (feature.properties?.source || "detection") as FeatureSource;
+      const label = (feature.properties?.label || "").toLowerCase();
       const score = typeof feature.properties?.score === "number" ? feature.properties.score : 0.75;
-      const [r, g, b] = SOURCE_COLOR[source] ?? [251, 146, 60];
+      
+      let [r, g, b] = SOURCE_COLOR[source] ?? [251, 146, 60];
+      if (source === "spectral") {
+        if (label.includes("ndvi") || label.includes("vegetation")) {
+          [r, g, b] = [16, 185, 129]; // Emerald Green for Crops & Vegetation
+        } else if (label.includes("ndwi") || label.includes("water") || label.includes("flood")) {
+          [r, g, b] = [14, 165, 233]; // Ocean Cyan/Blue for Water
+        } else if (label.includes("ndbi") || label.includes("built") || label.includes("urban") || label.includes("concrete")) {
+          [r, g, b] = [245, 158, 11]; // Solar Amber for Concrete & Buildings
+        } else if (label.includes("nbr") || label.includes("burn") || label.includes("fire")) {
+          [r, g, b] = [239, 68, 68]; // Crimson Red for Fire/Burn Scars
+        } else if (label.includes("ndmi") || label.includes("moist")) {
+          [r, g, b] = [99, 102, 241]; // Indigo for Moisture
+        }
+      }
+
       const baseHeight = EXTRUSION_HEIGHT[source] ?? 35;
       const height = Math.max(10, baseHeight * Math.max(score, 0.2));
       const color = Cesium.Color.fromBytes(r, g, b, 210);
@@ -865,13 +966,20 @@ export default function Cesium3DView({
             : geometry.coordinates.map((poly) => poly[0]);
 
         for (const ring of rings) {
-          const positions = ring.flatMap(([lon, lat]) => [lon, lat]);
+          const positions = ring.flatMap(([lon, lat]) => {
+            minLon = Math.min(minLon, lon);
+            maxLon = Math.max(maxLon, lon);
+            minLat = Math.min(minLat, lat);
+            maxLat = Math.max(maxLat, lat);
+            hasCoords = true;
+            return [lon, lat];
+          });
+
           dataSource.entities.add({
             polygon: {
               hierarchy: Cesium.Cartesian3.fromDegreesArray(positions),
-              extrudedHeight: height,
-              height: 0,
               material: color,
+              classificationType: Cesium.ClassificationType.BOTH,
               outline: true,
               outlineColor: Cesium.Color.fromBytes(r, g, b, 255),
             },
@@ -879,19 +987,26 @@ export default function Cesium3DView({
         }
       } else if (geometry.type === "Point") {
         const [lon, lat] = geometry.coordinates;
+        minLon = Math.min(minLon, lon);
+        maxLon = Math.max(maxLon, lon);
+        minLat = Math.min(minLat, lat);
+        maxLat = Math.max(maxLat, lat);
+        hasCoords = true;
+
         dataSource.entities.add({
-          position: Cesium.Cartesian3.fromDegrees(lon, lat, height / 2),
-          cylinder: {
-            length: height,
-            topRadius: 8,
-            bottomRadius: 8,
-            material: color,
-            outline: true,
-            outlineColor: Cesium.Color.fromBytes(r, g, b, 255),
+          position: Cesium.Cartesian3.fromDegrees(lon, lat),
+          point: {
+            pixelSize: 14,
+            color: color,
+            outlineColor: Cesium.Color.WHITE,
+            outlineWidth: 2,
+            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
           },
         });
       }
     }
+
+    // GeoJSON polygon entities are loaded and clamped to ground
   }, [ready, geojson]);
 
   // ── Drape Georeferenced Spectral Raster Overlays (NDVI/NDWI/NBR) ──────
@@ -923,15 +1038,6 @@ export default function Cesium3DView({
         layer.alpha = ov.opacity ?? 0.8;
         overlayLayersRef.current.push(layer);
 
-        // Fly camera to spectral overlay
-        const centerLon = (west + east) / 2;
-        const centerLat = (south + north) / 2;
-        const span = Math.max(Math.abs(east - west), Math.abs(north - south));
-        const flyHeight = Math.max(2500, span * 111000 * 1.5);
-        viewer.camera.flyTo({
-          destination: Cesium.Cartesian3.fromDegrees(centerLon, centerLat, flyHeight),
-          duration: 1.8,
-        });
       } catch (err) {
         console.warn("Failed to drape raster overlay onto Cesium:", err);
       }
@@ -1255,9 +1361,14 @@ export default function Cesium3DView({
           </div>
 
           <div className="globe-hud__feed-preview">
-            <img
-              src="/images/theme_live_feed.jpg"
-              alt="Live Satellite Earth Horizon"
+            <video
+              src="/videos/satellite_feed_live.mp4"
+              poster="/images/theme_live_feed.jpg"
+              autoPlay
+              muted
+              loop
+              playsInline
+              className="globe-hud__feed-img"
               style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
             />
             <div className="globe-hud__feed-scanline" />
@@ -1294,7 +1405,34 @@ export default function Cesium3DView({
       )}
 
       {/* ── Floating 3D Globe Navigation Controls ──────────────────── */}
-      <div className="globe-controls">
+      <div
+        className="globe-controls"
+        style={
+          controlsPos
+            ? {
+                left: `${controlsPos.x}px`,
+                top: `${controlsPos.y}px`,
+                right: "auto",
+                bottom: "auto",
+              }
+            : undefined
+        }
+      >
+        {/* Sleek Top Drag Handle */}
+        <div
+          className="globe-controls__drag-handle"
+          onPointerDown={handleControlsDragStart}
+          onPointerMove={handleControlsDragMove}
+          onPointerUp={handleControlsDragEnd}
+          onPointerCancel={handleControlsDragEnd}
+          onDoubleClick={resetControlsPosition}
+          title="Drag to move map controls anywhere (double-click to reset)"
+          aria-label="Drag map controls"
+        >
+          <GripVertical size={14} className="globe-controls__drag-icon" />
+        </div>
+        <div className="globe-ctrl-divider" style={{ margin: "2px 0 3px" }} />
+
         <button
           onClick={handleResetSpaceView}
           className="globe-ctrl-btn"
@@ -1315,7 +1453,7 @@ export default function Cesium3DView({
           title={isDrawingAOI ? "Cancel AOI Drawing (Esc)" : "Draw Area of Interest (AOI) Box on Earth"}
           aria-label="Draw Area of Interest"
         >
-          <SquareDashed size={15} />
+          <BoxSelect size={16} />
         </button>
         <button
           onClick={() => setAutoRotate(!autoRotate)}

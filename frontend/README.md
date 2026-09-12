@@ -1,4 +1,4 @@
-# SatQuery AI — Frontend
+# SOLEN AI — Frontend
 
 **Assigned to**: Member 4 (Next.js, Leaflet, UI/UX)
 

@@ -7,7 +7,7 @@ import type { Classification, FeatureCollection, Provenance } from "@/types";
 const WGS84_PRJ = 'GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]]';
 
 function filename(base: string, extension: string): string {
-  return `${base.replace(/[^a-z0-9_-]+/gi, "_").replace(/^_+|_+$/g, "") || "satquery_analysis"}.${extension}`;
+  return `${base.replace(/[^a-z0-9_-]+/gi, "_").replace(/^_+|_+$/g, "") || "solen_analysis"}.${extension}`;
 }
 
 function download(blob: Blob, name: string): void {
@@ -19,7 +19,7 @@ function download(blob: Blob, name: string): void {
   URL.revokeObjectURL(url);
 }
 
-export function exportGeoJSON(collection: FeatureCollection, baseName = "satquery_analysis"): void {
+export function exportGeoJSON(collection: FeatureCollection, baseName = "solen_analysis"): void {
   download(new Blob([JSON.stringify(collection, null, 2)], { type: "application/geo+json" }), filename(baseName, "geojson"));
 }
 
@@ -39,7 +39,7 @@ function geometryKml(geometry: GeoJSON.Geometry): string {
   return "";
 }
 
-export function exportKML(collection: FeatureCollection, baseName = "satquery_analysis"): void {
+export function exportKML(collection: FeatureCollection, baseName = "solen_analysis"): void {
   const placemarks = collection.features.map((feature) => `<Placemark><name>${escapeXml(feature.properties.label)}</name><description>${escapeXml(JSON.stringify(feature.properties.extra))}</description>${geometryKml(feature.geometry)}</Placemark>`).join("\n");
   const body = `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document>${placemarks}</Document></kml>`;
   download(new Blob([body], { type: "application/vnd.google-earth.kml+xml" }), filename(baseName, "kml"));
@@ -49,7 +49,7 @@ function escapeXml(value: string): string { return value.replace(/[<>&"']/g, (ch
 
 export function generateISO19115XML(
   collection: FeatureCollection,
-  sceneId = "satquery_analysis",
+  sceneId = "solen_analysis",
   provenance?: Provenance | null,
   classification: Classification = "unclassified"
 ): string {
@@ -88,11 +88,11 @@ export function generateISO19115XML(
     <gmd:MD_DataIdentification>
       <gmd:citation>
         <gmd:CI_Citation>
-          <gmd:title><gco:CharacterString>SatQuery Intelligence Dataset — ${escapeXml(sceneId)}</gco:CharacterString></gmd:title>
+          <gmd:title><gco:CharacterString>SOLEN Intelligence Dataset — ${escapeXml(sceneId)}</gco:CharacterString></gmd:title>
           <gmd:date><gmd:CI_Date><gmd:date><gco:DateTime>${now}</gco:DateTime></gmd:date><gmd:dateType><gmd:CI_DateTypeCode codeList="http://www.isotc211.org/2005/resources/Codelist/gmxCodelists.xml#CI_DateTypeCode" codeListValue="creation"/></gmd:dateType></gmd:CI_Date></gmd:date>
         </gmd:CI_Citation>
       </gmd:citation>
-      <gmd:abstract><gco:CharacterString>Multispectral inference dataset produced by SatQuery AI. Method: ${escapeXml(provenance?.analysis_method ?? "remote_sensing")}. Source Scene: ${escapeXml(provenance?.source_filename ?? sceneId)}. SHA-256 Provenance: ${escapeXml(provenance?.sha256 ?? "N/A")}. Data Classification: ${classification.toUpperCase()}.</gco:CharacterString></gmd:abstract>
+      <gmd:abstract><gco:CharacterString>Multispectral inference dataset produced by SOLEN AI. Method: ${escapeXml(provenance?.analysis_method ?? "remote_sensing")}. Source Scene: ${escapeXml(provenance?.source_filename ?? sceneId)}. SHA-256 Provenance: ${escapeXml(provenance?.sha256 ?? "N/A")}. Data Classification: ${classification.toUpperCase()}.</gco:CharacterString></gmd:abstract>
       <gmd:status><gmd:MD_ProgressCode codeList="http://www.isotc211.org/2005/resources/Codelist/gmxCodelists.xml#MD_ProgressCode" codeListValue="completed"/></gmd:status>
       <gmd:extent>
         <gmd:EX_Extent>
@@ -112,7 +112,7 @@ export function generateISO19115XML(
     <gmd:DQ_DataQuality>
       <gmd:lineage>
         <gmd:LI_Lineage>
-          <gmd:statement><gco:CharacterString>Processed via SatQuery Deterministic GIS &amp; CV Engine. SHA-256: ${escapeXml(provenance?.sha256 ?? "N/A")}. Spectral Bands: ${escapeXml((provenance?.bands_used ?? []).join(", ") || "optical")}. Security Classification: ${classification.toUpperCase()}.</gco:CharacterString></gmd:statement>
+          <gmd:statement><gco:CharacterString>Processed via SOLEN Deterministic GIS &amp; CV Engine. SHA-256: ${escapeXml(provenance?.sha256 ?? "N/A")}. Spectral Bands: ${escapeXml((provenance?.bands_used ?? []).join(", ") || "optical")}. Security Classification: ${classification.toUpperCase()}.</gco:CharacterString></gmd:statement>
         </gmd:LI_Lineage>
       </gmd:lineage>
     </gmd:DQ_DataQuality>
@@ -122,7 +122,7 @@ export function generateISO19115XML(
 
 export function exportISO19115XML(
   collection: FeatureCollection,
-  baseName = "satquery_analysis",
+  baseName = "solen_analysis",
   provenance?: Provenance | null,
   classification: Classification = "unclassified"
 ): void {
@@ -130,7 +130,7 @@ export function exportISO19115XML(
   download(new Blob([xml], { type: "application/xml" }), filename(baseName, "iso19115.xml"));
 }
 
-export async function exportShapefile(collection: FeatureCollection, baseName = "satquery_analysis"): Promise<void> {
+export async function exportShapefile(collection: FeatureCollection, baseName = "solen_analysis"): Promise<void> {
   if (!collection.features.length) throw new Error("There are no geospatial features to export.");
   const blob = await zip<"blob">(collection, { outputType: "blob", compression: "STORE", filename: baseName, prj: WGS84_PRJ });
   download(blob, filename(baseName, "zip"));

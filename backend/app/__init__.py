@@ -1,1 +1,1 @@
-# SatQuery-AI Backend
+# SOLEN-AI Backend

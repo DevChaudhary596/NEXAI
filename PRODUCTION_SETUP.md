@@ -1,4 +1,4 @@
-# SatQuery production setup
+# SOLEN production setup
 
 The frontend deploys to Vercel. The FastAPI compute service must run separately
 where it can execute raster processing, CV models, and scheduled monitor jobs.
@@ -19,7 +19,7 @@ roles are never trusted from the browser.
 ## 2. PostgreSQL
 
 Provision PostgreSQL and set `SATQUERY_DATABASE_URL`. On first API startup,
-SatQuery creates the tenant schema: workspaces, membership roles, projects,
+SOLEN creates the tenant schema: workspaces, membership roles, projects,
 and immutable audit events. The owner of a newly created workspace becomes its
 admin. Roles are `viewer`, `analyst`, `reviewer`, and `admin`.
 

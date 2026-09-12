@@ -3,15 +3,22 @@
 import React, { FormEvent, useState } from "react";
 import { LoaderCircle, LogIn, ShieldCheck, UserCheck } from "lucide-react";
 
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { firebaseIsConfigured } from "@/lib/firebase";
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const { state, user, signInWithEmail, signInWithGoogle, continueLocally } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Always allow public legal and governance pages without requiring authentication
+  if (pathname === "/privacy" || pathname === "/terms") {
+    return <>{children}</>;
+  }
 
   // When Firebase is not configured (local dev, offline sovereign evaluation),
   // render the operations console directly without blocking.
@@ -46,7 +53,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     <main className="auth-gate">
       <section className="auth-gate__card" aria-labelledby="sign-in-title">
         <ShieldCheck size={28} aria-hidden="true" />
-        <p className="auth-gate__eyebrow">SATQUERY SECURE WORKSPACE</p>
+        <p className="auth-gate__eyebrow">SOLEN SECURE WORKSPACE</p>
         <h1 id="sign-in-title">Sign in to intelligence operations</h1>
         <p>Use the approved Firebase identity for your organization. Access is assigned per workspace.</p>
         <form onSubmit={submit} className="auth-gate__form">

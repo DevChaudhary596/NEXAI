@@ -403,7 +403,7 @@ class RealOBBDetector:
         cl = clahe.apply(l_chan)
         enhanced = cv2.cvtColor(cv2.merge((cl, a_chan, b_chan)), cv2.COLOR_LAB2RGB)
 
-        conf_thresh = min(float(confidence_threshold), 0.03)
+        conf_thresh = max(0.18, float(confidence_threshold))
 
         enh_h, enh_w = enhanced.shape[:2]
         slices = calculate_slice_regions(enh_w, enh_h, slice_size=640, overlap_ratio=0.3)
@@ -453,144 +453,123 @@ class RealOBBDetector:
         """
         Specialized remote sensing profiler for dense aerial parking lots, staging areas,
         and vehicle fleets of arbitrary dimensions, zoom levels, and parking orientations.
-        Analyzes periodic vertical, horizontal, and omnidirectional gradient texture energy,
-        isolates paved parking grounds, suppresses natural vegetation canopies and rooflines,
-        and extracts vehicle centers via multi-scale dual top-hat / black-hat morphology.
+        Extracts parked vehicles using dual-directional (vertical & horizontal) morphological
+        bay profiling, suppresses natural vegetation canopies and text watermarks, avoids
+        inter-vehicle suppression with tight row-radius non-maximum suppression, and verifies
+        spatial clustering to produce clean, properly oriented bounding boxes.
         """
         img_h, img_w = image_np.shape[:2]
-        if img_h < 40 or img_w < 40:
+        if img_h < 30 or img_w < 30:
             return []
 
         if image_np.ndim == 2:
             gray = image_np.copy()
         elif image_np.shape[2] == 4:
-            gray = cv2.cvtColor(image_np, cv2.COLOR_BGRA2GRAY)
+            gray = cv2.cvtColor(image_np, cv2.COLOR_RGBA2GRAY)
         else:
-            gray = cv2.cvtColor(image_np, cv2.COLOR_BGR2GRAY)
+            gray = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
 
-        # 1. Multi-directional parking row energy (vertical, horizontal, and omnidirectional)
-        gx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3)
-        gy = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)
-        grad_mag = cv2.magnitude(gx, gy)
-        grad_smooth = cv2.GaussianBlur(grad_mag, (15, 15), 4.0)
-
-        kernel_col = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 15))
-        col_energy = cv2.morphologyEx(np.abs(gx), cv2.MORPH_CLOSE, kernel_col)
-        col_energy_smooth = cv2.GaussianBlur(col_energy, (11, 11), 3.0)
-        lot_mask_v = ((col_energy_smooth >= 85) & (gray > 115)).astype(np.uint8) * 255
-
-        kernel_row = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 1))
-        row_energy = cv2.morphologyEx(np.abs(gy), cv2.MORPH_CLOSE, kernel_row)
-        row_energy_smooth = cv2.GaussianBlur(row_energy, (11, 11), 3.0)
-        lot_mask_h = ((row_energy_smooth >= 85) & (gray > 115)).astype(np.uint8) * 255
-
-        lot_mask_omni = ((grad_smooth >= 72) & (gray > 110)).astype(np.uint8) * 255
-        lot_mask = cv2.bitwise_or(lot_mask_v, cv2.bitwise_or(lot_mask_h, lot_mask_omni))
-
-        # 2. Exclude high-saturation vegetation / tree canopy
+        # 1. Vegetation / tree canopy mask (green foliage with luminance cap)
         if image_np.ndim >= 3 and image_np.shape[2] >= 3:
-            hsv = cv2.cvtColor(image_np[:, :, :3], cv2.COLOR_RGB2HSV)
-            tree_canopy = ((hsv[:, :, 0] >= 28) & (hsv[:, :, 0] <= 85) & (hsv[:, :, 1] > 38)) | (hsv[:, :, 2] < 50)
-            lot_mask[tree_canopy] = 0
+            r = image_np[:, :, 0].astype(np.float32)
+            g = image_np[:, :, 1].astype(np.float32)
+            b = image_np[:, :, 2].astype(np.float32)
+            tree_mask = (g > r + 6) & (g > b + 3) & (g < 135)
+            tree_mask = cv2.dilate(tree_mask.astype(np.uint8), np.ones((5, 5), np.uint8)) > 0
+        else:
+            tree_mask = np.zeros((img_h, img_w), dtype=bool)
 
-        # 3. Mask out long building rooflines / solar arrays
-        edges = cv2.Canny(gray, 50, 150)
-        lines = cv2.HoughLinesP(edges, 1, np.pi / 180, 40, minLineLength=35, maxLineGap=4)
-        if lines is not None:
-            for l in lines:
-                x1, y1, x2, y2 = l.ravel()
-                if abs(x2 - x1) > 25 or abs(y2 - y1) > 25:
-                    cv2.line(lot_mask, (x1, y1), (x2, y2), 0, 10)
+        # 2. Text / map watermark mask (extreme local dynamic range from character strokes)
+        k5 = np.ones((5, 5), np.uint8)
+        local_range = cv2.dilate(gray, k5).astype(np.float32) - cv2.erode(gray, k5).astype(np.float32)
+        text_mask = cv2.dilate((local_range > 125).astype(np.uint8), np.ones((7, 7), np.uint8)) > 0
 
-        # 4. Multi-scale dual top-hat / black-hat morphology (small cars 7x7, large vehicles 13x13)
-        k_s = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
-        sal_s = cv2.addWeighted(
-            cv2.morphologyEx(gray, cv2.MORPH_TOPHAT, k_s), 1.0,
-            cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, k_s), 0.6, 0
-        )
-        k_m = cv2.getStructuringElement(cv2.MORPH_RECT, (13, 13))
-        sal_m = cv2.addWeighted(
-            cv2.morphologyEx(gray, cv2.MORPH_TOPHAT, k_m), 1.0,
-            cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, k_m), 0.6, 0
+        # 3. Dual directional morphology for vertical and horizontal vehicle profiles
+        # Vertical vehicles (longer in Y, typical of parking stalls)
+        kv = cv2.getStructuringElement(cv2.MORPH_RECT, (4, 8))
+        top_v = np.maximum(
+            cv2.morphologyEx(gray, cv2.MORPH_TOPHAT, kv),
+            cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, kv)
         )
 
-        salience = np.maximum(sal_s, sal_m)
-        salience[lot_mask == 0] = 0
+        # Horizontal vehicles (longer in X, typical of horizontal bays or street parking)
+        kh = cv2.getStructuringElement(cv2.MORPH_RECT, (8, 4))
+        top_h = np.maximum(
+            cv2.morphologyEx(gray, cv2.MORPH_TOPHAT, kh),
+            cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, kh)
+        )
 
-        candidates = np.argwhere(salience > 16)
-        if len(candidates) == 0:
+        val_v = top_v.copy()
+
+        # Mask out trees, text labels, and image edges
+        val_v[tree_mask] = 0
+        val_v[text_mask] = 0
+        val_v[:6, :] = 0
+        val_v[-6:, :] = 0
+        val_v[:, :6] = 0
+        val_v[:, -6:] = 0
+
+        cand = np.argwhere(val_v > 15)
+        if len(cand) == 0:
             return []
 
-        scores = salience[candidates[:, 0], candidates[:, 1]]
+        scores = val_v[cand[:, 0], cand[:, 1]]
         order = np.argsort(-scores)
-        sorted_cand = candidates[order]
-        sorted_scores = scores[order]
+        cand = cand[order]
+        scores = scores[order]
 
-        suppressed = np.zeros_like(salience, dtype=bool)
-        chosen_cars: List[Tuple[int, int, float, bool, bool]] = []
+        chosen: List[Tuple[int, int, float, bool]] = []
+        suppressed = np.zeros((img_h, img_w), dtype=bool)
 
-        for (cy, cx), sc in zip(sorted_cand, sorted_scores):
+        for (cy, cx), sc in zip(cand, scores):
             if suppressed[cy, cx]:
                 continue
-            is_horiz = bool(row_energy_smooth[cy, cx] > col_energy_smooth[cy, cx])
-            is_large = bool(sal_m[cy, cx] > sal_s[cy, cx] + 8)
-            chosen_cars.append((int(cx), int(cy), float(sc), is_large, is_horiz))
 
-            cur_dx = 7 if is_horiz else 4
-            cur_dy = 4 if is_horiz else 7
-            y0 = max(0, cy - cur_dy)
-            y1 = min(img_h, cy + cur_dy + 1)
-            x0 = max(0, cx - cur_dx)
-            x1 = min(img_w, cx + cur_dx + 1)
+            is_horiz = bool(top_h[cy, cx] > top_v[cy, cx] * 1.25)
+            chosen.append((int(cx), int(cy), float(sc), is_horiz))
+
+            # Tight row-aware suppression window: radius 2-4px so tightly parked cars are never erased
+            rx = 4 if is_horiz else 2
+            ry = 2 if is_horiz else 4
+            y0 = max(0, cy - ry)
+            y1 = min(img_h, cy + ry + 1)
+            x0 = max(0, cx - rx)
+            x1 = min(img_w, cx + rx + 1)
             suppressed[y0:y1, x0:x1] = True
 
-        if len(chosen_cars) < 2:
+        if len(chosen) < 2:
             return []
 
-        # 5. Spatial neighbor verification (vehicles in parking lots or driveways)
-        car_coords = np.array([(c[0], c[1]) for c in chosen_cars])
-        verified_cars: List[Tuple[int, int, float, bool, bool]] = []
-        for c in chosen_cars:
-            cx, cy, sc, is_large, is_horiz = c
-            dists = np.hypot(car_coords[:, 0] - cx, car_coords[:, 1] - cy)
-            neighbors = int(np.sum((dists > 3) & (dists < 45)))
-            if neighbors >= 2 or sc >= 24.0:
-                verified_cars.append(c)
+        # 4. Spatial cluster verification (vehicles naturally cluster in parking rows or lots)
+        coords = np.array([[c[0], c[1]] for c in chosen])
+        verified: List[Tuple[int, int, float, bool]] = []
+        for c in chosen:
+            cx, cy, sc, is_horiz = c
+            dists = np.hypot(coords[:, 0] - cx, coords[:, 1] - cy)
+            nbrs = int(np.sum((dists > 3) & (dists < 30)))
+            if nbrs >= 2 or (nbrs >= 1 and sc > 25.0):
+                verified.append(c)
 
-        # 6. Build oriented bounding boxes with adaptive size
+        # 5. Build clean, aligned oriented bounding boxes
         dets: List[Dict[str, Any]] = []
+        cls_name = "small vehicle"
+        cls_id = 10
 
-        for cx, cy, sc, is_large, is_horiz in verified_cars:
-            cls_name = "large vehicle" if is_large else "small vehicle"
-            cls_id = 9 if is_large else 10
+        if target_classes is not None and cls_name not in target_classes and "vehicle" not in target_classes:
+            return []
 
-            # Filter by requested target_classes if provided
-            if target_classes is not None and cls_name not in target_classes:
-                continue
+        for cx, cy, sc, is_horiz in verified:
+            w_half = 4.0 if is_horiz else 2.2
+            l_half = 2.2 if is_horiz else 4.6
 
-            w_half = 4.0 if is_large else 2.5
-            l_half = 8.5 if is_large else 5.0
+            corners = [
+                [float(cx - w_half), float(cy - l_half)],
+                [float(cx + w_half), float(cy - l_half)],
+                [float(cx + w_half), float(cy + l_half)],
+                [float(cx - w_half), float(cy + l_half)]
+            ]
 
-            patch = gray[max(0, cy - 6):min(img_h, cy + 7), max(0, cx - 6):min(img_w, cx + 7)]
-            m = cv2.moments(patch)
-            theta = 0.0
-            if m["mu20"] + m["mu02"] > 1e-4:
-                theta = 0.5 * np.arctan2(2 * m["mu11"], m["mu20"] - m["mu02"])
-                theta = float(np.clip(theta, -np.pi / 4, np.pi / 4))
-
-            if is_horiz:
-                theta += np.pi / 2.0
-
-            cos_t = float(np.cos(theta))
-            sin_t = float(np.sin(theta))
-
-            corners = []
-            for lx, ly in [(-w_half, -l_half), (w_half, -l_half), (w_half, l_half), (-w_half, l_half)]:
-                rx = cx + lx * cos_t - ly * sin_t
-                ry = cy + lx * sin_t + ly * cos_t
-                corners.append([float(rx), float(ry)])
-
-            conf = float(np.clip(0.70 + (sc / 100.0) * 0.18, 0.70, 0.88))
+            conf = float(np.clip(0.74 + (sc / 100.0) * 0.16, 0.74, 0.90))
 
             dets.append({
                 "coords": corners,

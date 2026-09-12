@@ -1,4 +1,4 @@
-# SATQUERY-AI
+# SOLEN
 
 ## Project Architecture & Structure
 

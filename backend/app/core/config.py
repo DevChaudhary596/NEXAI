@@ -189,7 +189,7 @@ class Settings(BaseSettings):
             missing.append("SATQUERY_OBJECT_STORAGE_SECRET_ACCESS_KEY")
         if missing:
             raise RuntimeError(
-                "SatQuery production configuration is incomplete: " + ", ".join(missing)
+                "SOLEN production configuration is incomplete: " + ", ".join(missing)
             )
 
 

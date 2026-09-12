@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Search, X, Sun, Moon, Bell } from "lucide-react";
+import { Search, X, Sun, Moon, Bell, RefreshCw, Lock } from "lucide-react";
 import type { Classification, WorkspaceResponse } from "@/types";
 import type { NavItemKey } from "@/components/Sidebar";
 
 interface TopNavProps {
-  onSearchSubmit: (query: string) => void;
+  onSearchSubmit: (query: string) => void | Promise<void>;
   activeTab?: NavItemKey;
   onTabChange?: (tab: NavItemKey) => void;
   workspaces?: WorkspaceResponse[];
@@ -32,11 +32,17 @@ export default function TopNav({
   onOpenProfile,
 }: TopNavProps) {
   const [query, setQuery] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (query.trim()) {
-      onSearchSubmit(query.trim());
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const clean = query.trim();
+    if (!clean || isSearching) return;
+    setIsSearching(true);
+    try {
+      await onSearchSubmit(clean);
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -78,28 +84,55 @@ export default function TopNav({
         <button
           type="button"
           onClick={() => onTabChange?.("monitor")}
-          className={`theme-topnav__link ${activeTab === "monitor" ? "theme-topnav__link--active" : ""}`}
+          className={`theme-topnav__link theme-topnav__link--locked ${activeTab === "monitor" ? "theme-topnav__link--active" : ""}`}
+          title="Monitor is locked — Coming Soon"
         >
-          MONITOR
+          <span className="theme-topnav__link-inner">
+            <Lock size={10} className="theme-topnav__lock-icon" />
+            <span>MONITOR</span>
+            <span className="theme-topnav__coming-soon">Coming Soon</span>
+          </span>
         </button>
         <button
           type="button"
           onClick={() => onTabChange?.("reports")}
-          className={`theme-topnav__link ${activeTab === "reports" ? "theme-topnav__link--active" : ""}`}
+          className={`theme-topnav__link theme-topnav__link--locked ${activeTab === "reports" ? "theme-topnav__link--active" : ""}`}
+          title="Reports is locked — Coming Soon"
         >
-          REPORTS
+          <span className="theme-topnav__link-inner">
+            <Lock size={10} className="theme-topnav__lock-icon" />
+            <span>REPORTS</span>
+            <span className="theme-topnav__coming-soon">Coming Soon</span>
+          </span>
         </button>
       </nav>
 
       {/* Global Search Bar (Matching theme.jpg) */}
       <form onSubmit={handleSubmit} className="theme-topnav__search">
-        <Search size={14} className="theme-topnav__search-icon" />
+        <button
+          type="submit"
+          className="theme-topnav__search-btn"
+          title="Search location or coordinates (or press Enter)"
+          aria-label="Search"
+        >
+          {isSearching ? (
+            <RefreshCw size={14} className="theme-topnav__search-icon animate-spin text-cyan-400" />
+          ) : (
+            <Search size={14} className="theme-topnav__search-icon hover:text-cyan-400 transition-colors" />
+          )}
+        </button>
         <input
           id="top-search-input"
           type="text"
-          placeholder="Search for a location, asset, or ask anything..."
+          placeholder="Search for a location, coordinates, or asset..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              handleSubmit();
+            }
+          }}
           className="theme-topnav__search-input"
         />
         {query && (
@@ -112,7 +145,7 @@ export default function TopNav({
             <X size={12} />
           </button>
         )}
-        <kbd className="theme-topnav__kbd">⌘K</kbd>
+        <kbd className="theme-topnav__kbd">↵</kbd>
       </form>
 
       {/* Right Controls matching theme.jpg: Sun, Bell, Avatar, Slogan */}

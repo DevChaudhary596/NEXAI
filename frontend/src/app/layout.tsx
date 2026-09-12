@@ -4,7 +4,7 @@ import Providers from "@/components/Providers";
 import AuthGate from "@/components/AuthGate";
 
 export const metadata: Metadata = {
-  title: "SatQuery — Autonomous Geospatial Intelligence Platform",
+  title: "SOLEN — Autonomous Geospatial Intelligence Platform",
   description:
     "Enterprise-grade autonomous geospatial intelligence and remote sensing platform. Real-time planetary observation, automated computer vision, and spectral analytics.",
   keywords: [
@@ -15,8 +15,19 @@ export const metadata: Metadata = {
     "GIS",
     "object detection",
     "NDVI",
-    "SatQuery",
+    "SOLEN",
   ],
+  icons: {
+    icon: [
+      { url: "/icon.png?v=solen", type: "image/png", sizes: "256x256" },
+      { url: "/images/solen_app_icon.png?v=solen", type: "image/png", sizes: "32x32" },
+      { url: "/favicon.ico?v=solen", sizes: "any" },
+    ],
+    shortcut: "/favicon.ico?v=solen",
+    apple: [
+      { url: "/apple-icon.png?v=solen", sizes: "256x256", type: "image/png" },
+    ],
+  },
 };
 
 export default function RootLayout({
@@ -27,7 +38,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link rel="icon" href="/favicon.ico" />
+        <link rel="icon" type="image/png" sizes="256x256" href="/icon.png?v=solen" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/images/solen_app_icon.png?v=solen" />
+        <link rel="shortcut icon" href="/favicon.ico?v=solen" />
+        <link rel="apple-touch-icon" href="/apple-icon.png?v=solen" />
       </head>
       <body>
         <a href="#main-operations" className="skip-to-content">
