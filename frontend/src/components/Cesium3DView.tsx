@@ -540,8 +540,9 @@ export default function Cesium3DView({
       }
     }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
 
-    // Update altitude on camera move
-    viewer.camera.changed.addEventListener(() => {
+    // Update altitude and center coordinates on camera move
+    const updateCenterCoords = () => {
+      if (!viewer || viewer.isDestroyed()) return;
       const h = viewer.camera.positionCartographic.height;
       const hStr =
         h >= 1000000
@@ -549,8 +550,26 @@ export default function Cesium3DView({
           : h >= 1000
           ? `${(h / 1000).toFixed(1)} km`
           : `${Math.round(h)} m`;
-      setCoords((c) => ({ ...c, heightKm: hStr }));
-    });
+
+      const canvas = viewer.scene.canvas;
+      const centerCartesian = viewer.camera.pickEllipsoid(
+        new Cesium.Cartesian2(canvas.clientWidth / 2, canvas.clientHeight / 2),
+        viewer.scene.globe.ellipsoid
+      );
+      if (centerCartesian) {
+        const carto = Cesium.Cartographic.fromCartesian(centerCartesian);
+        const latDeg = Cesium.Math.toDegrees(carto.latitude);
+        const lonDeg = Cesium.Math.toDegrees(carto.longitude);
+        const latStr = `${Math.abs(latDeg).toFixed(4)}° ${latDeg >= 0 ? "N" : "S"}`;
+        const lonStr = `${Math.abs(lonDeg).toFixed(4)}° ${lonDeg >= 0 ? "E" : "W"}`;
+        setCoords({ lat: latStr, lon: lonStr, heightKm: hStr });
+      } else {
+        setCoords((c) => ({ ...c, heightKm: hStr }));
+      }
+    };
+
+    viewer.camera.changed.addEventListener(updateCenterCoords);
+    viewer.camera.moveEnd.addEventListener(updateCenterCoords);
 
     viewerRef.current = viewer;
     setReady(true);
@@ -1271,8 +1290,8 @@ export default function Cesium3DView({
         <div className="globe-hud__coords">
           <Navigation size={13} className="globe-hud__compass-icon" />
           <div className="globe-hud__coords-block">
-            <span className="globe-hud__date">Sep 04, 2024</span>
-            <span className="globe-hud__coords-val">28.6139° N, 77.2090° E</span>
+            <span className="globe-hud__date">{todayDate}</span>
+            <span className="globe-hud__coords-val">{coords.lat}, {coords.lon}</span>
           </div>
         </div>
         {!isFullScreen && (
