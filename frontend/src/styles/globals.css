@@ -5661,6 +5661,229 @@ input[type="range"]::-moz-range-thumb {
   color: #ffffff;
 }
 
+/* ── Active Mission Deck & Header ── */
+.native-deck-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.native-mission-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.native-mission-status-pill--live {
+  background: rgba(244, 63, 94, 0.15);
+  color: #be123c;
+  border: 1px solid rgba(244, 63, 94, 0.35);
+}
+
+.native-mission-status-pill--upcoming {
+  background: rgba(14, 165, 233, 0.15);
+  color: #0369a1;
+  border: 1px solid rgba(14, 165, 233, 0.35);
+}
+
+.native-mission-status-pill--watch {
+  background: rgba(16, 185, 129, 0.15);
+  color: #065f46;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.native-mission-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.native-mission-status-dot--live {
+  background: #f43f5e;
+  animation: pingDot 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.native-mission-status-dot--upcoming {
+  background: #0ea5e9;
+}
+
+.native-mission-status-dot--watch {
+  background: #10b981;
+}
+
+@keyframes pingDot {
+  75%, 100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+/* ── Active Mission Feature Card Header & Details ── */
+.native-mission-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.native-mission-card-title {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.35;
+  margin: 0;
+  flex: 1;
+}
+
+.native-mission-category-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #ffffff;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.native-mission-category-badge--flood {
+  background: #e11d48;
+}
+
+.native-mission-category-badge--custom {
+  background: #d97706;
+}
+
+.native-mission-category-badge--maritime {
+  background: #2563eb;
+}
+
+.native-mission-location-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 11.5px;
+  flex-wrap: wrap;
+}
+
+.native-mission-location {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.native-mission-coords {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #164e63;
+  background: #cffafe;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid #a5f3fc;
+}
+
+.native-mission-problem-box {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #1e293b;
+  line-height: 1.5;
+  background: #f8fafc;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  margin-top: 8px;
+}
+
+/* ── Telemetry Badges Grid ── */
+.native-mission-telemetry-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.native-mission-telemetry-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  font-size: 11px;
+}
+
+.native-mission-telemetry-chip__label {
+  color: #475569;
+  font-weight: 700;
+}
+
+.native-mission-telemetry-chip__val {
+  color: #047857;
+  font-weight: 800;
+}
+
+/* ── Card Footer Action Row ── */
+.native-mission-footer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 8px;
+  margin-top: 10px;
+  gap: 8px;
+}
+
+.native-mission-sensor {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.native-mission-fly-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 8px;
+  background: #059669;
+  color: #ffffff;
+  font-size: 11.5px;
+  font-weight: 800;
+  box-shadow: 0 2px 6px rgba(5, 150, 105, 0.3);
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.native-mission-fly-btn:hover {
+  background: #047857;
+  transform: translateY(-1px);
+}
+
 .native-project-card:hover {
   transform: translateY(-3px);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.14);
@@ -10160,7 +10383,88 @@ textarea:focus-visible,
     top: 10px !important;
     right: 10px !important;
     font-size: 0.65rem !important;
-    padding: 4px 8px !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Hide telemetry pills on mobile to prevent overlapping globe and hero title */
+  .globe-hud__pills {
+    display: none !important;
+  }
+
+  /* Hide verbose lat/lon on mobile to leave clean date display */
+  .globe-hud__coords-val {
+    display: none !important;
+  }
+
+  .globe-hud__coords {
+    gap: 4px !important;
+  }
+
+  .globe-hud__date {
+    font-size: 0.68rem !important;
+    color: #e2e8f0 !important;
+    font-weight: 700 !important;
+  }
+
+  .globe-hud__title {
+    font-size: 1.05rem !important;
+  }
+
+  .globe-hud__tag {
+    font-size: 0.62rem !important;
+  }
+
+  /* Ivory Deck Responsive Mobile Fixes */
+  .native-ivory-deck {
+    grid-template-columns: 1fr !important;
+    padding: 12px 14px !important;
+    gap: 14px !important;
+    border-radius: 16px !important;
+  }
+
+  .native-project-card--feature {
+    grid-template-columns: 1fr !important;
+    border-radius: 14px !important;
+  }
+
+  .native-project-card__thumb-wrap--wide {
+    height: 140px !important;
+  }
+
+  .native-project-card__img {
+    height: 100% !important;
+    width: 100% !important;
+    object-fit: cover !important;
+  }
+
+  .native-mission-card-title {
+    font-size: 0.88rem !important;
+    line-height: 1.3 !important;
+  }
+
+  .native-mission-problem-box {
+    font-size: 11px !important;
+    padding: 6px 8px !important;
+  }
+
+  .native-mission-telemetry-chip {
+    font-size: 10px !important;
+    padding: 3px 6px !important;
+  }
+
+  .native-mission-footer-bar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+
+  .native-mission-fly-btn {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 7px 12px !important;
   }
 
   /* Lowered & compact draw / zoom toolbar on mobile */

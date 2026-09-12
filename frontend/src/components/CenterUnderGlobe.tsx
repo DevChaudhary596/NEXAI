@@ -372,26 +372,10 @@ export default function CenterUnderGlobe({
       <div className="native-ivory-deck">
         <section className="native-recent-projects">
           <div className="native-deck-header">
-            <div className="flex items-center gap-2">
+            <div className="native-deck-header-left">
               <h3 className="native-deck-title">Active Mission</h3>
-              <span
-                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                  currentMission.statusType === "live"
-                    ? "bg-rose-500/15 text-rose-700 border border-rose-500/30"
-                    : currentMission.statusType === "upcoming"
-                    ? "bg-sky-500/15 text-sky-700 border border-sky-500/30"
-                    : "bg-emerald-500/15 text-emerald-800 border border-emerald-500/30"
-                }`}
-              >
-                <span
-                  className={`w-1.5 h-1.5 rounded-full ${
-                    currentMission.statusType === "live"
-                      ? "bg-rose-500 animate-ping"
-                      : currentMission.statusType === "upcoming"
-                      ? "bg-sky-500"
-                      : "bg-emerald-500"
-                  }`}
-                />
+              <span className={`native-mission-status-pill native-mission-status-pill--${currentMission.statusType}`}>
+                <span className={`native-mission-status-dot native-mission-status-dot--${currentMission.statusType}`} />
                 {currentMission.statusBadge}
               </span>
             </div>
@@ -471,61 +455,58 @@ export default function CenterUnderGlobe({
                   <span>{currentMission.status}</span>
                 </span>
               </div>
-              <div className="native-project-card__info justify-between py-2.5 px-3.5">
+              <div className="native-project-card__info" style={{ padding: "12px 14px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                 <div>
-                  <div className="flex items-center justify-between gap-2">
-                    <h4 className="native-project-card__title font-black text-sm text-slate-950 line-clamp-1 tracking-tight">
+                  <div className="native-mission-card-top">
+                    <h4 className="native-mission-card-title">
                       {currentMission.name}
                     </h4>
                     <span
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-black tracking-wide uppercase shadow-sm shrink-0 ${
+                      className={`native-mission-category-badge ${
                         currentMission.template === "flood_response"
-                          ? "bg-rose-600 text-white"
+                          ? "native-mission-category-badge--flood"
                           : currentMission.template === "custom"
-                          ? "bg-amber-600 text-white"
-                          : "bg-blue-600 text-white"
+                          ? "native-mission-category-badge--custom"
+                          : "native-mission-category-badge--maritime"
                       }`}
                     >
-                      <ShieldCheck size={12} className="text-white" />
+                      <ShieldCheck size={12} />
                       {currentMission.category}
                     </span>
                   </div>
-                  <div className="flex items-center gap-3 mt-1.5 text-xs">
-                    <span className="native-project-card__location flex items-center gap-1.5">
-                      <MapPin size={13} className="text-rose-600 shrink-0" />
-                      <span className="font-bold text-slate-950 text-[12px]">{currentMission.location}</span>
+                  <div className="native-mission-location-row">
+                    <span className="native-mission-location">
+                      <MapPin size={13} style={{ color: "#e11d48", flexShrink: 0 }} />
+                      <span>{currentMission.location}</span>
                     </span>
-                    <span className="text-[11px] font-bold text-cyan-900 bg-cyan-100 px-2 py-0.5 rounded border border-cyan-300 hidden sm:inline-flex items-center gap-1">
-                      <Compass size={12} className="text-cyan-700 shrink-0" />
+                    <span className="native-mission-coords">
+                      <Compass size={12} style={{ color: "#0891b2", flexShrink: 0 }} />
                       <span>{currentMission.coordinates}</span>
                     </span>
                   </div>
 
                   {/* Real-world Problem & AI Analysis Statement */}
-                  <p className="text-[12px] font-semibold text-slate-900 line-clamp-2 mt-2 leading-relaxed bg-slate-50/90 p-2 rounded-lg border border-slate-200">
+                  <p className="native-mission-problem-box">
                     {currentMission.problemStatement}
                   </p>
 
                   {/* Telemetry Chips */}
-                  <div className="flex flex-wrap items-center gap-2 mt-2.5">
+                  <div className="native-mission-telemetry-grid">
                     {currentMission.metrics.map((m, i) => (
-                      <span
-                        key={i}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white text-slate-950 text-[11px] font-semibold border-2 border-slate-300 shadow-sm"
-                      >
-                        <span className="text-slate-800 font-bold">{m.label}:</span>
-                        <strong className="font-black text-emerald-800 text-[11.5px]">{m.value}</strong>
+                      <span key={i} className="native-mission-telemetry-chip">
+                        <span className="native-mission-telemetry-chip__label">{m.label}:</span>
+                        <strong className="native-mission-telemetry-chip__val">{m.value}</strong>
                       </span>
                     ))}
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between border-t-2 border-slate-200/80 pt-2.5 mt-2.5">
-                  <span className="text-[11.5px] font-bold text-slate-900 flex items-center gap-1.5">
-                    <Radio size={13} className="text-emerald-600 animate-pulse" />
+                <div className="native-mission-footer-bar">
+                  <span className="native-mission-sensor">
+                    <Radio size={13} style={{ color: "#059669" }} />
                     <span>{currentMission.sensor}</span>
                   </span>
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow-md transition-all hover:scale-105 active:scale-95">
+                  <span className="native-mission-fly-btn">
                     Fly to Target <ArrowRight size={12} strokeWidth={2.5} />
                   </span>
                 </div>
