@@ -185,18 +185,69 @@ class MockVLM(VLMBackend):
         memory_note = (
             f" (considering {len(history)} prior turn(s) of context)" if history else ""
         )
-        if context:
-            bullets = f"Based on the analysis of this scene{memory_note}:\n\n{context}"
-            if system_prompt:
-                # Shape parity with the real backends: a scenario/structured
-                # system prompt should visibly change the mock's phrasing too,
-                # so tests exercise the same wiring, not just the real model.
+
+        p_lower = prompt.lower()
+        ctx_lower = context.lower() if context else ""
+
+        # Case 1: Active Tool Findings in context
+        if context and not context.startswith("NO_SCENE_BOUND"):
+            # If this is a hardware / scene limitation notice from guardrails
+            if any(w in ctx_lower for w in ("cannot support", "limitation", "not support", "corrupt")):
+                return (
+                    f"{head}{memory_note}\n\n"
+                    f"⚠️ **Analysis Notice**: {context}\n\n"
+                    f"To perform multispectral analysis (such as NDWI flood extent or NDVI vegetation health), "
+                    f"please ensure the scene contains the required Near-Infrared (NIR) bands (such as 4-band or Sentinel-2 12-band GeoTIFFs)."
+                )
+
+            # Option 3: Domain classification
+            is_surveillance = any(w in ctx_lower or w in p_lower for w in ("detector", "instance", "ship", "plane", "vehicle", "tank", "harbor", "vessel"))
+            is_environmental = any(w in ctx_lower or w in p_lower for w in ("ndwi", "ndvi", "ndbi", "spectral", "flood", "crop", "water", "vegetation", "drought", "forest"))
+
+            if is_surveillance:
+                bullets = (
+                    f"### 🛰️ SURVEILLANCE & TARGET DETECTION REPORT{memory_note}\n"
+                    f"- **Target & Scope**: {context}\n"
+                    f"- **Density / Count**: {context}\n"
+                    f"- **Confidence & Certainty**: High precision validation from neural object detector.\n"
+                    f"- **Operational Assessment**: Verified within the surveyed perimeter.\n"
+                    f"- **Tactical Recommendation**: Maintain orbital surveillance or compare with subsequent Sentinel-2 overpasses for movement telemetry."
+                )
+                return f"{head}\n\n{bullets}"
+            elif is_environmental:
+                bullets = (
+                    f"### 🛰️ ENVIRONMENTAL & SPECTRAL ANALYSIS REPORT{memory_note}\n"
+                    f"- **Target & Index**: Multispectral Remote Sensing Evaluation\n"
+                    f"- **Density / Count**: {context}\n"
+                    f"- **Environmental Severity**: Ground-truth radiometric thresholding computed.\n"
+                    f"- **Actionable Insight**: Prioritize field deployment or hydrological monitoring for flagged zones."
+                )
+                return f"{head}\n\n{bullets}"
+            else:
                 bullets = (
                     f"- **Density / Count**: {context}{memory_note}\n"
                     f"- **Risk Rating**: see findings above"
                 )
-            return f"{head}\n\n{bullets}"
+                return f"{head}\n\n{bullets}"
 
+        # Case 2: Guidance when no scene or AOI is bound (Honest, anti-hallucination)
+        if context.startswith("NO_SCENE_BOUND"):
+            target_str = "target features"
+            if "'" in context:
+                parts = context.split("'")
+                if len(parts) >= 2:
+                    target_str = parts[1]
+
+            return (
+                f"{head}{memory_note}\n\n"
+                f"### 🌐 SATELLITE GUIDANCE & SENSOR REQUIREMENTS\n\n"
+                f"No satellite scene or Region of Interest (AOI) is currently bound for scanning **{target_str}**.\n\n"
+                f"- **How to Scan**: Draw an Area of Interest (AOI) box on the 3D globe or load a satellite scene from the workspace.\n"
+                f"- **Sensor Requirements**: Scanning for '{target_str}' requires high-resolution optical or multispectral satellite imagery (e.g. Cartosat, WorldView, or Sentinel-2).\n"
+                f"- **Available Actions**: You can ingest a live Sentinel-2 pass, select an existing scene, or ask me for remote sensing insights."
+            )
+
+        # Case 3: Scene inspection if an image file exists
         desc_parts = []
         if image_path and Path(image_path).exists():
             try:
@@ -217,10 +268,77 @@ class MockVLM(VLMBackend):
                 f"You can ask questions like 'how many planes are here?' or 'detect storage tanks' to visualize them on the map."
             )
 
+        # Case 4: Dynamic Conversational & Remote Sensing Knowledge (Option 3 Adaptive)
+        if any(w in p_lower for w in ("who are you", "what is this", "what are you", "what can you do", "introduce")):
+            return (
+                f"{head}{memory_note}\n\n"
+                f"I am **SatQuery AI (SOLEN Intelligence Copilot)**, an advanced geospatial and remote sensing analytics platform.\n\n"
+                f"I can assist you with:\n"
+                f"- **Aerial Target Detection**: Finding discrete objects such as ships, aircraft, storage tanks, and vehicles using deep learning models.\n"
+                f"- **Multispectral Environmental Analysis**: Computing calibrated spectral indices like **NDVI** (vegetation health), **NDWI** (flood & water extent), and **NDBI** (urban density).\n"
+                f"- **Bi-temporal Change Detection**: Comparing satellite passes across dates to detect deforestation, construction, or disaster impact.\n"
+                f"- **3D Geospatial Visualization**: Rendering vector GeoJSON boundaries and georeferenced raster overlays directly on the 3D Cesium globe."
+            )
+
+        if any(w in p_lower for w in ("hello", "hi", "hey", "greetings", "good morning", "good afternoon", "good evening")):
+            return (
+                f"{head}{memory_note}\n\n"
+                f"Greetings! SatQuery Intelligence Copilot is online and ready. "
+                f"You can ask me to scan for targets (ships, planes, vehicles), analyze flood or crop indices (NDWI, NDVI), "
+                f"or draw an Area of Interest on the 3D globe to run satellite analytics."
+            )
+
+        if "ndvi" in p_lower:
+            return (
+                f"{head}{memory_note}\n\n"
+                f"### 🌿 Normalized Difference Vegetation Index (NDVI)\n\n"
+                f"**NDVI** measures plant health and biomass density using satellite optical bands:\n"
+                f"- **Formula**: `(NIR - Red) / (NIR + Red)`\n"
+                f"- **How it works**: Chlorophyll in healthy vegetation absorbs visible red light and strongly reflects near-infrared (NIR) light.\n"
+                f"- **Values**: Dense healthy canopy (+0.5 to +0.8), sparse vegetation (+0.2 to +0.4), bare soil (0.0 to +0.1), and water (negative).\n\n"
+                f"To analyze NDVI across your area of interest, select a multispectral scene or draw an AOI box on the 3D globe."
+            )
+
+        if "ndwi" in p_lower or "flood" in p_lower:
+            return (
+                f"{head}{memory_note}\n\n"
+                f"### 💧 Normalized Difference Water Index (NDWI)\n\n"
+                f"**NDWI** delineates open water bodies and flood inundation extents:\n"
+                f"- **Formula**: `(Green - NIR) / (Green + NIR)`\n"
+                f"- **How it works**: Clear water exhibits high reflectance in green light and near-total absorption in near-infrared (NIR).\n"
+                f"- **Thresholding**: Values above `0.0` or `+0.2` indicate surface water and flooded terrain.\n\n"
+                f"You can query: *'Show flooded areas with NDWI > 0.3'* to generate real-time vector flood masks."
+            )
+
+        if any(w in p_lower for w in ("isro", "bhuvan", "cartosat", "resourcesat", "oceansat", "risat")):
+            return (
+                f"{head}{memory_note}\n\n"
+                f"### 🚀 ISRO Earth Observation Capabilities\n\n"
+                f"The **Indian Space Research Organisation (ISRO)** operates world-class Earth observation satellites:\n"
+                f"- **Cartosat Series**: High-resolution sub-meter optical imaging for urban planning and cartography.\n"
+                f"- **Resourcesat Series**: Multispectral sensors (LISS-III, LISS-IV, AWiFS) for national agriculture and water resource tracking.\n"
+                f"- **Oceansat Series**: Ocean color and sea-surface winds for coastal zone and maritime surveillance.\n"
+                f"- **RISAT Series**: Synthetic Aperture Radar (SAR) capable of imaging through clouds and during night.\n\n"
+                f"SatQuery AI can ingest and analyze these raster formats alongside Sentinel-2 and Landsat archives."
+            )
+
+        if any(w in p_lower for w in ("gsd", "resolution", "ground sample distance")):
+            return (
+                f"{head}{memory_note}\n\n"
+                f"### 📐 Ground Sample Distance (GSD)\n\n"
+                f"**GSD** represents the real-world distance between the centers of two adjacent pixels on the ground:\n"
+                f"- **Sub-meter (0.3m – 0.8m)**: WorldView, Pleiades Neo, Cartosat-3 — ideal for identifying small vehicles, aircraft types, and building details.\n"
+                f"- **High Resolution (1m – 3m)**: PlanetScope, SPOT — effective for ship detection and infrastructure tracking.\n"
+                f"- **Medium Resolution (10m – 30m)**: Sentinel-2 (10m), Landsat (30m) — ideal for regional flood mapping, crop monitoring, and forestry."
+            )
+
+        # General dynamic fallback:
         return (
             f"{head}{memory_note}\n\n"
-            f"I can see the satellite scene. You can ask object detection questions (e.g. planes, ships, tanks, vehicles), "
-            f"segmentation queries, or spectral index analyses (NDVI, NDWI) across the scene or within a selected ROI."
+            f"You asked: *\"{prompt}\"*\n\n"
+            f"I am ready to help with your remote sensing and satellite analysis. "
+            f"You can draw an Area of Interest (AOI) on the 3D globe to scan for objects (planes, ships, storage tanks), "
+            f"evaluate environmental indices (NDVI for vegetation, NDWI for water), or compare multi-temporal imagery."
         )
 
 
@@ -753,19 +871,42 @@ class GroqVLM(VLMBackend):
         history: list[dict[str, str]] | None = None,
         system_prompt: str = "",
     ) -> str:
-        default_sys = (
-            "You are SOLEN Intelligence Copilot, an elite AI geospatial, remote sensing, and defense intelligence analyst.\n"
-            "Format EVERY response as a structured, executive GEOSPATIAL INTELLIGENCE REPORT.\n"
-            "Never output robotic debugging disclaimers (e.g. do NOT say 'Status: No active Tool findings were provided'). Speak with direct intelligence authority.\n\n"
-            "Always follow this consistent briefing pattern with uppercase bold headers:\n"
-            "### 🛰️ SATELLITE GEOSPATIAL INTELLIGENCE BRIEFING\n"
-            "- **TARGET / AREA IMPACTED**: Geographic location, facilities, and land-use categorization.\n"
-            "- **SURFACE OBSERVATIONS & INFRASTRUCTURE**: Detailed physical analysis of visible structures, road networks, building footprints, and environmental layout.\n"
-            "- **DENSITY & ASSET INVENTORY**: When object detection or spectral counts are provided in findings, state the exact total count and subclass breakdown verbatim first. If visual-only, provide spatial density and activity pattern observations.\n"
-            "- **RISK RATING**: State the risk level in uppercase (LOW / MODERATE / HIGH / SEVERE) with sharp analytical justification.\n"
-            "- **TACTICAL RECOMMENDATIONS**: Actionable next steps, required sensor pairs for bi-temporal change detection, or orbital monitoring priorities.\n\n"
-            "Never contradict or hallucinate conflicting figures. Keep the tone sharp, professional, and military-grade."
-        )
+        p_lower = prompt.lower()
+        ctx_lower = context.lower() if context else ""
+        is_surveillance = any(w in p_lower or w in ctx_lower for w in ("ship", "plane", "tank", "vehicle", "port", "harbor", "aircraft", "vessel", "detector"))
+        is_environmental = any(w in p_lower or w in ctx_lower for w in ("ndwi", "ndvi", "ndbi", "flood", "water", "crop", "vegetation", "drought", "forest", "spectral"))
+
+        if is_surveillance and context and not context.startswith("NO_SCENE_BOUND"):
+            default_sys = (
+                "You are SatQuery AI (SOLEN Copilot), an elite defense & aerial surveillance intelligence analyst.\n"
+                "Format this response as an authoritative, structured SURVEILLANCE & TARGET DETECTION REPORT:\n"
+                "### 🛰️ SURVEILLANCE & TARGET DETECTION REPORT\n"
+                "- **Target & Scope**: Target classification and surveyed perimeter.\n"
+                "- **Detection Inventory**: State exact detection counts and breakdowns verbatim from tool findings.\n"
+                "- **Confidence & Certainty**: Confidence score analysis.\n"
+                "- **Operational Assessment**: Activity level and tactical risk rating.\n"
+                "- **Tactical Recommendation**: Next orbital passes, sensor pairings, or surveillance priorities.\n"
+                "Never contradict or hallucinate conflicting numbers. Keep tone sharp and intelligence-grade."
+            )
+        elif is_environmental and context and not context.startswith("NO_SCENE_BOUND"):
+            default_sys = (
+                "You are SatQuery AI (SOLEN Copilot), an expert environmental and multispectral remote sensing analyst.\n"
+                "Format this response as a structured ENVIRONMENTAL & SPECTRAL ANALYSIS REPORT:\n"
+                "### 🛰️ ENVIRONMENTAL & SPECTRAL ANALYSIS REPORT\n"
+                "- **Target & Index**: The evaluated multispectral index (NDWI, NDVI, etc.) and location.\n"
+                "- **Ground-Truth Findings**: Verbatim figures for impacted area in km² and region count from tool findings.\n"
+                "- **Environmental Severity**: Severity rating (LOW / MODERATE / HIGH / SEVERE) with scientific reasoning.\n"
+                "- **Actionable Insight**: Environmental impact mitigation and hydrological/agricultural monitoring steps.\n"
+                "Never invent or contradict ground truth numbers."
+            )
+        else:
+            default_sys = (
+                "You are SatQuery AI (SOLEN Copilot), an intelligent geospatial, remote sensing, and Earth observation AI assistant.\n"
+                "Deliver a direct, articulate, helpful, and natural response answering the user's question.\n"
+                "Do NOT force artificial military briefing headers for general conversational or educational queries.\n"
+                "If no satellite scene or AOI is loaded, honestly explain this limitation and advise the user how to draw an AOI on the 3D globe or load a scene.\n"
+                "Never hallucinate or pretend you scanned imagery unless confirmed in Tool findings."
+            )
         sys_content = f"{default_sys}\n\n{system_prompt}" if system_prompt else default_sys
 
         messages: list[dict[str, Any]] = [{"role": "system", "content": sys_content}]

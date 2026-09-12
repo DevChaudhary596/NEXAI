@@ -12,11 +12,19 @@ export default function IntroSplashOverlay({ onComplete }: IntroSplashOverlayPro
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const isDismissingRef = useRef(false);
 
+  const handleKeyDownRef = useRef<((e: KeyboardEvent) => void) | null>(null);
+
   // Smooth dismiss handler that can only be triggered once per session/cycle
   const dismiss = useCallback(() => {
     if (isDismissingRef.current) return;
     isDismissingRef.current = true;
     setIsFading(true);
+
+    // Immediately stop intercepting any key presses across the app
+    if (handleKeyDownRef.current) {
+      window.removeEventListener("keydown", handleKeyDownRef.current);
+      handleKeyDownRef.current = null;
+    }
 
     if (videoRef.current) {
       try {
@@ -45,28 +53,53 @@ export default function IntroSplashOverlay({ onComplete }: IntroSplashOverlayPro
     }, 5300);
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" || e.key === "Enter" || e.code === "Space") {
+      // If already dismissing or hidden, never process or prevent events
+      if (isDismissingRef.current) return;
+
+      // Never intercept keystrokes if the user is typing in any input, textarea, or contentEditable
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable ||
+          target.closest("input, textarea, [contenteditable='true']"))
+      ) {
+        return;
+      }
+
+      if (e.key === "Escape" || e.key === "Enter" || e.code === "Space" || e.key === " ") {
         e.preventDefault();
         dismiss();
       }
     };
 
+    handleKeyDownRef.current = handleKeyDown;
+    window.addEventListener("keydown", handleKeyDown);
+
     const handleReplay = () => {
       isDismissingRef.current = false;
       setIsVisible(true);
       setIsFading(false);
+      if (handleKeyDownRef.current) {
+        window.removeEventListener("keydown", handleKeyDownRef.current);
+      }
+      handleKeyDownRef.current = handleKeyDown;
+      window.addEventListener("keydown", handleKeyDown);
       if (videoRef.current) {
         videoRef.current.currentTime = 0;
         videoRef.current.play().catch(() => {});
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("solen:replay-intro", handleReplay);
 
     return () => {
       clearTimeout(fallbackTimer);
-      window.removeEventListener("keydown", handleKeyDown);
+      if (handleKeyDownRef.current) {
+        window.removeEventListener("keydown", handleKeyDownRef.current);
+        handleKeyDownRef.current = null;
+      }
       window.removeEventListener("solen:replay-intro", handleReplay);
     };
   }, [dismiss]);
