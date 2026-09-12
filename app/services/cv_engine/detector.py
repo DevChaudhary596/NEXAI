@@ -484,7 +484,18 @@ class RealOBBDetector:
         local_range = cv2.dilate(gray, k5).astype(np.float32) - cv2.erode(gray, k5).astype(np.float32)
         text_mask = cv2.dilate((local_range > 125).astype(np.uint8), np.ones((7, 7), np.uint8)) > 0
 
-        # 3. Dual directional morphology for vertical and horizontal vehicle profiles
+        # 3. Building roof mask (long straight structural contours & rooflines)
+        edges = cv2.Canny(gray, 40, 120)
+        lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=35, minLineLength=28, maxLineGap=4)
+        roof_lines = np.zeros((img_h, img_w), dtype=np.uint8)
+        if lines is not None:
+            for l in lines:
+                x1, y1, x2, y2 = l.ravel()
+                if np.hypot(x2 - x1, y2 - y1) > 28:
+                    cv2.line(roof_lines, (x1, y1), (x2, y2), 255, 4)
+        roof_mask = cv2.dilate(roof_lines, np.ones((5, 5), np.uint8)) > 0
+
+        # 4. Multi-directional morphology for arbitrary-angle vehicle profiles
         # Vertical vehicles (longer in Y, typical of parking stalls)
         kv = cv2.getStructuringElement(cv2.MORPH_RECT, (4, 8))
         top_v = np.maximum(
@@ -499,21 +510,23 @@ class RealOBBDetector:
             cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, kh)
         )
 
-        val_v = top_v.copy()
+        sal = np.maximum(top_v, top_h)
 
-        # Mask out trees, text labels, and image edges
-        val_v[tree_mask] = 0
-        val_v[text_mask] = 0
-        val_v[:6, :] = 0
-        val_v[-6:, :] = 0
-        val_v[:, :6] = 0
-        val_v[:, -6:] = 0
+        # Mask out trees, text labels, building roofs, and image borders
+        sal[tree_mask] = 0
+        sal[text_mask] = 0
+        sal[roof_mask] = 0
+        sal[:6, :] = 0
+        sal[-6:, :] = 0
+        sal[:, :6] = 0
+        sal[:, -6:] = 0
 
-        cand = np.argwhere(val_v > 15)
+        # Calibrated salience threshold: isolates genuine vehicle reflectance while rejecting pavement noise
+        cand = np.argwhere(sal > 17.5)
         if len(cand) == 0:
             return []
 
-        scores = val_v[cand[:, 0], cand[:, 1]]
+        scores = sal[cand[:, 0], cand[:, 1]]
         order = np.argsort(-scores)
         cand = cand[order]
         scores = scores[order]
@@ -540,17 +553,17 @@ class RealOBBDetector:
         if len(chosen) < 2:
             return []
 
-        # 4. Spatial cluster verification (vehicles naturally cluster in parking rows or lots)
+        # 5. Spatial cluster verification (vehicles naturally cluster in parking rows, lots, or driveways)
         coords = np.array([[c[0], c[1]] for c in chosen])
         verified: List[Tuple[int, int, float, bool]] = []
         for c in chosen:
             cx, cy, sc, is_horiz = c
             dists = np.hypot(coords[:, 0] - cx, coords[:, 1] - cy)
             nbrs = int(np.sum((dists > 3) & (dists < 30)))
-            if nbrs >= 2 or (nbrs >= 1 and sc > 25.0):
+            if nbrs >= 2 or (nbrs >= 1 and sc > 26.0):
                 verified.append(c)
 
-        # 5. Build clean, aligned oriented bounding boxes
+        # 6. Build clean, arbitrary-angle oriented bounding boxes (OBB)
         dets: List[Dict[str, Any]] = []
         cls_name = "small vehicle"
         cls_id = 10
@@ -558,16 +571,34 @@ class RealOBBDetector:
         if target_classes is not None and cls_name not in target_classes and "vehicle" not in target_classes:
             return []
 
-        for cx, cy, sc, is_horiz in verified:
-            w_half = 4.0 if is_horiz else 2.2
-            l_half = 2.2 if is_horiz else 4.6
+        sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
+        sobely = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
 
-            corners = [
-                [float(cx - w_half), float(cy - l_half)],
-                [float(cx + w_half), float(cy - l_half)],
-                [float(cx + w_half), float(cy + l_half)],
-                [float(cx - w_half), float(cy + l_half)]
-            ]
+        for cx, cy, sc, is_horiz in verified:
+            # Estimate true vehicle orientation theta using second-order central image moments
+            patch = gray[max(0, cy - 5):min(img_h, cy + 6), max(0, cx - 5):min(img_w, cx + 6)]
+            m = cv2.moments(patch)
+            if m["mu20"] + m["mu02"] > 1e-3:
+                theta = 0.5 * np.arctan2(2 * m["mu11"], m["mu20"] - m["mu02"])
+            else:
+                gx = sobelx[cy, cx]
+                gy = sobely[cy, cx]
+                theta = np.arctan2(gy, gx) + (np.pi / 2 if is_horiz else 0.0)
+
+            # Ensure principal vehicle axis aligns with dominant parking orientation
+            if is_horiz and abs(np.cos(theta)) < abs(np.sin(theta)):
+                theta += np.pi / 2.0
+
+            w_half = 2.2
+            l_half = 4.6
+            cos_t = float(np.cos(theta))
+            sin_t = float(np.sin(theta))
+
+            corners = []
+            for lx, ly in [(-w_half, -l_half), (w_half, -l_half), (w_half, l_half), (-w_half, l_half)]:
+                rx = cx + lx * cos_t - ly * sin_t
+                ry = cy + lx * sin_t + ly * cos_t
+                corners.append([float(rx), float(ry)])
 
             conf = float(np.clip(0.74 + (sc / 100.0) * 0.16, 0.74, 0.90))
 
