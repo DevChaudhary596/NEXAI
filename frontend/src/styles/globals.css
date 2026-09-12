@@ -3177,14 +3177,14 @@ input[type="range"]::-moz-range-thumb {
 /* ── Floating Navigation Controls ───────────────────────────── */
 .globe-controls {
   position: absolute;
-  bottom: 20px;
-  right: 24px;
+  bottom: 12px;
+  right: 18px;
   z-index: 65;
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding: 5px;
-  background: rgba(11, 19, 36, 0.94);
+  gap: 2px;
+  padding: 4px;
+  background: rgba(11, 19, 36, 0.92);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.16);
@@ -3192,17 +3192,18 @@ input[type="range"]::-moz-range-thumb {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.65), 0 0 1px rgba(255, 255, 255, 0.2);
   pointer-events: auto;
   user-select: none;
-  transition: right 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Offset safely to the left of floating copilot launcher when copilot sidebar is closed */
+/* Positioned cleanly at the bottom right corner */
 .theme-columns-grid:not(.theme-columns-grid--copilot-open) .globe-controls {
-  right: 86px;
+  right: 20px;
+  bottom: 12px;
 }
 
 .theme-hero-card--fullscreen .globe-controls {
-  right: 24px !important;
-  bottom: 24px !important;
+  right: 16px !important;
+  bottom: 16px !important;
 }
 
 .globe-controls__drag-handle {
@@ -10140,14 +10141,15 @@ textarea:focus-visible,
 
   .globe-hud__feed-card {
     bottom: 10px !important;
-    right: 10px !important;
-    max-width: 160px !important;
+    left: 10px !important;
+    right: auto !important;
+    max-width: 155px !important;
     padding: 6px 8px !important;
     border-radius: 12px !important;
   }
 
   .globe-hud__feed-preview {
-    height: 64px !important;
+    height: 60px !important;
   }
 
   .globe-hud__dock {
@@ -10159,6 +10161,31 @@ textarea:focus-visible,
     right: 10px !important;
     font-size: 0.65rem !important;
     padding: 4px 8px !important;
+  }
+
+  /* Lowered & compact draw / zoom toolbar on mobile */
+  .globe-controls {
+    bottom: 8px !important;
+    right: 8px !important;
+    padding: 3px !important;
+    gap: 2px !important;
+    border-radius: 10px !important;
+    z-index: 70 !important;
+  }
+
+  .globe-ctrl-btn {
+    width: 26px !important;
+    height: 26px !important;
+    border-radius: 6px !important;
+  }
+
+  .globe-ctrl-btn svg {
+    width: 13px !important;
+    height: 13px !important;
+  }
+
+  .globe-controls__drag-handle {
+    height: 10px !important;
   }
 
   /* Metrics Grid: 2 columns on phone */
