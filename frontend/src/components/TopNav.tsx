@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Search, X, Sun, Moon, Bell, RefreshCw, Lock } from "lucide-react";
+import { Search, X, Sun, Moon, Bell, RefreshCw, Lock, Menu } from "lucide-react";
 import type { Classification, WorkspaceResponse } from "@/types";
 import type { NavItemKey } from "@/components/Sidebar";
 
@@ -17,6 +17,7 @@ interface TopNavProps {
   onToggleTheme?: () => void;
   onOpenNotifications?: () => void;
   onOpenProfile?: () => void;
+  onToggleSidebar?: () => void;
 }
 
 export default function TopNav({
@@ -30,6 +31,7 @@ export default function TopNav({
   onToggleTheme,
   onOpenNotifications,
   onOpenProfile,
+  onToggleSidebar,
 }: TopNavProps) {
   const [query, setQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
@@ -60,8 +62,19 @@ export default function TopNav({
 
   return (
     <header className="theme-topnav">
-      {/* Left: Subtle divider slash matching theme.jpg */}
+      {/* Left: Mobile hamburger menu & subtle divider slash */}
       <div className="theme-topnav__left">
+        {onToggleSidebar && (
+          <button
+            type="button"
+            className="theme-topnav__mobile-menu-btn"
+            onClick={onToggleSidebar}
+            aria-label="Open navigation menu"
+            title="Navigation Menu"
+          >
+            <Menu size={18} />
+          </button>
+        )}
         <span className="theme-topnav__slash select-none">/</span>
       </div>
 

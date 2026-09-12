@@ -11,6 +11,7 @@ export default function IntroSplashOverlay({ onComplete }: IntroSplashOverlayPro
   const [isFading, setIsFading] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const isDismissingRef = useRef(false);
+  const fallbackTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleKeyDownRef = useRef<((e: KeyboardEvent) => void) | null>(null);
 
@@ -19,6 +20,11 @@ export default function IntroSplashOverlay({ onComplete }: IntroSplashOverlayPro
     if (isDismissingRef.current) return;
     isDismissingRef.current = true;
     setIsFading(true);
+
+    if (fallbackTimerRef.current) {
+      clearTimeout(fallbackTimerRef.current);
+      fallbackTimerRef.current = null;
+    }
 
     // Immediately stop intercepting any key presses across the app
     if (handleKeyDownRef.current) {
@@ -41,22 +47,19 @@ export default function IntroSplashOverlay({ onComplete }: IntroSplashOverlayPro
     }, 600);
   }, [onComplete]);
 
-  // Mount effect: auto-advance after video duration (5.3s) failsafe
+  // Mount effect
   useEffect(() => {
     isDismissingRef.current = false;
     setIsVisible(true);
     setIsFading(false);
 
-    // Guaranteed fallback: video is 5.0s, so at 5.3s it always opens the app
-    const fallbackTimer = setTimeout(() => {
+    // Failsafe timer: only after 10s if video is completely stuck or blocked
+    fallbackTimerRef.current = setTimeout(() => {
       dismiss();
-    }, 5300);
+    }, 10000);
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // If already dismissing or hidden, never process or prevent events
       if (isDismissingRef.current) return;
-
-      // Never intercept keystrokes if the user is typing in any input, textarea, or contentEditable
       const target = e.target as HTMLElement | null;
       if (
         target &&
@@ -95,7 +98,9 @@ export default function IntroSplashOverlay({ onComplete }: IntroSplashOverlayPro
     window.addEventListener("solen:replay-intro", handleReplay);
 
     return () => {
-      clearTimeout(fallbackTimer);
+      if (fallbackTimerRef.current) {
+        clearTimeout(fallbackTimerRef.current);
+      }
       if (handleKeyDownRef.current) {
         window.removeEventListener("keydown", handleKeyDownRef.current);
         handleKeyDownRef.current = null;
@@ -104,9 +109,22 @@ export default function IntroSplashOverlay({ onComplete }: IntroSplashOverlayPro
     };
   }, [dismiss]);
 
+  const handleVideoPlaying = () => {
+    // Video has actively started playing frames! Set timer to dismiss at end of video + small buffer
+    if (fallbackTimerRef.current) {
+      clearTimeout(fallbackTimerRef.current);
+    }
+    const durationSec = videoRef.current?.duration || 5.2;
+    fallbackTimerRef.current = setTimeout(() => {
+      dismiss();
+    }, (durationSec + 0.3) * 1000);
+  };
+
   const handleVideoLoaded = () => {
     if (videoRef.current) {
-      videoRef.current.play().catch(() => {});
+      videoRef.current.play().catch(() => {
+        // Autoplay may be blocked by user gesture policy on mobile
+      });
     }
   };
 
@@ -120,6 +138,19 @@ export default function IntroSplashOverlay({ onComplete }: IntroSplashOverlayPro
       tabIndex={0}
       aria-label="SOLEN Opening Logo Video (Click or press any key to enter)"
     >
+      {/* Skip button for mobile / immediate access */}
+      <button
+        type="button"
+        className="solen-intro-splash__skip-btn"
+        onClick={(e) => {
+          e.stopPropagation();
+          dismiss();
+        }}
+        aria-label="Skip intro video"
+      >
+        Skip Intro →
+      </button>
+
       <video
         ref={videoRef}
         className="solen-intro-splash__video"
@@ -128,8 +159,8 @@ export default function IntroSplashOverlay({ onComplete }: IntroSplashOverlayPro
         muted
         preload="auto"
         onLoadedData={handleVideoLoaded}
+        onPlaying={handleVideoPlaying}
         onEnded={dismiss}
-        onError={dismiss}
       >
         <source src="/videos/solen_intro_logo_optimized.mp4" type="video/mp4" />
         <source src="/videos/solen_intro_logo.mp4" type="video/mp4" />

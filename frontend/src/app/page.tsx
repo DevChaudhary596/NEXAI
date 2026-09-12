@@ -97,6 +97,7 @@ export default function Home() {
 
   // Active navigation & section tabs
   const [activeTab, setActiveTab] = useState<NavItemKey>("dashboard");
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"3d" | "2d">("3d");
   const [isGlobeFullScreen, setIsGlobeFullScreen] = useState(false);
 
@@ -526,8 +527,13 @@ export default function Home() {
 
       {/* Main Workspace Layout */}
       <div className="theme-dashboard-body">
-        {/* Column 1: Left Navigation Sidebar */}
-        <Sidebar activeTab={activeTab} onTabChange={handleTabChange} />
+        {/* Column 1: Left Navigation Sidebar (Desktop column / Mobile drawer) */}
+        <Sidebar
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          isOpen={isMobileSidebarOpen}
+          onClose={() => setIsMobileSidebarOpen(false)}
+        />
 
         {/* Main Content Area (Unified TopNav + Columns Grid) */}
         <div className="theme-main-area">
@@ -536,6 +542,7 @@ export default function Home() {
             onSearchSubmit={handleGlobalSearch}
             activeTab={activeTab}
             onTabChange={handleTabChange}
+            onToggleSidebar={() => setIsMobileSidebarOpen((prev) => !prev)}
             workspaces={workspaces}
             activeWorkspaceId={activeWorkspaceId}
             onWorkspaceSelect={selectWorkspace}

@@ -14,6 +14,7 @@ import {
   FileText,
   UploadCloud,
   Lock,
+  X,
 } from "lucide-react";
 
 export type NavItemKey =
@@ -30,6 +31,8 @@ export type NavItemKey =
 interface SidebarProps {
   activeTab: NavItemKey;
   onTabChange: (tab: NavItemKey) => void;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 const NAV_ITEMS: {
@@ -49,30 +52,64 @@ const NAV_ITEMS: {
   { key: "reports", label: "Reports", icon: FileText, locked: true },
 ];
 
-export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
+export default function Sidebar({
+  activeTab,
+  onTabChange,
+  isOpen = false,
+  onClose,
+}: SidebarProps) {
+  const handleSelect = (key: NavItemKey) => {
+    onTabChange(key);
+    onClose?.();
+  };
+
   return (
-    <aside className="native-sidebar">
-      {/* ── Top Ivory Container ─────────────────────────────────── */}
-      <div className="native-sidebar__ivory-box">
-        {/* Brand Header */}
-        <button
-          type="button"
-          onClick={() => {
-            if (activeTab === "dashboard") {
-              window.dispatchEvent(new CustomEvent("solen:replay-intro"));
-            } else {
-              onTabChange("dashboard");
-            }
-          }}
-          className="native-sidebar__brand-btn"
-          title="SOLEN — Click to switch to Dashboard or replay startup intro"
-        >
-          <div className="native-sidebar__logo-icon"><SolenLogo variant="icon" decorative /></div>
-          <div className="native-sidebar__brand-meta">
-            <span className="native-sidebar__brand-title">SOLEN</span>
-            <span className="native-sidebar__brand-sub">SEE A CLEARER TOMORROW</span>
+    <>
+      {/* Mobile Drawer Backdrop */}
+      {isOpen && (
+        <div
+          className="native-sidebar-backdrop"
+          onClick={onClose}
+          aria-label="Close navigation sidebar"
+        />
+      )}
+
+      <aside className={`native-sidebar ${isOpen ? "native-sidebar--open" : ""}`}>
+        {/* ── Top Ivory Container ─────────────────────────────────── */}
+        <div className="native-sidebar__ivory-box">
+          {/* Brand Header */}
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (activeTab === "dashboard") {
+                  window.dispatchEvent(new CustomEvent("solen:replay-intro"));
+                } else {
+                  handleSelect("dashboard");
+                }
+              }}
+              className="native-sidebar__brand-btn flex-1 min-w-0"
+              title="SOLEN — Click to switch to Dashboard or replay startup intro"
+            >
+              <div className="native-sidebar__logo-icon"><SolenLogo variant="icon" decorative /></div>
+              <div className="native-sidebar__brand-meta">
+                <span className="native-sidebar__brand-title">SOLEN</span>
+                <span className="native-sidebar__brand-sub">SEE A CLEARER TOMORROW</span>
+              </div>
+            </button>
+
+            {/* Mobile Close Button */}
+            {onClose && (
+              <button
+                type="button"
+                className="native-sidebar__close-btn"
+                onClick={onClose}
+                aria-label="Close menu"
+              >
+                <X size={18} />
+              </button>
+            )}
           </div>
-        </button>
 
         {/* Navigation Items List */}
         <nav className="native-sidebar__nav">
@@ -82,7 +119,7 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
               <button
                 key={key}
                 type="button"
-                onClick={() => onTabChange(key)}
+                onClick={() => handleSelect(key)}
                 className={`native-sidebar__nav-item ${
                   isActive ? "native-sidebar__nav-item--active" : ""
                 } ${locked ? "native-sidebar__nav-item--locked" : ""}`}
@@ -122,5 +159,6 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
         </div>
       </div>
     </aside>
+    </>
   );
 }

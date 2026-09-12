@@ -9964,4 +9964,239 @@ textarea:focus-visible,
   color: #ffffff;
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   SOLEN MOBILE & TABLET RESPONSIVE SUITE (iOS, Android, Mobile Viewports)
+   ══════════════════════════════════════════════════════════════════════ */
+
+.native-sidebar__close-btn {
+  display: none;
+}
+
+.theme-topnav__mobile-menu-btn {
+  display: none;
+}
+
+/* Intro Splash Video Mobile Optimizations */
+.solen-intro-splash__video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain !important;
+  background: #000000;
+  display: block;
+}
+
+.solen-intro-splash__skip-btn {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  color: #ffffff;
+  padding: 8px 16px;
+  border-radius: 9999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.solen-intro-splash__skip-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: translateY(-1px);
+}
+
+/* ── Breakpoint: Tablet & Mobile (< 1024px) ────────────────────────── */
+@media (max-width: 1024px) {
+  .theme-dashboard-body {
+    flex-direction: column !important;
+    padding: 8px 10px !important;
+    gap: 12px !important;
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
+  }
+
+  .theme-main-area {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .theme-columns-grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+  }
+
+  /* Slide-over Mobile Drawer for Sidebar */
+  .native-sidebar {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    width: 290px !important;
+    max-width: 84vw !important;
+    z-index: 100000 !important;
+    transform: translateX(-105%) !important;
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    box-shadow: 14px 0 45px rgba(0, 0, 0, 0.75) !important;
+    overflow-y: auto !important;
+    background: #ece7de !important;
+    padding: 16px 12px !important;
+    border-radius: 0 24px 24px 0 !important;
+  }
+
+  .native-sidebar.native-sidebar--open {
+    transform: translateX(0) !important;
+  }
+
+  .native-sidebar-backdrop {
+    position: fixed !important;
+    inset: 0 !important;
+    background: rgba(0, 0, 0, 0.65) !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+    z-index: 99999 !important;
+  }
+
+  .native-sidebar__close-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 9999px !important;
+    background: rgba(0, 0, 0, 0.08) !important;
+    border: none !important;
+    color: #1e293b !important;
+    cursor: pointer !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* TopNav Mobile Hamburger Menu */
+  .theme-topnav__mobile-menu-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 38px !important;
+    height: 38px !important;
+    border-radius: 12px !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+    color: #ffffff !important;
+    cursor: pointer !important;
+    flex-shrink: 0 !important;
+    margin-right: 6px !important;
+  }
+
+  .theme-topnav {
+    padding: 6px 10px !important;
+    gap: 8px !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .theme-topnav__links {
+    gap: 4px !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+  }
+
+  .theme-topnav__links::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .theme-topnav__link {
+    font-size: 0.72rem !important;
+    padding: 6px 10px !important;
+    white-space: nowrap !important;
+  }
+}
+
+/* ── Breakpoint: Phone Screen (< 768px) ────────────────────────────── */
+@media (max-width: 768px) {
+  .theme-hero-card {
+    height: 350px !important;
+    border-radius: 16px !important;
+  }
+
+  /* Globe HUD overlays */
+  .globe-hud__hero {
+    top: 10px !important;
+    left: 10px !important;
+    max-width: calc(100% - 20px) !important;
+  }
+
+  .globe-hud__title {
+    font-size: 1.18rem !important;
+    line-height: 1.2 !important;
+  }
+
+  .globe-hud__subtitle {
+    display: none !important;
+  }
+
+  .globe-hud__feed-card {
+    bottom: 10px !important;
+    right: 10px !important;
+    max-width: 160px !important;
+    padding: 6px 8px !important;
+    border-radius: 12px !important;
+  }
+
+  .globe-hud__feed-preview {
+    height: 64px !important;
+  }
+
+  .globe-hud__dock {
+    display: none !important;
+  }
+
+  .globe-hud__telemetry {
+    top: 10px !important;
+    right: 10px !important;
+    font-size: 0.65rem !important;
+    padding: 4px 8px !important;
+  }
+
+  /* Metrics Grid: 2 columns on phone */
+  .theme-metrics-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .theme-metric-card {
+    padding: 8px 10px !important;
+    gap: 8px !important;
+    border-radius: 12px !important;
+  }
+
+  .theme-metric-card__thumb {
+    width: 38px !important;
+    height: 38px !important;
+  }
+
+  .theme-metric-card__value {
+    font-size: 0.98rem !important;
+  }
+
+  .theme-metric-card__label {
+    font-size: 0.62rem !important;
+  }
+}
+
+/* ── Breakpoint: Extra-Compact Phone (< 440px) ─────────────────────── */
+@media (max-width: 440px) {
+  .theme-metrics-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .theme-hero-card {
+    height: 310px !important;
+  }
+}
+
+
 
