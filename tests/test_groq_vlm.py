@@ -22,6 +22,7 @@ def test_ai_status_endpoint():
 
 
 def test_groq_vlm_initialization():
+    os.environ["SATQUERY_VLM_BACKEND"] = "groq"
     os.environ["GROQ_API_KEY"] = "gsk_dummy_test_key_abc123"
     get_settings.cache_clear()
     reset_vlm()
@@ -33,12 +34,14 @@ def test_groq_vlm_initialization():
     assert vlm.text_model in ("llama-3.3-70b-versatile", "qwen/qwen3.8-27b", "openai/gpt-oss-120b", "llama-3.1-8b-instant")
 
     # Clean up
+    os.environ["SATQUERY_VLM_BACKEND"] = "mock"
     os.environ.pop("GROQ_API_KEY", None)
     get_settings.cache_clear()
     reset_vlm()
 
 
 def test_groq_vlm_answer_mocked():
+    os.environ["SATQUERY_VLM_BACKEND"] = "groq"
     os.environ["GROQ_API_KEY"] = "gsk_dummy_test_key_abc123"
     get_settings.cache_clear()
     reset_vlm()
@@ -67,6 +70,7 @@ def test_groq_vlm_answer_mocked():
         assert "5 instance(s) of 'plane'" in user_msg["content"]
 
     # Clean up
+    os.environ["SATQUERY_VLM_BACKEND"] = "mock"
     os.environ.pop("GROQ_API_KEY", None)
     get_settings.cache_clear()
     reset_vlm()

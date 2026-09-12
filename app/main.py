@@ -1,4 +1,4 @@
-"""SatQuery AI — FastAPI application entry point. M5 owns this file.
+"""SOLEN AI — FastAPI application entry point. M5 owns this file.
 
 Wires together:
   - M1's VLM lifespan warm-up
@@ -60,7 +60,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(
-    title="SatQuery AI",
+    title="SOLEN AI",
     lifespan=lifespan,
     version=CONTRACT_VERSION,
     description="Vision-language assistant for remote sensing (SIH26167).",
