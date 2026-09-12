@@ -3192,7 +3192,13 @@ input[type="range"]::-moz-range-thumb {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.65), 0 0 1px rgba(255, 255, 255, 0.2);
   pointer-events: auto;
   user-select: none;
+  max-height: calc(100% - 24px);
+  overflow-y: auto;
+  scrollbar-width: none;
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.globe-controls::-webkit-scrollbar {
+  display: none;
 }
 
 /* Positioned cleanly at the bottom right corner */
@@ -10467,29 +10473,49 @@ textarea:focus-visible,
     padding: 7px 12px !important;
   }
 
-  /* Lowered & compact draw / zoom toolbar on mobile */
+  /* Mobile: 2-column compact toolbar dock that NEVER overflows the card */
   .globe-controls {
+    display: grid !important;
+    grid-template-columns: repeat(2, 28px) !important;
+    gap: 3px !important;
+    padding: 4px !important;
     bottom: 8px !important;
     right: 8px !important;
-    padding: 3px !important;
-    gap: 2px !important;
+    width: auto !important;
+    max-height: calc(100% - 16px) !important;
     border-radius: 10px !important;
     z-index: 70 !important;
   }
 
+  .globe-controls__drag-handle {
+    grid-column: span 2 !important;
+    height: 8px !important;
+  }
+
+  .globe-ctrl-divider {
+    display: none !important;
+  }
+
   .globe-ctrl-btn {
-    width: 26px !important;
-    height: 26px !important;
+    width: 28px !important;
+    height: 28px !important;
     border-radius: 6px !important;
   }
 
   .globe-ctrl-btn svg {
-    width: 13px !important;
-    height: 13px !important;
+    width: 14px !important;
+    height: 14px !important;
   }
 
-  .globe-controls__drag-handle {
-    height: 10px !important;
+  .globe-ctrl-btn--fullscreen {
+    grid-column: span 2 !important;
+    width: 100% !important;
+  }
+
+  .globe-basemap-menu {
+    right: calc(100% + 6px) !important;
+    bottom: 0 !important;
+    max-width: 200px !important;
   }
 
   /* Metrics Grid: 2 columns on phone */

@@ -332,11 +332,12 @@ export default function Cesium3DView({
     const parent = controlsElem?.parentElement;
     const parentWidth = parent ? parent.clientWidth : window.innerWidth;
     const parentHeight = parent ? parent.clientHeight : window.innerHeight;
-    const width = controlsElem ? controlsElem.offsetWidth : 44;
-    const height = controlsElem ? controlsElem.offsetHeight : 320;
-
-    const newX = Math.max(10, Math.min(parentWidth - width - 10, controlsDragStartPos.current.x + dx));
-    const newY = Math.max(10, Math.min(parentHeight - height - 10, controlsDragStartPos.current.y + dy));
+    const width = controlsElem ? controlsElem.offsetWidth : 68;
+    const height = controlsElem ? controlsElem.offsetHeight : 160;
+    const maxAllowedX = Math.max(10, parentWidth - width - 10);
+    const maxAllowedY = Math.max(10, parentHeight - height - 10);
+    const newX = Math.max(10, Math.min(maxAllowedX, controlsDragStartPos.current.x + dx));
+    const newY = Math.max(10, Math.min(maxAllowedY, controlsDragStartPos.current.y + dy));
 
     setControlsPos({ x: newX, y: newY });
   }, []);
@@ -1579,7 +1580,7 @@ export default function Cesium3DView({
             <button
               type="button"
               onClick={onToggleFullScreen}
-              className={`globe-ctrl-btn ${isFullScreen ? "globe-ctrl-btn--active" : ""}`}
+              className={`globe-ctrl-btn globe-ctrl-btn--fullscreen ${isFullScreen ? "globe-ctrl-btn--active" : ""}`}
               title={isFullScreen ? "Exit Full Screen (Esc)" : "Expand Globe to Full Screen"}
             >
               {isFullScreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
